@@ -1,0 +1,26 @@
+
+li.area {
+	color: red;
+	list-style-type: none;
+}
+li.project {
+	color: blue;
+	list-style-type: none;
+}
+li.action {
+	color: green;
+	list-style-type: none;
+}
+
+input[type="checkbox"] {
+	display:none;
+}
+
+li a.add {
+	visibility: hidden;
+	border: none;
+}
+
+li:hover a.add {
+	visibility: visible;
+}

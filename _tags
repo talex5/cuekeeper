@@ -1,0 +1,2 @@
+true: strict_sequence, bin_annot
+not <main.*> and not <static1.*>: warn(A)

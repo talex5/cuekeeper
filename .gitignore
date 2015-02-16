@@ -1,0 +1,9 @@
+_build
+*.native
+db
+main.ml
+mir-cuekeeper
+cuekeeper_libvirt.xml
+static1.*
+log
+Makefile
