@@ -2,8 +2,9 @@
  * See the README file for details. *)
 
 open Sexplib.Std
-open Ck_utils
 open Lwt
+
+open Ck_utils
 
 type uuid = string with sexp
 
@@ -11,32 +12,34 @@ let root_id : uuid = ""
 
 let mint_uuid () = Uuidm.(create `V4 |> to_string)
 
-type action_details = {
-  astate : [ `Next | `Waiting | `Future ]
-} with sexp
+module Types = struct
+  type action_details = {
+    astate : [ `Next | `Waiting | `Future ]
+  } with sexp
 
-type project_details = {
-  pstate : [ `Active | `SomedayMaybe ]
-} with sexp
+  type project_details = {
+    pstate : [ `Active | `SomedayMaybe ]
+  } with sexp
 
-type action = [`Action of action_details]
-type project = [`Project of project_details]
-type area = [`Area]
+  type action = [`Action of action_details]
+  type project = [`Project of project_details]
+  type area = [`Area]
 
-type 'a node = {
-  parent : uuid;
-  name : string;
-  description : string;
-  details : 'a;
-} with sexp
+  type 'a node = {
+    parent : uuid;
+    name : string;
+    description : string;
+    details : 'a;
+  } with sexp
 
-type general_node =
-  [ `Action of action_details
-  | `Project of project_details
-  | `Area ] node
-  with sexp
+  type general_node =
+    [ `Action of action_details
+    | `Project of project_details
+    | `Area ] node
+    with sexp
+end
 
-let root_node = {
+let root_node = { Types.
   parent = root_id;
   name = "/";
   description = "Root area";
@@ -57,6 +60,8 @@ module Children = struct
 end
 
 module Raw(I : Irmin.BASIC with type key = string list and type value = string) = struct
+  open Types
+
   type t = {
     store : string -> I.t;
     nodes : (uuid, general_node) Hashtbl.t;
@@ -105,6 +110,7 @@ end
 
 module Make(I : Irmin.BASIC with type key = string list and type value = string) = struct
   module R = Raw(I)
+  include Types
 
   type t = R.t
 

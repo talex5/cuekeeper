@@ -1,6 +1,8 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
+module Make (M : Ck_sigs.MODEL) = struct
+
 let ul = function
   | [] -> []
   | items ->
@@ -17,7 +19,7 @@ let mint =
     string_of_int !i
 
 let add node =
-  let key = Ck_irmin_model.name node in
+  let key = M.name node in
   let drop = "drop-" ^ mint () in
   <:html<
     <a class='add' data-dropdown=$str:drop$ aria-controls=$str:drop$ aria-expanded="false">+action</a>
@@ -42,32 +44,32 @@ let add node =
   >>
 
 let render_action node = <:html<
-  <li class='action'>$str:Ck_irmin_model.name node$</li>
+  <li class='action'>$str:M.name node$</li>
 >>
 
 let rec render_project node = <:html<
-  <li class='project'>$str:Ck_irmin_model.name node$ $add node$</li>
+  <li class='project'>$str:M.name node$ $add node$</li>
   $ ul (List.concat [
-    Ck_irmin_model.actions node |>  List.map render_action;
-    Ck_irmin_model.projects node |> List.map render_project;
+    M.actions node |>  List.map render_action;
+    M.projects node |> List.map render_project;
   ]) $
 >>
 
 let rec render_area node = <:html<
-  <li class='area'>$str:Ck_irmin_model.name node$ $add node$</li>
+  <li class='area'>$str:M.name node$ $add node$</li>
   $render_subareas node$
 >>
 and render_subareas node = ul (List.concat [
-  Ck_irmin_model.actions node  |> List.map render_action;
-  Ck_irmin_model.projects node |> List.map render_project;
-  Ck_irmin_model.areas node    |> List.map render_area;
+  M.actions node  |> List.map render_action;
+  M.projects node |> List.map render_project;
+  M.areas node    |> List.map render_area;
 ])
 
 let all_areas_and_projects m =
-  Ck_irmin_model.all_areas_and_projects m
+  M.all_areas_and_projects m
   |> List.map (fun node ->
-    let path = Ck_irmin_model.full_name node in
-    let uuid = Ck_irmin_model.uuid node in
+    let path = M.full_name node in
+    let uuid = M.uuid node in
     <:html< <option value=$str:uuid$>$str:path$</option>&>>
   )
 
@@ -105,7 +107,7 @@ let render_new_action m = <:html<
 >>
 
 let render_main m =
-  let root = Ck_irmin_model.root m in <:html<
+  let root = M.root m in <:html<
   <html class="no-js" lang="en">
     <head>
       <meta charset="utf-8" />
@@ -143,3 +145,5 @@ let render_main m =
     </body>
   </html>
 >>
+
+end

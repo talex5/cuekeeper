@@ -26,9 +26,11 @@ let string_of_html doc =
 module Main (C : V1_LWT.CONSOLE) (H : Cohttp_lwt.Server) (R : V1_LWT.KV_RO) = struct
   let unsupported_method = H.respond_error ~status:`Bad_request ~body:"Method not supported\n" ()
 
+  module Template = Ck_template.Make(Ck_irmin_model)
+
   let handle_main m _request =
     let body =
-      Ck_template.render_main m
+      Template.render_main m
       |> string_of_html in
     H.respond_string ~status:`OK ~body ()
 
