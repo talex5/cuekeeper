@@ -1,2 +1,3 @@
-true: strict_sequence, bin_annot
-not <main.*> and not <static1.*>: warn(A)
+true: strict_sequence, bin_annot, warn(A-4-44)
+true: package(lwt.syntax,cow.syntax,irmin,lwt,sexplib.syntax,uuidm,irmin.mem,js_of_ocaml.syntax,js_of_ocaml,js_of_ocaml.tyxml,cow)
+true: syntax(camlp4o)

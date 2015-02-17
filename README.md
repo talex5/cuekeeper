@@ -3,6 +3,21 @@ cue-keeper
 
 Copyright Thomas Leonard, 2015
 
+* Note: this project doesn't do anything yet *
+
+Installation
+------------
+
+Install the dependencies:
+
+    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml
+
+Build:
+
+    make
+
+Load `test.html` in a browser to test.
+
 
 Conditions
 ----------

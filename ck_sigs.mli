@@ -24,7 +24,7 @@ module type MODEL = sig
   val projects : [< area | project] full_node -> [project] full_node list
   val areas : [area] full_node -> [area] full_node list
 
-  val add_action : t -> parent:string -> name:string -> description:string -> unit Lwt.t
-  val add_project : t -> parent:string -> name:string -> description:string -> unit Lwt.t
-  val add_area : t -> parent:string -> name:string -> description:string -> unit Lwt.t
+  val add_action : t -> parent:[< project | area] full_node -> name:string -> description:string -> [action] full_node Lwt.t
+  val add_project : t -> parent:[< project | area] full_node -> name:string -> description:string -> [project] full_node Lwt.t
+  val add_area : t -> parent:[area] full_node -> name:string -> description:string -> [area] full_node Lwt.t
 end

@@ -41,22 +41,37 @@ end
 
 let root_node = { Types.
   parent = root_id;
-  name = "/";
+  name = "All";
   description = "Root area";
   details = `Area;
 }
 
+module NodeOrd = struct
+  type t = string * uuid  (* Sort by name (using UUID only if identical) *)
+
+  let compare (an, au) (bn, bu) =
+    match String.compare an bn with
+    | 0 -> compare au bu
+    | r -> r
+end
+
+module NodeSet = struct
+  include Set.Make(NodeOrd)
+  let iter fn t =
+    t |> iter (fun (_name, uuid) -> fn uuid)
+end
+
 module Children = struct
-  type t = (uuid, StringSet.t) Hashtbl.t
+  type t = (uuid, NodeSet.t) Hashtbl.t
 
   let make () = Hashtbl.create 100
 
   let children t parent =
     try Hashtbl.find t parent
-    with Not_found -> StringSet.empty
+    with Not_found -> NodeSet.empty
 
   let add t parent child =
-    Hashtbl.replace t parent (children t parent |> StringSet.add child)
+    Hashtbl.replace t parent (children t parent |> NodeSet.add child)
 end
 
 module Raw(I : Irmin.BASIC with type key = string list and type value = string) = struct
@@ -81,13 +96,15 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
           Hashtbl.add nodes uuid node;
           let old_children =
             try Hashtbl.find children node.parent
-            with Not_found -> StringSet.empty in
-          Hashtbl.replace children node.parent (old_children |> StringSet.add uuid);
+            with Not_found -> NodeSet.empty in
+          Hashtbl.replace children node.parent (old_children |> NodeSet.add (node.name, uuid));
       | _ -> assert false
     ) >|= fun () ->
     children |> Hashtbl.iter (fun parent children ->
-      if not (Hashtbl.mem nodes parent) then
-        error "Parent UUID '%s' of child nodes %s missing!" parent (String.concat ", " (StringSet.elements children))
+      if not (Hashtbl.mem nodes parent) then (
+        let names = NodeSet.elements children |> List.map fst |> String.concat ", " in
+        error "Parent UUID '%s' of child nodes %s missing!" parent names
+      )
     );
     (* todo: reject cycles *)
     {store; nodes; children}
@@ -104,7 +121,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
       error "Parent '%s' does not exist!" node.parent;
     let s = Sexplib.Sexp.to_string (sexp_of_general_node node) in
     I.update (t.store "create") ["db"; uuid] s >|= fun () ->
-    Children.add t.children node.parent uuid;
+    Children.add t.children node.parent (node.name, uuid);
     Hashtbl.add t.nodes uuid node
 end
 
@@ -131,7 +148,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let results = ref [] in
     let rec scan x =
       results := x :: !results;
-      children x |> StringSet.iter (fun child_id ->
+      children x |> NodeSet.iter (fun child_id ->
         let child = R.get t child_id in
         match child with
         | {details = `Area | `Project _; _} as x -> scan {t; id = child_id; raw = x}
@@ -142,7 +159,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let actions parent =
     let results = ref [] in
-    children parent |> StringSet.iter (fun child_id ->
+    children parent |> NodeSet.iter (fun child_id ->
       let child = R.get parent.t child_id in
       match child with
       | {details = `Action _; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
@@ -152,7 +169,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let projects parent =
     let results = ref [] in
-    children parent |> StringSet.iter (fun child_id ->
+    children parent |> NodeSet.iter (fun child_id ->
       let child = R.get parent.t child_id in
       match child with
       | {details = `Project _; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
@@ -162,7 +179,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let areas parent =
     let results = ref [] in
-    children parent |> StringSet.iter (fun child_id ->
+    children parent |> NodeSet.iter (fun child_id ->
       let child = R.get parent.t child_id in
       match child with
       | {details = `Area; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
@@ -196,13 +213,14 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       raw = {
         name;
         description;
-        parent;
+        parent = parent.id;
         details;
       }
     } in
-    create node
+    create node >>= fun () ->
+    return node
 
-  let add_action = add (`Action {astate = `Next})
-  let add_project = add (`Project {pstate = `Active})
-  let add_area = add `Area
+  let add_action t = add (`Action {astate = `Next}) t
+  let add_project t = add (`Project {pstate = `Active}) t
+  let add_area t = add `Area t
 end
