@@ -16,9 +16,8 @@ let start (main:#Dom.node Js.t) =
   M.add_area ~parent:root ~name:"Work" ~description:"" m >>= fun work ->
   M.add_project ~parent:work ~name:"Make CueKeeper" ~description:"" m >>= fun ck ->
   M.add_action ~parent:ck ~name:"Switch to TyXML" ~description:"" m >>= fun _ty ->
-  let body =
-    T.make_tree m in
-  main##appendChild (Tyxml_js.To_dom.of_node body) |> ignore;
+  T.make_top m
+  |> List.iter (fun child -> main##appendChild (Tyxml_js.To_dom.of_node child) |> ignore);
   Lwt_js_events.async (fun () -> Lwt_js_events.click main >>= fun _ev ->
     M.set_name m work "Working" >>= fun () ->
     M.add_project ~parent:work ~name:"Adding events" ~description:"" m >|= fun _ ->
@@ -27,6 +26,6 @@ let start (main:#Dom.node Js.t) =
   return ()
 
 let () =
-  match Dom_html.tagged (Dom_html.getElementById "ck_tree") with
+  match Dom_html.tagged (Dom_html.getElementById "ck_main") with
   | Dom_html.Div d -> Lwt_js_events.async (fun () -> start d)
   | _ -> failwith "Bad tree element"

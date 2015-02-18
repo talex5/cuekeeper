@@ -96,4 +96,35 @@ module Make (M : Ck_sigs.MODEL) = struct
     let root = M.process_tree m in
     ul [make_node_view root]
 
+  let make_mode_switcher current_mode set_current_mode =
+    let open Html5 in
+    let item name mode =
+      let cl = current_mode |> React.S.map (fun m ->
+        if m = mode then ["active"] else []
+      ) in
+      let clicked _ev = set_current_mode mode; true in
+      let button = a ~a:[a_href "#"; a_onclick clicked] [pcdata name] in
+      dd ~a:[R.Html5.a_class cl] [button] in
+
+    dl ~a:[a_class ["sub-nav"]] [
+      item "Process" `Process;
+      item "Work" `Work;
+      item "Review" `Review;
+      item "Contact" `Contact;
+    ]
+
+  let make_top m =
+    let open Html5 in
+    let current_mode, set_current_mode = React.S.create `Process in
+    [
+      make_mode_switcher current_mode set_current_mode;
+      div ~a:[a_class ["row"]] [
+        div ~a:[a_class ["medium-6"; "columns"]] [
+          make_tree m;
+        ];
+        div ~a:[a_class ["medium-6"; "columns"]] [
+          pcdata "Placeholder"
+        ];
+      ]
+    ]
 end
