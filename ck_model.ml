@@ -12,7 +12,7 @@ let root_id : uuid = ""
 
 let mint_uuid () = Uuidm.(create `V4 |> to_string)
 
-module Types = struct
+module Disk_types = struct
   type action_details = {
     astate : [ `Next | `Waiting | `Future ]
   } with sexp
@@ -39,7 +39,7 @@ module Types = struct
     with sexp
 end
 
-let root_node = { Types.
+let root_node = { Disk_types.
   parent = root_id;
   name = "All";
   description = "Root area";
@@ -75,7 +75,7 @@ module Children = struct
 end
 
 module Raw(I : Irmin.BASIC with type key = string list and type value = string) = struct
-  open Types
+  open Disk_types
 
   type t = {
     store : string -> I.t;
@@ -127,15 +127,20 @@ end
 
 module Make(I : Irmin.BASIC with type key = string list and type value = string) = struct
   module R = Raw(I)
-  include Types
 
   type t = R.t
 
   type 'a full_node = {
     t : t;
     id : uuid;
-    raw : 'a node;
+    raw : 'a Disk_types.node;
   }
+
+  type project_details = Disk_types.project_details
+  type action_details = Disk_types.action_details
+  type area = Disk_types.area
+  type project = Disk_types.project
+  type action = Disk_types.action
 
   let children node =
     Children.children node.t.R.children node.id
@@ -151,7 +156,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       children x |> NodeSet.iter (fun child_id ->
         let child = R.get t child_id in
         match child with
-        | {details = `Area | `Project _; _} as x -> scan {t; id = child_id; raw = x}
+        | {Disk_types.details = `Area | `Project _; _} as x -> scan {t; id = child_id; raw = x}
         | _ -> ()
       ) in
     scan (root t);
@@ -162,7 +167,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     children parent |> NodeSet.iter (fun child_id ->
       let child = R.get parent.t child_id in
       match child with
-      | {details = `Action _; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
+      | {Disk_types.details = `Action _; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
       | _ -> ()
     );
     List.rev !results
@@ -172,7 +177,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     children parent |> NodeSet.iter (fun child_id ->
       let child = R.get parent.t child_id in
       match child with
-      | {details = `Project _; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
+      | {Disk_types.details = `Project _; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
       | _ -> ()
     );
     List.rev !results
@@ -182,22 +187,22 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     children parent |> NodeSet.iter (fun child_id ->
       let child = R.get parent.t child_id in
       match child with
-      | {details = `Area; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
+      | {Disk_types.details = `Area; _} as x -> results := {t = parent.t; raw = x; id = child_id} :: !results
       | _ -> ()
     );
     List.rev !results
 
-  let name node = node.raw.name
+  let name node = node.raw.Disk_types.name
 
   let full_name node =
-    if (node.raw :> general_node) == root_node then "(root)"
+    if (node.raw :> Disk_types.general_node) == root_node then "(root)"
     else
       let t = node.t in
       let rec aux node =
-        let p = R.get t node.parent in
-        if p == root_node then [node.name]
-        else node.name :: aux p in
-      aux (node.raw :> general_node)
+        let p = R.get t node.Disk_types.parent in
+        if p == root_node then [node.Disk_types.name]
+        else node.Disk_types.name :: aux p in
+      aux (node.raw :> Disk_types.general_node)
       |> List.rev
       |> String.concat "/"
 
@@ -210,7 +215,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let node = {
       t;
       id = mint_uuid ();
-      raw = {
+      raw = { Disk_types.
         name;
         description;
         parent = parent.id;
@@ -220,7 +225,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     create node >>= fun () ->
     return node
 
-  let add_action t = add (`Action {astate = `Next}) t
-  let add_project t = add (`Project {pstate = `Active}) t
+  let add_action t = add (`Action {Disk_types.astate = `Next}) t
+  let add_project t = add (`Project {Disk_types.pstate = `Active}) t
   let add_area t = add `Area t
 end
