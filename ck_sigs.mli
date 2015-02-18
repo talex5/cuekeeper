@@ -12,12 +12,17 @@ module type MODEL = sig
   type project = [`Project of project_details]
   type area = [`Area]
 
-  val root : t -> [area] full_node
+  type node_view = {
+    node_type : [ `Area | `Project | `Action ] React.S.t;
+    name : string React.S.t;
+    child_views : node_view ReactiveData.RList.t;
+  }
 
-  val all_areas_and_projects : t -> [> area | project] full_node list
+  val root : t -> [area] full_node React.S.t
+
+  val all_areas_and_projects : t -> (string * [> area | project] full_node) list
 
   val name : _ full_node -> string
-  val full_name : [< area | project | action] full_node -> string
   val uuid : _ full_node -> string
 
   val actions : [< area | project] full_node -> [action] full_node list
@@ -27,4 +32,8 @@ module type MODEL = sig
   val add_action : t -> parent:[< project | area] full_node -> name:string -> description:string -> [action] full_node Lwt.t
   val add_project : t -> parent:[< project | area] full_node -> name:string -> description:string -> [project] full_node Lwt.t
   val add_area : t -> parent:[area] full_node -> name:string -> description:string -> [area] full_node Lwt.t
+
+  val set_name : t -> [< area | action | project] full_node -> string -> unit Lwt.t
+
+  val process_tree : t -> node_view
 end

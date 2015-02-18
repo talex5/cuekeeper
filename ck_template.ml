@@ -3,10 +3,6 @@
 
 open Tyxml_js
 
-let maybe_ul = function
-  | [] -> Html5.pcdata ""
-  | items -> Html5.ul items
-
 module Make (M : Ck_sigs.MODEL) = struct
 
   (*
@@ -42,37 +38,22 @@ module Make (M : Ck_sigs.MODEL) = struct
     >>
   *)
 
-  let make_action node =
-    let open Html5 in
-    li ~a:[a_class ["action"]] [
-      pcdata (M.name node);
-    ]
+  let class_of_node_type = function
+    | `Area -> ["area"]
+    | `Project -> ["project"]
+    | `Action -> ["action"]
 
-  let rec make_project node =
+  let rec make_node_view (node:M.node_view) : _ Html5.elt =
     let open Html5 in
-    li ~a:[a_class ["project"]] [
-      pcdata (M.name node);
-      maybe_ul (List.concat [
-        M.actions node  |> List.map make_action;
-        M.projects node |> List.map make_project;
-      ])
-    ]
-
-  let rec make_area node : _ Html5.elt =
-    let open Html5 in
-    li ~a:[a_class ["area"]] [
-      pcdata (M.name node);
-      maybe_ul (List.concat [
-        M.actions node  |> List.map make_action;
-        M.projects node |> List.map make_project;
-        M.areas node    |> List.map make_area;
-      ])
+    let children = node.M.child_views |> ReactiveData.RList.map make_node_view in
+    li ~a:[R.Html5.a_class (React.S.map class_of_node_type node.M.node_type)] [
+      R.Html5.pcdata node.M.name;
+      R.Html5.ul children;
     ]
 
   let all_areas_and_projects m =
     M.all_areas_and_projects m
-    |> List.map (fun node ->
-      let path = M.full_name node in
+    |> List.map (fun (path, node) ->
       let uuid = M.uuid node in
       <:html< <option value=$str:uuid$>$str:path$</option>&>>
     )
@@ -112,7 +93,7 @@ module Make (M : Ck_sigs.MODEL) = struct
 
   let make_tree m =
     let open Html5 in
-    let root = M.root m in
-    ul [make_area root]
+    let root = M.process_tree m in
+    ul [make_node_view root]
 
 end
