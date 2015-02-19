@@ -47,7 +47,7 @@ module Make (M : Ck_sigs.MODEL) = struct
     let open Html5 in
     let children = node.M.child_views |> ReactiveData.RList.map make_node_view in
     li ~a:[R.Html5.a_class (React.S.map class_of_node_type node.M.node_type)] [
-      R.Html5.pcdata node.M.name;
+      Html5.a ~a:[a_href "#"] [R.Html5.pcdata node.M.name];
       R.Html5.ul children;
     ]
 

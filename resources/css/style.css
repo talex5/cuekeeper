@@ -1,26 +1,22 @@
+li.area	   { list-style-type: none; }
+li.project { list-style-type: none; }
+li.action  { list-style-type: none; }
 
-li.area {
+li.area a {
 	color: red;
-	list-style-type: none;
 }
-li.project {
+li.project a {
 	color: blue;
-	list-style-type: none;
 }
-li.action {
+li.action a {
 	color: green;
-	list-style-type: none;
 }
 
-input[type="checkbox"] {
-	display:none;
-}
-
-li a.add {
+li a a.add {
 	visibility: hidden;
 	border: none;
 }
 
-li:hover a.add {
+li:hover a a.add {
 	visibility: visible;
 }
