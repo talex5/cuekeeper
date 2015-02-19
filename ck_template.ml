@@ -3,6 +3,14 @@
 
 open Tyxml_js
 
+(* Get the index of an item in an assoc list. *)
+let index_of key items =
+  let rec aux i = function
+    | [] -> None
+    | (k, _v) :: _ when k = key -> Some i
+    | _ :: xs -> aux (i + 1) xs in
+  aux 0 items
+
 module Make (M : Ck_sigs.MODEL) = struct
 
   (*
@@ -43,16 +51,17 @@ module Make (M : Ck_sigs.MODEL) = struct
     | `Project -> ["project"]
     | `Action -> ["action"]
 
-  let rec make_node_view (node:M.node_view) : _ Html5.elt =
+  let rec make_node_view ~show_node (node:M.node_view) : _ Html5.elt =
     let open Html5 in
-    let children = node.M.child_views |> ReactiveData.RList.map make_node_view in
+    let children = node.M.child_views |> ReactiveData.RList.map (make_node_view ~show_node) in
+    let clicked _ev = show_node node.M.uuid in
     li ~a:[R.Html5.a_class (React.S.map class_of_node_type node.M.node_type)] [
-      Html5.a ~a:[a_href "#"] [R.Html5.pcdata node.M.name];
+      Html5.a ~a:[a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
       R.Html5.ul children;
     ]
 
-  let make_work_view actions =
-    let children = actions |> ReactiveData.RList.map make_node_view in
+  let make_work_view ~show_node actions =
+    let children = actions |> ReactiveData.RList.map (make_node_view ~show_node) in
     let open Html5 in [
       h4 [pcdata "Actions"];
       R.Html5.ul children;
@@ -98,15 +107,15 @@ module Make (M : Ck_sigs.MODEL) = struct
     </form>
   >>
 
-  let make_tree current_mode m =
+  let make_tree ~show_node current_mode m =
     let open Html5 in
     let tab mode contents =
       let cl = current_mode |> React.S.map (fun m ->
         if m = mode then ["content"; "active"] else ["content"]
       ) in
       div ~a:[R.Html5.a_class cl] contents in
-    let process = M.process_tree m |> make_node_view in
-    let work = M.work_tree m |> make_work_view in
+    let process = M.process_tree m |> make_node_view ~show_node in
+    let work = M.work_tree m |> make_work_view ~show_node in
     div ~a:[a_class ["tabs-content"]] [
       tab `Process [ul [process]];
       tab `Work work;
@@ -129,18 +138,33 @@ module Make (M : Ck_sigs.MODEL) = struct
       item "Contact" `Contact;
     ]
 
+  let make_details_panel item =
+    let open Html5 in
+    div ~a:[a_class ["panel"]] [
+      h4 [R.Html5.pcdata item.M.details_name];
+    ]
+
   let make_top m =
     let open Html5 in
+    let details_pane, details_handle = ReactiveData.RList.make [] in
+    let show_node uuid =
+      let current_items = ReactiveData.RList.value details_pane in
+      begin match index_of uuid current_items with
+      | None ->
+          let details = M.details m uuid in
+          ReactiveData.RList.insert (uuid, make_details_panel details) 0 details_handle;
+      | Some i-> ReactiveData.RList.remove i details_handle end;
+      true in
     let current_mode, set_current_mode = React.S.create `Process in
     [
       make_mode_switcher current_mode set_current_mode;
       div ~a:[a_class ["row"]] [
         div ~a:[a_class ["medium-6"; "columns"]] [
-          make_tree current_mode m;
+          make_tree ~show_node current_mode m;
         ];
-        div ~a:[a_class ["medium-6"; "columns"]] [
-          pcdata "Placeholder"
-        ];
+        R.Html5.div ~a:[a_class ["medium-6"; "columns"]] (
+          ReactiveData.RList.map snd details_pane
+        );
       ]
     ]
 end

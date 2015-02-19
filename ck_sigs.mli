@@ -1,6 +1,8 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
+type uuid = string
+
 module type MODEL = sig
   type t
   type 'a full_node
@@ -13,9 +15,15 @@ module type MODEL = sig
   type area = [`Area]
 
   type node_view = {
+    uuid : uuid;
     node_type : [ `Area | `Project | `Action ] React.S.t;
     name : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
+  }
+
+  type details = {
+    details_type : [ `Area | `Project | `Action ] React.S.t;
+    details_name : string React.S.t;
   }
 
   val root : t -> [area] full_node React.S.t
@@ -37,4 +45,5 @@ module type MODEL = sig
 
   val process_tree : t -> node_view
   val work_tree : t -> node_view ReactiveData.RList.t
+  val details : t -> uuid -> details
 end

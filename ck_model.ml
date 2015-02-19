@@ -158,9 +158,15 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   type action = Disk_types.action
 
   type node_view = {
+    uuid : uuid;
     node_type : [ `Area | `Project | `Action ] React.S.t;
     name : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
+  }
+
+  type details = {
+    details_type : [ `Area | `Project | `Action ] React.S.t;
+    details_name : string React.S.t;
   }
 
   let make store =
@@ -268,6 +274,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
         rlist_of_nodes ~init:initial_node.R.child_nodes child_nodes
         |> ReactiveData.RList.map (fun node -> view (node.R.uuid)) in
       {
+        uuid = initial_node.R.uuid;
         node_type = node |> React.S.map node_type;
         name = node |> React.S.map (fun node -> node.R.disk_node.Disk_types.name);
         child_views;
@@ -286,6 +293,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     !results
 
   let render_action node = {
+    uuid = node.R.uuid;
     node_type = React.S.const `Action;
     name = React.S.const node.R.disk_node.Disk_types.name;    (* Signal? *)
     child_views = ReactiveData.RList.empty;
@@ -297,4 +305,11 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     |> React.S.map collect_actions
     |> rlist_of_nodes ~init
     |> ReactiveData.RList.map render_action
+
+  let details t uuid =
+    let node = t.current |> React.S.map (fun r -> R.get r uuid) in
+    {
+      details_type = node |> React.S.map node_type;
+      details_name = node |> React.S.map (fun n -> n.R.disk_node.Disk_types.name);
+    }
 end
