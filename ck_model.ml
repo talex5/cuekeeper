@@ -273,4 +273,28 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
         child_views;
       } in
     view root_id
+
+  let collect_actions r =
+    let results = ref [] in
+    let rec scan = function
+      | {R.disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x ->
+          results := actions x @ !results;
+          x.R.child_nodes |> List.iter scan
+      | {R.disk_node = {Disk_types.details = `Action _; _}; _} -> ()
+    in
+    scan r.R.root;
+    !results
+
+  let render_action node = {
+    node_type = React.S.const `Action;
+    name = React.S.const node.R.disk_node.Disk_types.name;    (* Signal? *)
+    child_views = ReactiveData.RList.empty;
+  }
+
+  let work_tree t =
+    let init = collect_actions (React.S.value t.current) in
+    t.current
+    |> React.S.map collect_actions
+    |> rlist_of_nodes ~init
+    |> ReactiveData.RList.map render_action
 end

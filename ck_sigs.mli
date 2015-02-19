@@ -36,4 +36,5 @@ module type MODEL = sig
   val set_name : t -> [< area | action | project] full_node -> string -> unit Lwt.t
 
   val process_tree : t -> node_view
+  val work_tree : t -> node_view ReactiveData.RList.t
 end

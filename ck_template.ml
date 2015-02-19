@@ -51,6 +51,13 @@ module Make (M : Ck_sigs.MODEL) = struct
       R.Html5.ul children;
     ]
 
+  let make_work_view actions =
+    let children = actions |> ReactiveData.RList.map make_node_view in
+    let open Html5 in [
+      h4 [pcdata "Actions"];
+      R.Html5.ul children;
+    ]
+
   let all_areas_and_projects m =
     M.all_areas_and_projects m
     |> List.map (fun (path, node) ->
@@ -91,10 +98,19 @@ module Make (M : Ck_sigs.MODEL) = struct
     </form>
   >>
 
-  let make_tree m =
+  let make_tree current_mode m =
     let open Html5 in
-    let root = M.process_tree m in
-    ul [make_node_view root]
+    let tab mode contents =
+      let cl = current_mode |> React.S.map (fun m ->
+        if m = mode then ["content"; "active"] else ["content"]
+      ) in
+      div ~a:[R.Html5.a_class cl] contents in
+    let process = M.process_tree m |> make_node_view in
+    let work = M.work_tree m |> make_work_view in
+    div ~a:[a_class ["tabs-content"]] [
+      tab `Process [ul [process]];
+      tab `Work work;
+    ]
 
   let make_mode_switcher current_mode set_current_mode =
     let open Html5 in
@@ -120,7 +136,7 @@ module Make (M : Ck_sigs.MODEL) = struct
       make_mode_switcher current_mode set_current_mode;
       div ~a:[a_class ["row"]] [
         div ~a:[a_class ["medium-6"; "columns"]] [
-          make_tree m;
+          make_tree current_mode m;
         ];
         div ~a:[a_class ["medium-6"; "columns"]] [
           pcdata "Placeholder"
