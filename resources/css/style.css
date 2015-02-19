@@ -24,6 +24,7 @@ li:hover a a.add {
 div.ck-details {
 	animation-name: fade-in;
 	animation-duration: 0.5s;
+	background: #f2f2f2;
 }
 
 div.ck-details.closed {
@@ -31,6 +32,20 @@ div.ck-details.closed {
 	animation-duration: 0.5s;
 	overflow: hidden;
 	max-height: 0;
+}
+
+div.ck-details.ck-highlight div.panel {
+	animation-name: flash;
+	animation-duration: 1.0s;
+	background: yellow;
+}
+
+@keyframes flash {
+	0% { background: yellow; }
+	24% { background: #f2f2f2; }
+	25% { background: yellow; }
+	50% { background: #f2f2f2; }
+	100% { background: #f2f2f2; }
 }
 
 @keyframes fade-in {

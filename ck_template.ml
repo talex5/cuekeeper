@@ -13,6 +13,8 @@ let index_of key items =
 
 module Make (M : Ck_sigs.MODEL) = struct
 
+  let current_highlight, set_highlight = React.S.create None
+
   (*
   let mint =
     let i = ref 0 in
@@ -138,22 +140,29 @@ module Make (M : Ck_sigs.MODEL) = struct
       item "Contact" `Contact;
     ]
 
-  let make_details_panel ~remove item =
+  let make_details_panel ~remove ~uuid item =
     let open Html5 in
-    let closed, set_closed = React.S.create ["ck-details"] in
+    let closed, set_closed = React.S.create false in
     let close () =
       let open Lwt in
-      set_closed ["ck-details"; "closed"];       (* Start fade-out animation *)
-      Lwt.async (fun () -> Lwt_js.sleep 0.5 >|= remove)   (* Actually remove *)
+      set_closed true;                          (* Start fade-out animation *)
+      Lwt.async (fun () -> Lwt_js.sleep 0.5 >|= remove)  (* Actually remove *)
     in
-    let panel =
-      div ~a:[R.Html5.a_class closed] [
-        div ~a:[a_class ["panel"]] [
-          h4 [R.Html5.pcdata item.M.details_name];
-          a ~a:[a_onclick (fun _ -> close (); true)] [pcdata "(close)"];
-        ]
-      ] in
-    (panel, close)
+    let cl =
+      React.S.bind closed (fun closed ->
+        current_highlight |> React.S.map (fun highlight ->
+          "ck-details" :: List.concat [
+            if highlight = Some uuid then ["ck-highlight"] else [];
+            if closed then ["closed"] else [];
+          ]
+        )
+      ) in
+    div ~a:[R.Html5.a_class cl] [
+      div ~a:[a_class ["panel"]] [
+        h4 [R.Html5.pcdata item.M.details_name];
+        a ~a:[a_onclick (fun _ -> close (); true)] [pcdata "(close)"];
+      ]
+    ]
 
   let make_details_area m =
     let details_pane, details_handle = ReactiveData.RList.make [] in
@@ -171,10 +180,16 @@ module Make (M : Ck_sigs.MODEL) = struct
       match existing with
       | None ->
           let details = M.details m uuid in
-          ReactiveData.RList.insert (uuid, make_details_panel ~remove details) (List.length current_items) details_handle;
-      | Some (_id, (_panel, close)) -> close ()
+          ReactiveData.RList.insert (uuid, make_details_panel ~remove ~uuid details) (List.length current_items) details_handle;
+      | Some _ ->
+          let open Lwt in
+          set_highlight (Some uuid);
+          Lwt.async (fun () ->
+            Lwt_js.sleep 1.0 >|= fun () ->
+            if React.S.value current_highlight = Some uuid then set_highlight None
+          )
       in
-    (ReactiveData.RList.map (fun (_uuid, (panel, _close)) -> panel) details_pane, show_node)
+    (ReactiveData.RList.map snd details_pane, show_node)
 
   let make_top m =
     let open Html5 in
