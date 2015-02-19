@@ -20,3 +20,26 @@ li a a.add {
 li:hover a a.add {
 	visibility: visible;
 }
+
+div.ck-details {
+	animation-name: fade-in;
+	animation-duration: 0.5s;
+}
+
+div.ck-details.closed {
+	animation-name: fade-out;
+	animation-duration: 0.5s;
+	overflow: hidden;
+	max-height: 0;
+}
+
+@keyframes fade-in {
+	0% { opacity: 0.0; margin-top: -10px}
+	100% { opacity: 1.0; margin-top: 0px}
+}
+
+@keyframes fade-out {
+	0% { opacity: 1; max-height: 200px; }
+	50% { opacity: 0; max-height: 200px; }
+	100% { opacity: 0; max-height: 0; }
+}

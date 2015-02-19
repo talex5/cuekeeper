@@ -54,7 +54,7 @@ module Make (M : Ck_sigs.MODEL) = struct
   let rec make_node_view ~show_node (node:M.node_view) : _ Html5.elt =
     let open Html5 in
     let children = node.M.child_views |> ReactiveData.RList.map (make_node_view ~show_node) in
-    let clicked _ev = show_node node.M.uuid in
+    let clicked _ev = show_node node.M.uuid; true in
     li ~a:[R.Html5.a_class (React.S.map class_of_node_type node.M.node_type)] [
       Html5.a ~a:[a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
       R.Html5.ul children;
@@ -138,24 +138,48 @@ module Make (M : Ck_sigs.MODEL) = struct
       item "Contact" `Contact;
     ]
 
-  let make_details_panel item =
+  let make_details_panel ~remove item =
     let open Html5 in
-    div ~a:[a_class ["panel"]] [
-      h4 [R.Html5.pcdata item.M.details_name];
-    ]
+    let closed, set_closed = React.S.create ["ck-details"] in
+    let close () =
+      let open Lwt in
+      set_closed ["ck-details"; "closed"];       (* Start fade-out animation *)
+      Lwt.async (fun () -> Lwt_js.sleep 0.5 >|= remove)   (* Actually remove *)
+    in
+    let panel =
+      div ~a:[R.Html5.a_class closed] [
+        div ~a:[a_class ["panel"]] [
+          h4 [R.Html5.pcdata item.M.details_name];
+          a ~a:[a_onclick (fun _ -> close (); true)] [pcdata "(close)"];
+        ]
+      ] in
+    (panel, close)
+
+  let make_details_area m =
+    let details_pane, details_handle = ReactiveData.RList.make [] in
+    let show_node uuid =
+      let remove () =
+        let current_items = ReactiveData.RList.value details_pane in
+        match index_of uuid current_items with
+        | None -> ()
+        | Some i-> ReactiveData.RList.remove i details_handle in
+      let current_items = ReactiveData.RList.value details_pane in
+      let existing =
+        try
+          Some (List.find (fun (id, _) -> id = uuid) current_items)
+        with Not_found -> None in
+      match existing with
+      | None ->
+          let details = M.details m uuid in
+          ReactiveData.RList.insert (uuid, make_details_panel ~remove details) (List.length current_items) details_handle;
+      | Some (_id, (_panel, close)) -> close ()
+      in
+    (ReactiveData.RList.map (fun (_uuid, (panel, _close)) -> panel) details_pane, show_node)
 
   let make_top m =
     let open Html5 in
-    let details_pane, details_handle = ReactiveData.RList.make [] in
-    let show_node uuid =
-      let current_items = ReactiveData.RList.value details_pane in
-      begin match index_of uuid current_items with
-      | None ->
-          let details = M.details m uuid in
-          ReactiveData.RList.insert (uuid, make_details_panel details) 0 details_handle;
-      | Some i-> ReactiveData.RList.remove i details_handle end;
-      true in
     let current_mode, set_current_mode = React.S.create `Process in
+    let details_area, show_node = make_details_area m in
     [
       make_mode_switcher current_mode set_current_mode;
       div ~a:[a_class ["row"]] [
@@ -163,7 +187,7 @@ module Make (M : Ck_sigs.MODEL) = struct
           make_tree ~show_node current_mode m;
         ];
         R.Html5.div ~a:[a_class ["medium-6"; "columns"]] (
-          ReactiveData.RList.map snd details_pane
+          details_area;
         );
       ]
     ]
