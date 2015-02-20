@@ -159,8 +159,11 @@ module Make (M : Ck_sigs.MODEL) = struct
       ) in
     div ~a:[R.Html5.a_class cl] [
       div ~a:[a_class ["panel"]] [
+        a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
         h4 [R.Html5.pcdata item.M.details_name];
-        a ~a:[a_onclick (fun _ -> close (); true)] [pcdata "(close)"];
+        div ~a:[a_class ["description"]] [
+          p [R.Html5.pcdata item.M.details_description];
+        ]
       ]
     ]
 

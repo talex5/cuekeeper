@@ -24,6 +24,7 @@ module type MODEL = sig
   type details = {
     details_type : [ `Area | `Project | `Action ] React.S.t;
     details_name : string React.S.t;
+    details_description : string React.S.t;
   }
 
   val root : t -> [area] full_node React.S.t

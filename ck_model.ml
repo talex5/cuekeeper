@@ -167,6 +167,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   type details = {
     details_type : [ `Area | `Project | `Action ] React.S.t;
     details_name : string React.S.t;
+    details_description : string React.S.t;
   }
 
   let make store =
@@ -311,5 +312,6 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     {
       details_type = node |> React.S.map node_type;
       details_name = node |> React.S.map (fun n -> n.R.disk_node.Disk_types.name);
+      details_description = node |> React.S.map (fun n -> n.R.disk_node.Disk_types.description);
     }
 end

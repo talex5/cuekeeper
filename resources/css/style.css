@@ -22,9 +22,13 @@ li:hover a a.add {
 }
 
 div.ck-details {
+	position: relative;
 	animation-name: fade-in;
 	animation-duration: 0.5s;
-	background: #f2f2f2;
+}
+
+div.ck-details div.panel {
+	padding: 0.5rem;
 }
 
 div.ck-details.closed {
@@ -38,6 +42,32 @@ div.ck-details.ck-highlight div.panel {
 	animation-name: flash;
 	animation-duration: 1.0s;
 	background: yellow;
+}
+
+div.ck-details div.panel a.close {
+	font-size: 1.375rem;
+	padding: 0 6px 4px;
+	line-height: .9;
+	position: absolute;
+	right: 0.25rem;
+	color: #333333;
+	opacity: 0.3;
+	display: inline-block;
+}
+
+div.ck-details div.panel a.close:hover {
+	opacity: 0.5;
+}
+
+div.ck-details h4 {
+	font-weight: bold;
+	font-size: 1rem;
+}
+
+div.ck-details div.description {
+	border: 1px solid #DDDDDD;
+	padding: 0.625rem 0.75rem;
+	background: #ffc;
 }
 
 @keyframes flash {
