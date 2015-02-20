@@ -140,7 +140,7 @@ module Make (M : Ck_sigs.MODEL) = struct
       item "Contact" `Contact;
     ]
 
-  let make_details_panel ~remove ~uuid item =
+  let make_details_panel ~show_node ~remove ~uuid item =
     let open Html5 in
     let closed, set_closed = React.S.create false in
     let close () =
@@ -157,10 +157,12 @@ module Make (M : Ck_sigs.MODEL) = struct
           ]
         )
       ) in
+    let children = item.M.details_children |> ReactiveData.RList.map (make_node_view ~show_node) in
     div ~a:[R.Html5.a_class cl] [
       div ~a:[a_class ["panel"]] [
         a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
         h4 [R.Html5.pcdata item.M.details_name];
+        R.Html5.ul children;
         div ~a:[a_class ["description"]] [
           p [R.Html5.pcdata item.M.details_description];
         ]
@@ -169,7 +171,7 @@ module Make (M : Ck_sigs.MODEL) = struct
 
   let make_details_area m =
     let details_pane, details_handle = ReactiveData.RList.make [] in
-    let show_node uuid =
+    let rec show_node uuid =
       let remove () =
         let current_items = ReactiveData.RList.value details_pane in
         match index_of uuid current_items with
@@ -183,7 +185,7 @@ module Make (M : Ck_sigs.MODEL) = struct
       match existing with
       | None ->
           let details = M.details m uuid in
-          ReactiveData.RList.insert (uuid, make_details_panel ~remove ~uuid details) (List.length current_items) details_handle;
+          ReactiveData.RList.insert (uuid, make_details_panel ~show_node ~remove ~uuid details) (List.length current_items) details_handle;
       | Some _ ->
           let open Lwt in
           set_highlight (Some uuid);

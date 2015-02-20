@@ -168,6 +168,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     details_type : [ `Area | `Project | `Action ] React.S.t;
     details_name : string React.S.t;
     details_description : string React.S.t;
+    details_children : node_view ReactiveData.RList.t;
   }
 
   let make store =
@@ -293,9 +294,9 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     scan r.R.root;
     !results
 
-  let render_action node = {
+  let render_node node = {
     uuid = node.R.uuid;
-    node_type = React.S.const `Action;
+    node_type = React.S.const (node_type node);
     name = React.S.const node.R.disk_node.Disk_types.name;    (* Signal? *)
     child_views = ReactiveData.RList.empty;
   }
@@ -305,13 +306,24 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     t.current
     |> React.S.map collect_actions
     |> rlist_of_nodes ~init
-    |> ReactiveData.RList.map render_action
+    |> ReactiveData.RList.map render_node
+
+  let leaf_view t uuid =
+    let r = React.S.value t.current in
+    let node = R.get r uuid in
+    render_node node
 
   let details t uuid =
+    let initial_node = R.get (React.S.value t.current) uuid in
     let node = t.current |> React.S.map (fun r -> R.get r uuid) in
+    let details_children =
+      let child_nodes = node |> React.S.map (fun node -> node.R.child_nodes) in
+      rlist_of_nodes ~init:initial_node.R.child_nodes child_nodes
+      |> ReactiveData.RList.map (fun node -> leaf_view t (node.R.uuid)) in
     {
       details_type = node |> React.S.map node_type;
       details_name = node |> React.S.map (fun n -> n.R.disk_node.Disk_types.name);
       details_description = node |> React.S.map (fun n -> n.R.disk_node.Disk_types.description);
+      details_children;
     }
 end
