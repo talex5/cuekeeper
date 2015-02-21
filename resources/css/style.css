@@ -12,6 +12,18 @@ div.ck-details li.add input {
 	margin: 2px;
 }
 
+div.ck-details.action h4 {
+	color: green;
+}
+
+div.ck-details.project h4 {
+	color: blue;
+}
+
+div.ck-details.area h4 {
+	color: red;
+}
+
 li.area a {
 	color: red;
 }

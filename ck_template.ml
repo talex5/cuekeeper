@@ -17,12 +17,13 @@ module Make (M : Ck_sigs.MODEL) = struct
 
   let current_highlight, set_highlight = React.S.create None
 
-  let class_of_node_type ctime node_type =
-    let ty =
-      match node_type with
-      | `Area -> ["area"]
-      | `Project -> ["project"]
-      | `Action -> ["action"] in
+  let class_of_node_type = function
+    | `Area -> "area"
+    | `Project -> "project"
+    | `Action -> "action"
+
+  let class_of_time_and_type ctime node_type =
+    let ty = [class_of_node_type node_type] in
     let lifetime = Unix.gettimeofday () -. ctime in
     if lifetime >= 0.0 && lifetime <  1.0 then "new" :: ty
     else ty
@@ -31,7 +32,7 @@ module Make (M : Ck_sigs.MODEL) = struct
     let open Html5 in
     let children = node.M.child_views |> ReactiveData.RList.map (make_node_view ~show_node) in
     let clicked _ev = show_node node.M.uuid; true in
-    li ~a:[R.Html5.a_class (React.S.map (class_of_node_type node.M.ctime) node.M.node_type)] [
+    li ~a:[R.Html5.a_class (React.S.map (class_of_time_and_type node.M.ctime) node.M.node_type)] [
       Html5.a ~a:[a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
       R.Html5.ul children;
     ]
@@ -162,11 +163,13 @@ module Make (M : Ck_sigs.MODEL) = struct
     in
     let cl =
       React.S.bind closed (fun closed ->
-        current_highlight |> React.S.map (fun highlight ->
-          "ck-details" :: List.concat [
-            if highlight = Some uuid then ["ck-highlight"] else [];
-            if closed then ["closed"] else [];
-          ]
+        React.S.bind item.M.details_type (fun node_type ->
+          current_highlight |> React.S.map (fun highlight ->
+            "ck-details" :: class_of_node_type node_type :: List.concat [
+              if highlight = Some uuid then ["ck-highlight"] else [];
+              if closed then ["closed"] else [];
+            ]
+          )
         )
       ) in
     let children = item.M.details_children |> ReactiveData.RList.map (make_node_view ~show_node) in
