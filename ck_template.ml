@@ -11,42 +11,11 @@ let index_of key items =
     | _ :: xs -> aux (i + 1) xs in
   aux 0 items
 
+let (>>?=) = Js.Opt.bind
+
 module Make (M : Ck_sigs.MODEL) = struct
 
   let current_highlight, set_highlight = React.S.create None
-
-  (*
-  let mint =
-    let i = ref 0 in
-    fun () ->
-      incr i;
-      string_of_int !i
-
-  let add node =
-    let key = M.name node in
-    let drop = "drop-" ^ mint () in
-    <:html<
-      <a class='add' data-dropdown=$str:drop$ aria-controls=$str:drop$ aria-expanded="false">+action</a>
-      <div id=$str:drop$ data-dropdown-content="" class="f-dropdown content" aria-hidden="true" aria-autoclose="false" tabindex="-1">
-        <form>
-          <label>New action:</label>
-          <input type="hidden" value=$str:key$/>
-          <div class="row">
-            <div class="small-12 columns">
-              <div class="row collapse">
-                <div class="small-9 columns">
-                  <input type="text" placeholder="Name"/>
-                </div>
-                <div class="small-3 columns">
-                  <a href="#" class="button postfix">Add</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </form>
-      </div>
-    >>
-  *)
 
   let class_of_node_type = function
     | `Area -> ["area"]
@@ -75,39 +44,6 @@ module Make (M : Ck_sigs.MODEL) = struct
       let uuid = M.uuid node in
       <:html< <option value=$str:uuid$>$str:path$</option>&>>
     )
-
-  let render_new_action m = <:html<
-    <form method="POST" action="/add">
-      <fieldset>
-      <legend><input type="text" name="name" placeholder="Name"/></legend>
-
-      <div class="row">
-        <div class="large-12 columns">
-          <select name="parent">
-            $list:all_areas_and_projects m$
-          </select>
-        </div>
-      </div>
-      <div class="row">
-        <div class="large-12 columns">
-          <input type="radio" name="type" value="Area"><label>Area</label></input>
-          <input type="radio" name="type" value="Project"><label>Project</label></input>
-          <input type="radio" name="type" value="Action" checked=""><label>Action</label></input>
-        </div>
-      </div>
-      <div class="row">
-        <div class="large-12 columns">
-          <textarea name="description" placeholder="Description" rows='6'/>
-        </div>
-      </div>
-      <div class="row">
-        <div class="large-12 columns">
-          <input class="right" type="submit" value="Add"/>
-        </div>
-      </div>
-      </fieldset>
-    </form>
-  >>
 
   let make_tree ~show_node current_mode m =
     let open Html5 in
@@ -140,7 +76,76 @@ module Make (M : Ck_sigs.MODEL) = struct
       item "Contact" `Contact;
     ]
 
-  let make_details_panel ~show_node ~remove ~uuid item =
+  let make_child_adder m item =
+    let open Html5 in
+    let editing, set_editing = React.S.create None in
+    let add_button ntype label =
+      let start_editing (ev:#Dom_html.event Js.t) =
+        (* Find the parent <li> before we remove the button element. *)
+        let parent =
+          ev##target >>?= fun button ->
+          button##parentNode >>?= Dom_html.CoerceTo.element in
+        (* Replace the buttons with a form. *)
+        set_editing (Some ntype);
+        (* Now find the new form input and focus it. *)
+        let input =
+          parent >>?= fun parent ->
+          parent##querySelector (Js.string "input") >>?= Dom_html.CoerceTo.input in
+        Js.Opt.iter input (fun i -> i##focus ());
+        true in
+      a ~a:[a_onclick start_editing] [pcdata label] in
+    let widgets =
+      React.S.bind editing (function
+        (* When we're not editing, display the add buttons. *)
+        | None ->
+            item.M.details_type |> React.S.map (function
+              | `Action -> []
+              | `Project -> [
+                  add_button `Action "+action";
+                  add_button `Project "+sub-project";
+                ]
+              | `Area -> [
+                  add_button `Project "+project";
+                  add_button `Action "+action";
+                  add_button `Area "+sub-area";
+                ]
+            )
+        (* When we are editing, display the form. *)
+        | Some node_type ->
+            let do_add ev =
+              let form =
+                ev##target >>?= fun target ->
+                target##parentNode >>?= fun parent ->
+                Dom_html.CoerceTo.element parent >>?= fun parent ->
+                parent##querySelector (Js.string "form") >>?=
+                Dom_html.CoerceTo.form in
+              Js.Opt.iter form (fun form ->
+                let f = Form.get_form_contents form in
+                let name = List.assoc "name" f in
+                let adder =
+                  match node_type with
+                  | `Action -> M.add_action
+                  | `Project -> M.add_project
+                  | `Area -> M.add_area in
+                Lwt_js_events.async (fun () -> adder m ~parent:item.M.details_uuid ~name ~description:"");
+                set_editing None;
+              );
+              true in
+            React.S.const [
+              form ~a:[a_onsubmit do_add] [
+                input ~a:[a_name "name"; a_placeholder "Name"] ()];
+                input ~a:[a_input_type `Submit; a_value "Add"; a_onclick do_add] ();
+                a ~a:[a_onclick (fun _ev -> set_editing None; true)] [pcdata " (cancel)"];
+              ]
+      )
+    in
+    let changes = React.S.changes widgets |> React.E.map (fun x -> ReactiveData.RList.Set x) in
+    let rlist = ReactiveData.RList.make_from (React.S.value widgets) changes in
+    ul [
+      R.Html5.li ~a:[a_class ["add"]] rlist
+    ]
+
+  let make_details_panel m ~show_node ~remove ~uuid item =
     let open Html5 in
     let closed, set_closed = React.S.create false in
     let close () =
@@ -163,6 +168,7 @@ module Make (M : Ck_sigs.MODEL) = struct
         a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
         h4 [R.Html5.pcdata item.M.details_name];
         R.Html5.ul children;
+        make_child_adder m item;
         div ~a:[a_class ["description"]] [
           p [R.Html5.pcdata item.M.details_description];
         ]
@@ -185,7 +191,7 @@ module Make (M : Ck_sigs.MODEL) = struct
       match existing with
       | None ->
           let details = M.details m uuid in
-          ReactiveData.RList.insert (uuid, make_details_panel ~show_node ~remove ~uuid details) (List.length current_items) details_handle;
+          ReactiveData.RList.insert (uuid, make_details_panel m ~show_node ~remove ~uuid details) (List.length current_items) details_handle;
       | Some _ ->
           let open Lwt in
           set_highlight (Some uuid);

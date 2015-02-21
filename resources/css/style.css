@@ -1,6 +1,16 @@
 li.area	   { list-style-type: none; }
 li.project { list-style-type: none; }
 li.action  { list-style-type: none; }
+li.add  { list-style-type: none; }
+li.add a { margin-right: 1em; }
+
+div.ck-details li.add form {
+	display: inline;
+}
+
+div.ck-details li.add input {
+	margin: 2px;
+}
 
 li.area a {
 	color: red;
@@ -68,6 +78,10 @@ div.ck-details div.description {
 	border: 1px solid #DDDDDD;
 	padding: 0.625rem 0.75rem;
 	background: #ffc;
+}
+
+div.ck-details ul {
+	margin-bottom: 0;
 }
 
 @keyframes flash {

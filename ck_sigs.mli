@@ -22,6 +22,7 @@ module type MODEL = sig
   }
 
   type details = {
+    details_uuid : uuid;
     details_type : [ `Area | `Project | `Action ] React.S.t;
     details_name : string React.S.t;
     details_description : string React.S.t;
@@ -39,9 +40,9 @@ module type MODEL = sig
   val projects : [< area | project] full_node -> [project] full_node list
   val areas : [area] full_node -> [area] full_node list
 
-  val add_action : t -> parent:[< project | area] full_node -> name:string -> description:string -> [action] full_node Lwt.t
-  val add_project : t -> parent:[< project | area] full_node -> name:string -> description:string -> [project] full_node Lwt.t
-  val add_area : t -> parent:[area] full_node -> name:string -> description:string -> [area] full_node Lwt.t
+  val add_action : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
+  val add_project : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
+  val add_area : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
 
   val set_name : t -> [< area | action | project] full_node -> string -> unit Lwt.t
 
