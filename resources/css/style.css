@@ -1,6 +1,6 @@
-li.area	   { list-style-type: none; }
-li.project { list-style-type: none; }
-li.action  { list-style-type: none; }
+li.ck-area	   { list-style-type: none; }
+li.ck-project { list-style-type: none; }
+li.ck-action  { list-style-type: none; }
 li.add  { list-style-type: none; }
 li.add a { margin-right: 1em; }
 
@@ -12,26 +12,42 @@ div.ck-details li.add input {
 	margin: 2px;
 }
 
-div.ck-details.action h4 {
-	color: green;
+li.ck-area a { font-weight: bold; color: black; }
+div.ck-area h4 { font-weight: bold; }
+
+li.ck-project a { font-weight: normal; color: black; }
+div.ck-project h4 { font-weight: normal; }
+
+li.ck-action a { font-weight: normal; font-style: italic; color: black; }
+div.ck-action h4 { font-weight: normal; font-style: italic; }
+
+.ck-area {
+	background: #FFF9E6;
+	padding-left: 0.4rem;
+	border-left-width: 0.3rem;
+	border-left-style: solid;
+	border-color: #FFE280;
+	border-left-color: #FFC400;
+	margin-bottom: 4px;
+}
+.ck-project {
+	background: #E6F9FF;
+	padding-left: 0.4rem;
+	border-left-width: 0.3rem;
+	border-left-style: solid;
+	border-color: #B3EDFF;
+	border-left-color: #3ED2FF;
+	margin-bottom: 4px;
 }
 
-div.ck-details.project h4 {
-	color: blue;
-}
-
-div.ck-details.area h4 {
-	color: red;
-}
-
-li.area a {
-	color: red;
-}
-li.project a {
-	color: blue;
-}
-li.action a {
-	color: green;
+.ck-action {
+	background: #FFF2F6;
+	padding-left: 0.4rem;
+	border-left-width: 0.3rem;
+	border-left-style: solid;
+	border-color: #FFCCDC;
+	border-left-color: #FF759F;
+	margin-bottom: 4px;
 }
 
 li.new {
@@ -52,6 +68,11 @@ div.ck-details {
 	position: relative;
 	animation-name: fade-in;
 	animation-duration: 0.5s;
+	padding: 0.5rem;
+	border-top-width: 1px;
+	border-right-width: 1px;
+	border-bottom-width: 1px;
+	border-style: solid;
 }
 
 div.ck-details div.panel {
@@ -65,13 +86,13 @@ div.ck-details.closed {
 	max-height: 0;
 }
 
-div.ck-details.ck-highlight div.panel {
+div.ck-details.ck-highlight h4 {
 	animation-name: flash;
 	animation-duration: 1.0s;
-	background: yellow;
+	color: yellow;
 }
 
-div.ck-details div.panel a.close {
+div.ck-details a.close {
 	font-size: 1.375rem;
 	padding: 0 6px 4px;
 	line-height: .9;
@@ -87,14 +108,16 @@ div.ck-details div.panel a.close:hover {
 }
 
 div.ck-details h4 {
-	font-weight: bold;
 	font-size: 1rem;
 }
 
 div.ck-details div.description {
-	border: 1px solid #DDDDDD;
 	padding: 0.625rem 0.75rem;
-	background: #ffc;
+	background: rgba(255, 255, 255, 0.8);
+}
+
+div.tabs-content div.content {
+	padding-top: 0;
 }
 
 div.ck-details ul {
@@ -102,11 +125,11 @@ div.ck-details ul {
 }
 
 @keyframes flash {
-	0% { background: yellow; }
-	24% { background: #f2f2f2; }
-	25% { background: yellow; }
-	50% { background: #f2f2f2; }
-	100% { background: #f2f2f2; }
+	0% { color: yellow; }
+	24% { color: black; }
+	25% { color: yellow; }
+	50% { color: black; }
+	100% { color: black; }
 }
 
 @keyframes fade-in {

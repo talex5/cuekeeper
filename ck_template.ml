@@ -18,9 +18,9 @@ module Make (M : Ck_sigs.MODEL) = struct
   let current_highlight, set_highlight = React.S.create None
 
   let class_of_node_type = function
-    | `Area -> "area"
-    | `Project -> "project"
-    | `Action -> "action"
+    | `Area -> "ck-area"
+    | `Project -> "ck-project"
+    | `Action -> "ck-action"
 
   let class_of_time_and_type ctime node_type =
     let ty = [class_of_node_type node_type] in
@@ -174,14 +174,12 @@ module Make (M : Ck_sigs.MODEL) = struct
       ) in
     let children = item.M.details_children |> ReactiveData.RList.map (make_node_view ~show_node) in
     div ~a:[R.Html5.a_class cl] [
-      div ~a:[a_class ["panel"]] [
-        a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
-        h4 [R.Html5.pcdata item.M.details_name];
-        R.Html5.ul children;
-        make_child_adder m item;
-        div ~a:[a_class ["description"]] [
-          p [R.Html5.pcdata item.M.details_description];
-        ]
+      a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
+      h4 [R.Html5.pcdata item.M.details_name];
+      R.Html5.ul children;
+      make_child_adder m item;
+      div ~a:[a_class ["description"]] [
+        p [R.Html5.pcdata item.M.details_description];
       ]
     ]
 
