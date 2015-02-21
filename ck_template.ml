@@ -126,13 +126,15 @@ module Make (M : Ck_sigs.MODEL) = struct
                 Dom_html.CoerceTo.form in
               Js.Opt.iter form (fun form ->
                 let f = Form.get_form_contents form in
-                let name = List.assoc "name" f in
-                let adder =
-                  match node_type with
-                  | `Action -> M.add_action
-                  | `Project -> M.add_project
-                  | `Area -> M.add_area in
-                Lwt_js_events.async (fun () -> adder m ~parent:item.M.details_uuid ~name ~description:"");
+                let name = List.assoc "name" f |> String.trim in
+                if name <> "" then (
+                  let adder =
+                    match node_type with
+                    | `Action -> M.add_action
+                    | `Project -> M.add_project
+                    | `Area -> M.add_area in
+                  Lwt_js_events.async (fun () -> adder m ~parent:item.M.details_uuid ~name ~description:"")
+                );
                 set_editing None;
               );
               true in
