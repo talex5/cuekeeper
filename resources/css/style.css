@@ -22,30 +22,24 @@ li.ck-action a { font-weight: normal; font-style: italic; color: black; }
 div.ck-action h4 { font-weight: normal; font-style: italic; }
 
 .ck-area {
-	background: #FFF9E6;
 	padding-left: 0.4rem;
 	border-left-width: 0.3rem;
 	border-left-style: solid;
-	border-color: #FFE280;
 	border-left-color: #FFC400;
 	margin-bottom: 4px;
 }
 .ck-project {
-	background: #E6F9FF;
 	padding-left: 0.4rem;
 	border-left-width: 0.3rem;
 	border-left-style: solid;
-	border-color: #B3EDFF;
 	border-left-color: #3ED2FF;
 	margin-bottom: 4px;
 }
 
 .ck-action {
-	background: #FFF2F6;
 	padding-left: 0.4rem;
 	border-left-width: 0.3rem;
 	border-left-style: solid;
-	border-color: #FFCCDC;
 	border-left-color: #FF759F;
 	margin-bottom: 4px;
 }
@@ -69,14 +63,10 @@ div.ck-details {
 	animation-name: fade-in;
 	animation-duration: 0.5s;
 	padding: 0.5rem;
-	border-top-width: 1px;
-	border-right-width: 1px;
-	border-bottom-width: 1px;
 	border-style: solid;
-}
-
-div.ck-details div.panel {
-	padding: 0.5rem;
+	border-top: 1px solid #d8d8d8;
+	border-right: 1px solid #d8d8d8;
+	border-bottom: 1px solid #d8d8d8;
 }
 
 div.ck-details.closed {
@@ -112,8 +102,9 @@ div.ck-details h4 {
 }
 
 div.ck-details div.description {
+	border: 1px solid #DDDDDD;
 	padding: 0.625rem 0.75rem;
-	background: rgba(255, 255, 255, 0.8);
+	background: #ffc;
 }
 
 div.tabs-content div.content {
