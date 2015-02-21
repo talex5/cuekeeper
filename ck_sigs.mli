@@ -17,6 +17,7 @@ module type MODEL = sig
   type node_view = {
     uuid : uuid;
     node_type : [ `Area | `Project | `Action ] React.S.t;
+    ctime : float;
     name : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
   }

@@ -17,16 +17,21 @@ module Make (M : Ck_sigs.MODEL) = struct
 
   let current_highlight, set_highlight = React.S.create None
 
-  let class_of_node_type = function
-    | `Area -> ["area"]
-    | `Project -> ["project"]
-    | `Action -> ["action"]
+  let class_of_node_type ctime node_type =
+    let ty =
+      match node_type with
+      | `Area -> ["area"]
+      | `Project -> ["project"]
+      | `Action -> ["action"] in
+    let lifetime = Unix.gettimeofday () -. ctime in
+    if lifetime >= 0.0 && lifetime <  1.0 then "new" :: ty
+    else ty
 
   let rec make_node_view ~show_node (node:M.node_view) : _ Html5.elt =
     let open Html5 in
     let children = node.M.child_views |> ReactiveData.RList.map (make_node_view ~show_node) in
     let clicked _ev = show_node node.M.uuid; true in
-    li ~a:[R.Html5.a_class (React.S.map class_of_node_type node.M.node_type)] [
+    li ~a:[R.Html5.a_class (React.S.map (class_of_node_type node.M.ctime) node.M.node_type)] [
       Html5.a ~a:[a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
       R.Html5.ul children;
     ]

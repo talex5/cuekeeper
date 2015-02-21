@@ -29,6 +29,7 @@ module Disk_types = struct
     parent : uuid;
     name : string;
     description : string;
+    ctime : float with default(0.0);
     details : 'a;
   } with sexp
 
@@ -44,6 +45,7 @@ let root_node = { Disk_types.
   name = "All";
   description = "Root area";
   details = `Area;
+  ctime = 0.0;
 }
 
 module Raw(I : Irmin.BASIC with type key = string list and type value = string) = struct
@@ -160,6 +162,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   type node_view = {
     uuid : uuid;
     node_type : [ `Area | `Project | `Action ] React.S.t;
+    ctime : float;
     name : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
   }
@@ -228,6 +231,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       name;
       description;
       parent;
+      ctime = Unix.gettimeofday ();
       details;
     } in
     let r = React.S.value t.current in
@@ -265,6 +269,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
         |> ReactiveData.RList.map (fun node -> view (node.R.uuid)) in
       {
         uuid = initial_node.R.uuid;
+        ctime = initial_node.R.disk_node.Disk_types.ctime;
         node_type = node |> React.S.map node_type;
         name = node |> React.S.map (fun node -> node.R.disk_node.Disk_types.name);
         child_views;
@@ -284,6 +289,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let render_node node = {
     uuid = node.R.uuid;
+    ctime = node.R.disk_node.Disk_types.ctime;
     node_type = React.S.const (node_type node);
     name = React.S.const node.R.disk_node.Disk_types.name;    (* Signal? *)
     child_views = ReactiveData.RList.empty;

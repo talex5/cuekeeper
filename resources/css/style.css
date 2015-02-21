@@ -22,6 +22,11 @@ li.action a {
 	color: green;
 }
 
+li.new {
+	animation-name: fade-in;
+	animation-duration: 1.0s;
+}
+
 li a a.add {
 	visibility: hidden;
 	border: none;
