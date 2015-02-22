@@ -1,6 +1,7 @@
 li.ck-area	   { list-style-type: none; }
 li.ck-project { list-style-type: none; }
 li.ck-action  { list-style-type: none; }
+ol.ck-history li { list-style-type: none; }
 li.add  { list-style-type: none; }
 li.add a { margin-right: 1em; }
 

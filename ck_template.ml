@@ -15,9 +15,6 @@ let index_of key items =
 
 let (>>?=) = Js.Opt.bind
 
-let (>>~=) x f = React.S.bind x f
-let (>|~=) x f = React.S.map f x
-
 module Make (M : Ck_sigs.MODEL) = struct
 
   let current_highlight, set_highlight = React.S.create None
@@ -86,6 +83,22 @@ module Make (M : Ck_sigs.MODEL) = struct
       R.Html5.ul children;
     ]
 
+  let make_sync history =
+    let items =
+      rlist_of ~init:(React.S.value history) history
+      |> ReactiveData.RList.map (fun (date, summary) ->
+          let open Unix in
+          let tm = gmtime date in
+          let msg = Printf.sprintf "%04d-%02d-%02d: %s"
+            (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+            summary in
+          li [pcdata msg]
+      ) in
+    [
+      h4 [pcdata "Recent changes"];
+      R.Html5.ol ~a:[a_class ["ck-history"]] items;
+    ]
+
   let make_tree ~show_node current_mode m =
     let tab mode contents =
       let cl = current_mode |> React.S.map (fun m ->
@@ -97,6 +110,7 @@ module Make (M : Ck_sigs.MODEL) = struct
     div ~a:[a_class ["tabs-content"]] [
       tab `Process [ul [process]];
       tab `Work work;
+      tab `Sync (make_sync (M.history m));
     ]
 
   let make_mode_switcher current_mode set_current_mode =
@@ -113,6 +127,8 @@ module Make (M : Ck_sigs.MODEL) = struct
       item "Work" `Work;
       item "Review" `Review;
       item "Contact" `Contact;
+      item "Schedule" `Schedule;
+      item "Sync" `Sync;
     ]
 
   let make_child_adder m item =

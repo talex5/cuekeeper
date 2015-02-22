@@ -8,7 +8,9 @@ module T = Ck_template.Make(M)
 
 let start (main:#Dom.node Js.t) =
   let config = Html_storage.config "CueKeeper" in
-  let task s = Irmin.Task.create ~date:0L ~owner:"User" s in
+  let task s =
+    let date = Unix.time () |> Int64.of_float in
+    Irmin.Task.create ~date ~owner:"User" s in
   Store.create config task >>=
   M.make >>= fun m ->
 (*

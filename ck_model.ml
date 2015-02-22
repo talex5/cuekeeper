@@ -43,6 +43,8 @@ let root_node = { Disk_types.
 module Raw(I : Irmin.BASIC with type key = string list and type value = string) = struct
   open Disk_types
 
+  module Top = Graph.Topological.Make(I.History)
+
   type 'a n = {
     uuid : uuid;
     disk_node : 'a Disk_types.node;
@@ -53,6 +55,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     store : string -> I.t;
     root : 'a. ([> area] as 'a) n;
     index : (uuid, [area | project | action] n) Hashtbl.t;
+    history : (float * string) list;
   }
 
   let rec walk fn node =
@@ -80,7 +83,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
             with Not_found -> [] in
           Hashtbl.replace children node.parent (uuid :: old_children);
       | _ -> assert false
-    ) >|= fun () ->
+    ) >>= fun () ->
     children |> Hashtbl.iter (fun parent children ->
       if not (Hashtbl.mem disk_nodes parent) then (
         error "Parent UUID '%s' of child nodes %s missing!" parent (String.concat ", " children)
@@ -106,7 +109,21 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     } in
     let index = Hashtbl.create 100 in
     root |> walk (fun node -> Hashtbl.add index node.uuid node);
-    { store; root; index }
+    I.history ~depth:10 (store "Read history") >>= fun history ->
+    let h = ref [] in
+    history |> Top.iter (fun head ->
+      h := head :: !h
+    );
+    !h |> Lwt_list.map_s (fun hash ->
+      I.task_of_head (store "Read commit") hash >|= fun task ->
+      let summary =
+        match Irmin.Task.messages task with
+        | [] -> "(no commit message)"
+        | x::_ -> x in
+      let date = Irmin.Task.date task |> Int64.to_float in
+      (date, summary)
+    ) >|= fun history ->
+    { store; root; index; history}
 
   let get t uuid =
     try Hashtbl.find t.index uuid
@@ -121,18 +138,21 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     if not (Hashtbl.mem t.index node.parent) then
       error "Parent '%s' does not exist!" node.parent;
     let s = Sexplib.Sexp.to_string (sexp_of_general_node node) in
-    I.update (t.store "create") ["db"; uuid] s >>= fun () ->
+    let msg = Printf.sprintf "Created '%s'" node.name in
+    I.update (t.store msg) ["db"; uuid] s >>= fun () ->
     make t.store >|= fun t_new ->
     (Hashtbl.find t_new.index uuid, t_new)
 
-  let update t (node:[< action | project | area] n) =
+  let update t ~msg (node:[< action | project | area] n) =
     let node = (node :> [action | project | area] n) in
     assert (Hashtbl.mem t.index node.uuid);
     if not (Hashtbl.mem t.index node.disk_node.parent) then
       error "Parent '%s' does not exist!" node.disk_node.parent;
     let s = Sexplib.Sexp.to_string (sexp_of_general_node node.disk_node) in
-    I.update (t.store "update") ["db"; node.uuid] s >>= fun () ->
+    I.update (t.store msg) ["db"; node.uuid] s >>= fun () ->
     make t.store
+
+  let name n = n.disk_node.name
 end
 
 module Make(I : Irmin.BASIC with type key = string list and type value = string) = struct
@@ -237,7 +257,8 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let new_node = {node with
       R.disk_node = {node.R.disk_node with Disk_types.name}
     } in
-    R.update r new_node >|= t.set_current
+    let msg = Printf.sprintf "Rename '%s' to '%s'" (R.name node) (R.name new_node) in
+    R.update r ~msg new_node >|= t.set_current
 
   let set_state t uuid new_state =
     let r = React.S.value t.current in
@@ -245,7 +266,8 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let new_node = {node with
       R.disk_node = {node.R.disk_node with Disk_types.details = new_state}
     } in
-    R.update r new_node >|= t.set_current
+    let msg = Printf.sprintf "Change state of '%s'" (R.name node) in
+    R.update r ~msg new_node >|= t.set_current
 
   let node_type {R.disk_node = {Disk_types.details; _}; _} = details
 
@@ -311,4 +333,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       details_description = node |> React.S.map (fun n -> n.R.disk_node.Disk_types.description);
       details_children;
     }
+
+  let history t =
+    t.current >|~= fun r -> r.R.history
 end

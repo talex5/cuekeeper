@@ -57,4 +57,5 @@ module type MODEL = sig
   val process_tree : t -> node_view
   val work_tree : t -> node_view ReactiveData.RList.t
   val details : t -> uuid -> details
+  val history : t -> (float * string) list React.S.t
 end
