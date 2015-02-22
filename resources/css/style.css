@@ -21,27 +21,77 @@ div.ck-project h4 { font-weight: normal; }
 li.ck-action a { font-weight: normal; font-style: italic; color: black; }
 div.ck-action h4 { font-weight: normal; font-style: italic; }
 
-.ck-area {
+.ck-node {
 	padding-left: 0.4rem;
 	border-left-width: 0.3rem;
 	border-left-style: solid;
-	border-left-color: #FFC400;
 	margin-bottom: 4px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+span.ck-toggles {
+	margin-bottom: 0px;
+	margin-right: 2px;
+}
+
+span.ck-toggles a {
+	border: 1px solid black;
+	margin-right: 2px;
+	padding-left: 2px;
+	padding-right: 2px;
+}
+
+span.ck-toggles a.ck-inactive:hover {
+	background: #FE8;
+	color: black;
+}
+
+span.ck-toggles a.ck-inactive {
+	border-color: #DB4;
+	color: #CCC;
+}
+
+span.ck-toggles a.ck-active-a {
+	border-color: #55C;
+	color: #55C;
+	background-color: #CFA;
+}
+span.ck-toggles a.ck-active-sm {
+	border-color: #48B;
+	color: #48B;
+	background-color: #BDF;
+}
+span.ck-toggles a.ck-active-f {
+	border-color: #48B;
+	color: #48B;
+	background-color: #BDF;
+}
+span.ck-toggles a.ck-active-n {
+	border-color: #55C;
+	color: #55C;
+	background-color: #CFA;
+}
+span.ck-toggles a.ck-active-w {
+	border-color: #B84;
+	color: #B84;
+	background-color: #FDB;
+}
+span.ck-toggles a.ck-active-x {
+	border-color: black;
+	color: black;
+	background-color: white;
+}
+
+.ck-area {
+	border-left-color: #FFC400;
 }
 .ck-project {
-	padding-left: 0.4rem;
-	border-left-width: 0.3rem;
-	border-left-style: solid;
 	border-left-color: #3ED2FF;
-	margin-bottom: 4px;
 }
 
 .ck-action {
-	padding-left: 0.4rem;
-	border-left-width: 0.3rem;
-	border-left-style: solid;
 	border-left-color: #FF759F;
-	margin-bottom: 4px;
 }
 
 li.new {
@@ -67,6 +117,7 @@ div.ck-details {
 	border-top: 1px solid #d8d8d8;
 	border-right: 1px solid #d8d8d8;
 	border-bottom: 1px solid #d8d8d8;
+	margin-bottom: 4px;
 }
 
 div.ck-details.closed {

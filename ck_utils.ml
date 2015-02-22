@@ -21,3 +21,7 @@ let rec filter_map fn = function
       match fn x with
       | None -> filter_map fn xs
       | Some y -> y :: filter_map fn xs
+
+let rlist_of ~init s =
+  let changes = React.S.changes s |> React.E.map (fun x -> ReactiveData.RList.Set x) in
+  ReactiveData.RList.make_from init changes

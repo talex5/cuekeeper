@@ -3,12 +3,18 @@
 
 type uuid = string
 
+type action_details = {
+  astate : [ `Next | `Waiting | `Future | `Done ]
+} with sexp
+
+type project_details = {
+  pstate : [ `Active | `SomedayMaybe | `Done ]
+} with sexp
+
+
 module type MODEL = sig
   type t
   type 'a full_node
-
-  type project_details
-  type action_details
 
   type action = [`Action of action_details]
   type project = [`Project of project_details]
@@ -16,7 +22,7 @@ module type MODEL = sig
 
   type node_view = {
     uuid : uuid;
-    node_type : [ `Area | `Project | `Action ] React.S.t;
+    node_type : [ area | project | action ] React.S.t;
     ctime : float;
     name : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
@@ -24,7 +30,7 @@ module type MODEL = sig
 
   type details = {
     details_uuid : uuid;
-    details_type : [ `Area | `Project | `Action ] React.S.t;
+    details_type : [ area | project | action ] React.S.t;
     details_name : string React.S.t;
     details_description : string React.S.t;
     details_children : node_view ReactiveData.RList.t;
@@ -45,7 +51,8 @@ module type MODEL = sig
   val add_project : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
   val add_area : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
 
-  val set_name : t -> [< area | action | project] full_node -> string -> unit Lwt.t
+  val set_name : t ->  [< area | action | project] full_node -> string -> unit Lwt.t
+  val set_state : t -> uuid -> [< action | project | area] -> unit Lwt.t
 
   val process_tree : t -> node_view
   val work_tree : t -> node_view ReactiveData.RList.t

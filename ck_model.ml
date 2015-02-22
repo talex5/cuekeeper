@@ -13,16 +13,8 @@ let root_id : uuid = ""
 let mint_uuid () = Uuidm.(create `V4 |> to_string)
 
 module Disk_types = struct
-  type action_details = {
-    astate : [ `Next | `Waiting | `Future ]
-  } with sexp
-
-  type project_details = {
-    pstate : [ `Active | `SomedayMaybe ]
-  } with sexp
-
-  type action = [`Action of action_details]
-  type project = [`Project of project_details]
+  type action = [`Action of Ck_sigs.action_details]
+  type project = [`Project of Ck_sigs.project_details]
   type area = [`Area]
 
   type 'a node = {
@@ -34,8 +26,8 @@ module Disk_types = struct
   } with sexp
 
   type general_node =
-    [ `Action of action_details
-    | `Project of project_details
+    [ `Action of Ck_sigs.action_details
+    | `Project of Ck_sigs.project_details
     | `Area ] node
     with sexp
 end
@@ -153,15 +145,13 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   type 'a full_node = 'a R.n
 
-  type project_details = Disk_types.project_details
-  type action_details = Disk_types.action_details
   type area = Disk_types.area
   type project = Disk_types.project
   type action = Disk_types.action
 
   type node_view = {
     uuid : uuid;
-    node_type : [ `Area | `Project | `Action ] React.S.t;
+    node_type : [ area | project | action ] React.S.t;
     ctime : float;
     name : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
@@ -169,7 +159,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   type details = {
     details_uuid : uuid;
-    details_type : [ `Area | `Project | `Action ] React.S.t;
+    details_type : [ area | project | action ] React.S.t;
     details_name : string React.S.t;
     details_description : string React.S.t;
     details_children : node_view ReactiveData.RList.t;
@@ -238,8 +228,8 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     R.create r disk_node >|= fun (_node, r_new) ->
     t.set_current r_new
 
-  let add_action = add (`Action {Disk_types.astate = `Next})
-  let add_project = add (`Project {Disk_types.pstate = `Active})
+  let add_action = add (`Action {Ck_sigs.astate = `Next})
+  let add_project = add (`Project {Ck_sigs.pstate = `Active})
   let add_area = add `Area
 
   let set_name t node name =
@@ -249,32 +239,32 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     } in
     R.update r new_node >|= t.set_current
 
-  let node_type = function
-    | {R.disk_node = {Disk_types.details = `Area; _}; _} -> `Area
-    | {R.disk_node = {Disk_types.details = `Project _; _}; _} -> `Project
-    | {R.disk_node = {Disk_types.details = `Action _; _}; _} -> `Action
+  let set_state t uuid new_state =
+    let r = React.S.value t.current in
+    let node = R.get r uuid in
+    let new_node = {node with
+      R.disk_node = {node.R.disk_node with Disk_types.details = new_state}
+    } in
+    R.update r new_node >|= t.set_current
 
-  (* An RList that follows nodes (and keeps it alive). *)
-  let rlist_of_nodes ~init nodes =
-    let changes = React.S.changes nodes |> React.E.map (fun x -> ReactiveData.RList.Set x) in
-    ReactiveData.RList.make_from init changes
+  let node_type {R.disk_node = {Disk_types.details; _}; _} = details
 
   let process_tree t =
-    let rec view uuid =
-      let initial_node = R.get (React.S.value t.current) uuid in
-      let node = t.current |> React.S.map (fun r -> R.get r uuid) in
-      let child_nodes = node |> React.S.map (fun node -> node.R.child_nodes) in
+    let rec view node =
+      let live_node = t.current |> React.S.map (fun r -> R.get r node.R.uuid) in
+      let child_nodes = live_node |> React.S.map (fun node -> node.R.child_nodes) in
       let child_views =
-        rlist_of_nodes ~init:initial_node.R.child_nodes child_nodes
-        |> ReactiveData.RList.map (fun node -> view (node.R.uuid)) in
+        rlist_of ~init:node.R.child_nodes child_nodes
+        |> ReactiveData.RList.map view in
       {
-        uuid = initial_node.R.uuid;
-        ctime = initial_node.R.disk_node.Disk_types.ctime;
-        node_type = node |> React.S.map node_type;
-        name = node |> React.S.map (fun node -> node.R.disk_node.Disk_types.name);
+        uuid = node.R.uuid;
+        ctime = node.R.disk_node.Disk_types.ctime;
+        node_type = live_node |> React.S.map node_type;
+        name = live_node |> React.S.map (fun node -> node.R.disk_node.Disk_types.name);
         child_views;
       } in
-    view root_id
+    let root_node = R.get (React.S.value t.current) root_id in
+    view root_node
 
   let collect_actions r =
     let results = ref [] in
@@ -299,7 +289,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let init = collect_actions (React.S.value t.current) in
     t.current
     |> React.S.map collect_actions
-    |> rlist_of_nodes ~init
+    |> rlist_of ~init
     |> ReactiveData.RList.map render_node
 
   let leaf_view t uuid =
@@ -312,7 +302,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let node = t.current |> React.S.map (fun r -> R.get r uuid) in
     let details_children =
       let child_nodes = node |> React.S.map (fun node -> node.R.child_nodes) in
-      rlist_of_nodes ~init:initial_node.R.child_nodes child_nodes
+      rlist_of ~init:initial_node.R.child_nodes child_nodes
       |> ReactiveData.RList.map (fun node -> leaf_view t (node.R.uuid)) in
     {
       details_uuid = initial_node.R.uuid;

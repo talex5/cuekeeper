@@ -2,6 +2,8 @@
  * See the README file for details. *)
 
 open Tyxml_js
+open Html5
+open Ck_utils
 
 (* Get the index of an item in an assoc list. *)
 let index_of key items =
@@ -13,60 +15,91 @@ let index_of key items =
 
 let (>>?=) = Js.Opt.bind
 
+let (>>~=) x f = React.S.bind x f
+let (>|~=) x f = React.S.map f x
+
 module Make (M : Ck_sigs.MODEL) = struct
 
   let current_highlight, set_highlight = React.S.create None
 
   let class_of_node_type = function
     | `Area -> "ck-area"
-    | `Project -> "ck-project"
-    | `Action -> "ck-action"
+    | `Project _ -> "ck-project"
+    | `Action _ -> "ck-action"
 
   let class_of_time_and_type ctime node_type =
-    let ty = [class_of_node_type node_type] in
+    let ty = ["ck-node"; class_of_node_type node_type] in
     let lifetime = Unix.gettimeofday () -. ctime in
     if lifetime >= 0.0 && lifetime <  1.0 then "new" :: ty
     else ty
 
-  let rec make_node_view ~show_node (node:M.node_view) : _ Html5.elt =
-    let open Html5 in
-    let children = node.M.child_views |> ReactiveData.RList.map (make_node_view ~show_node) in
+  let toggle_label ~set_state ~current state =
+    let l =
+      match state with
+      | `Done -> "x"
+      | `Next -> "n"
+      | `Waiting -> "w"
+      | `Future -> "f"
+      | `Active -> "a"
+      | `SomedayMaybe -> "sm" in
+    let cl = if current = state then "ck-active-" ^ l else "ck-inactive" in
+    let changed _ev =
+      if current <> state then set_state state; true in
+    a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
+
+  let make_toggles ~set_state current options =
+    options |> List.map (toggle_label ~set_state ~current)
+
+  let toggles_for_type m node = function
+    | `Action {Ck_sigs.astate = s; _} ->
+        let set_state n =
+          Lwt_js_events.async (fun () ->
+            M.set_state m node.M.uuid (`Action {Ck_sigs.astate = n})
+          ) in
+        make_toggles ~set_state s [`Done; `Next; `Waiting; `Future]
+    | `Project {Ck_sigs.pstate = s; _} ->
+        let set_state n =
+          Lwt_js_events.async (fun () ->
+            M.set_state m node.M.uuid (`Project {Ck_sigs.pstate = n})
+          ) in
+        make_toggles ~set_state s [`Done; `Active; `SomedayMaybe]
+    | `Area -> []
+
+  let make_state_toggles m node =
+    let init = React.S.value node.M.node_type |> toggles_for_type m node in
+    let toggles = node.M.node_type >|~= toggles_for_type m node in
+    rlist_of ~init toggles
+
+  let rec make_node_view m ~show_node (node:M.node_view) : _ Html5.elt =
+    let children = node.M.child_views |> ReactiveData.RList.map (make_node_view m ~show_node) in
     let clicked _ev = show_node node.M.uuid; true in
     li ~a:[R.Html5.a_class (React.S.map (class_of_time_and_type node.M.ctime) node.M.node_type)] [
-      Html5.a ~a:[a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
+      R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
+      a ~a:[a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
       R.Html5.ul children;
     ]
 
-  let make_work_view ~show_node actions =
-    let children = actions |> ReactiveData.RList.map (make_node_view ~show_node) in
-    let open Html5 in [
+  let make_work_view m ~show_node actions =
+    let children = actions |> ReactiveData.RList.map (make_node_view m ~show_node) in
+    [
       h4 [pcdata "Actions"];
       R.Html5.ul children;
     ]
 
-  let all_areas_and_projects m =
-    M.all_areas_and_projects m
-    |> List.map (fun (path, node) ->
-      let uuid = M.uuid node in
-      <:html< <option value=$str:uuid$>$str:path$</option>&>>
-    )
-
   let make_tree ~show_node current_mode m =
-    let open Html5 in
     let tab mode contents =
       let cl = current_mode |> React.S.map (fun m ->
         if m = mode then ["content"; "active"] else ["content"]
       ) in
       div ~a:[R.Html5.a_class cl] contents in
-    let process = M.process_tree m |> make_node_view ~show_node in
-    let work = M.work_tree m |> make_work_view ~show_node in
+    let process = M.process_tree m |> make_node_view m ~show_node in
+    let work = M.work_tree m |> make_work_view m ~show_node in
     div ~a:[a_class ["tabs-content"]] [
       tab `Process [ul [process]];
       tab `Work work;
     ]
 
   let make_mode_switcher current_mode set_current_mode =
-    let open Html5 in
     let item name mode =
       let cl = current_mode |> React.S.map (fun m ->
         if m = mode then ["active"] else []
@@ -83,7 +116,6 @@ module Make (M : Ck_sigs.MODEL) = struct
     ]
 
   let make_child_adder m item =
-    let open Html5 in
     let editing, set_editing = React.S.create None in
     let add_button ntype label =
       let start_editing (ev:#Dom_html.event Js.t) =
@@ -101,12 +133,12 @@ module Make (M : Ck_sigs.MODEL) = struct
         true in
       a ~a:[a_onclick start_editing] [pcdata label] in
     let widgets =
-      React.S.bind editing (function
+      editing >>~= (function
         (* When we're not editing, display the add buttons. *)
         | None ->
             item.M.details_type |> React.S.map (function
-              | `Action -> []
-              | `Project -> [
+              | `Action _ -> []
+              | `Project _ -> [
                   add_button `Action "+action";
                   add_button `Project "+sub-project";
                 ]
@@ -147,14 +179,12 @@ module Make (M : Ck_sigs.MODEL) = struct
               ]
       )
     in
-    let changes = React.S.changes widgets |> React.E.map (fun x -> ReactiveData.RList.Set x) in
-    let rlist = ReactiveData.RList.make_from (React.S.value widgets) changes in
+    let rlist = rlist_of ~init:(React.S.value widgets) widgets in
     ul [
       R.Html5.li ~a:[a_class ["add"]] rlist
     ]
 
   let make_details_panel m ~show_node ~remove ~uuid item =
-    let open Html5 in
     let closed, set_closed = React.S.create false in
     let close () =
       let open Lwt in
@@ -162,8 +192,8 @@ module Make (M : Ck_sigs.MODEL) = struct
       Lwt.async (fun () -> Lwt_js.sleep 0.5 >|= remove)  (* Actually remove *)
     in
     let cl =
-      React.S.bind closed (fun closed ->
-        React.S.bind item.M.details_type (fun node_type ->
+      closed >>~= (fun closed ->
+        item.M.details_type >>~= (fun node_type ->
           current_highlight |> React.S.map (fun highlight ->
             "ck-details" :: class_of_node_type node_type :: List.concat [
               if highlight = Some uuid then ["ck-highlight"] else [];
@@ -172,7 +202,7 @@ module Make (M : Ck_sigs.MODEL) = struct
           )
         )
       ) in
-    let children = item.M.details_children |> ReactiveData.RList.map (make_node_view ~show_node) in
+    let children = item.M.details_children |> ReactiveData.RList.map (make_node_view m ~show_node) in
     div ~a:[R.Html5.a_class cl] [
       a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
       h4 [R.Html5.pcdata item.M.details_name];
@@ -211,7 +241,6 @@ module Make (M : Ck_sigs.MODEL) = struct
     (ReactiveData.RList.map snd details_pane, show_node)
 
   let make_top m =
-    let open Html5 in
     let current_mode, set_current_mode = React.S.create `Process in
     let details_area, show_node = make_details_area m in
     [
