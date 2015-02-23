@@ -18,8 +18,12 @@ module Make (Item : Set.OrderedType) (Input : Set.S with type elt = Item.t) = st
         else
           diff acc (i + 1) xs ys
 
-  let make s =
-    let current = ref (React.S.value s |> Input.elements) in
+  let make ?init s =
+    let init =
+      match init with
+      | None -> React.S.value s
+      | Some i -> i in
+    let current = ref (Input.elements init) in
     let e = React.S.changes s
       |> React.E.map (fun new_set ->
           (* Calculate the changes need to update the current value to [new_s]. *)

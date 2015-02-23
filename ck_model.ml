@@ -40,35 +40,54 @@ let root_node = { Disk_types.
   ctime = 0.0;
 }
 
+module type NODE = sig
+  open Disk_types
+
+  type node_set
+
+  type 'a n = {
+    uuid : uuid;
+    disk_node : 'a node;
+    child_nodes : node_set;
+  }
+
+  include Set.OrderedType
+  with type t = [area | project | action] n
+end
+
 module Raw(I : Irmin.BASIC with type key = string list and type value = string) = struct
   open Disk_types
 
   module Top = Graph.Topological.Make(I.History)
 
-  type 'a n = {
-    uuid : uuid;
-    disk_node : 'a Disk_types.node;
-    child_nodes : [area | project | action] n list;
-  }
+  module rec Node : (NODE with type node_set = NodeSet.t) = struct
+    type node_set = NodeSet.t
 
-  type t = {
-    store : string -> I.t;
-    root : 'a. ([> area] as 'a) n;
-    index : (uuid, [area | project | action] n) Hashtbl.t;
-    history : (float * string) list;
-  }
+    type 'a n = {
+      uuid : uuid;
+      disk_node : 'a Disk_types.node;
+      child_nodes : node_set;
+    }
 
-  let rec walk fn node =
-    fn node;
-    node.child_nodes |> List.iter (walk fn)
-
-  module Node = struct
     type t = [area | project | action] n
+
     let compare a b =
       match String.compare a.disk_node.name b.disk_node.name with
       | 0 -> compare a.uuid b.uuid
       | r -> r
   end
+  and NodeSet : (Set.S with type elt = Node.t) = Set.Make(Node)
+
+  type t = {
+    store : string -> I.t;
+    root : 'a. ([> area] as 'a) Node.n;
+    index : (uuid, Node.t) Hashtbl.t;
+    history : (float * string) list;
+  }
+
+  let rec walk fn node =
+    fn node;
+    node.Node.child_nodes |> NodeSet.iter (walk fn)
 
   let make store =
     let disk_nodes = Hashtbl.create 100 in
@@ -95,7 +114,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
 
     (* todo: reject cycles *)
     let rec make_node uuid =
-      let disk_node = Hashtbl.find disk_nodes uuid in {
+      let disk_node = Hashtbl.find disk_nodes uuid in { Node.
         uuid;
         disk_node;
         child_nodes = make_child_nodes uuid;
@@ -103,15 +122,15 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     and make_child_nodes uuid =
       begin try Hashtbl.find children uuid with Not_found -> [] end
       |> List.map make_node
-      |> List.sort Node.compare in
+      |> List.fold_left (fun set node -> NodeSet.add node set) NodeSet.empty in
 
-    let root = {
+    let root = { Node.
       uuid = root_id;
       disk_node = root_node;
       child_nodes = make_child_nodes root_id;
     } in
     let index = Hashtbl.create 100 in
-    root |> walk (fun node -> Hashtbl.add index node.uuid node);
+    root |> walk (fun node -> Hashtbl.add index node.Node.uuid node);
     I.history ~depth:10 (store "Read history") >>= fun history ->
     let h = ref [] in
     history |> Top.iter (fun head ->
@@ -150,8 +169,9 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     make t.store >|= fun t_new ->
     (Hashtbl.find t_new.index uuid, t_new)
 
-  let update t ~msg (node:[< action | project | area] n) =
-    let node = (node :> [action | project | area] n) in
+  let update t ~msg node =
+    let open Node in
+    let node = (node :> Node.t) in
     assert (Hashtbl.mem t.index node.uuid);
     if not (Hashtbl.mem t.index node.disk_node.parent) then
       error "Parent '%s' does not exist!" node.disk_node.parent;
@@ -159,7 +179,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     I.update (t.store msg) ["db"; node.uuid] s >>= fun () ->
     make t.store
 
-  let name n = n.disk_node.name
+  let name n = n.Node.disk_node.name
 
   let delete t uuid =
     assert (uuid <> root_id);
@@ -171,16 +191,16 @@ end
 
 module Make(I : Irmin.BASIC with type key = string list and type value = string) = struct
   module R = Raw(I)
+  module NodeList = Delta_RList.Make(R.Node)(R.NodeSet)
 
-  module NodeSet = Set.Make(R.Node)
-  module NodeList = Delta_RList.Make(R.Node)(NodeSet)
+  open R.Node
 
   type t = {
     current : R.t React.S.t;
     set_current : R.t -> unit;
   }
 
-  type 'a full_node = 'a R.n
+  type 'a full_node = 'a R.Node.n
 
   type area = Disk_types.area
   type project = Disk_types.project
@@ -213,11 +233,11 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   let all_areas_and_projects t =
     let results = ref [] in
     let rec scan prefix x =
-      let full_path = prefix ^ "/" ^ x.R.disk_node.Disk_types.name in
+      let full_path = prefix ^ "/" ^ x.disk_node.Disk_types.name in
       results := (full_path, x) :: !results;
-      x.R.child_nodes |> List.iter (fun child ->
+      x.child_nodes |> R.NodeSet.iter (fun child ->
         match child with
-        | {R.disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x -> scan full_path x
+        | {disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x -> scan full_path x
         | _ -> ()
       ) in
     scan "" (root t |> React.S.value);
@@ -225,34 +245,34 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let actions parent =
     let results = ref [] in
-    parent.R.child_nodes |> List.iter (fun child ->
+    parent.child_nodes |> R.NodeSet.iter (fun child ->
       match child with
-      | {R.disk_node = {Disk_types.details = `Action _; _}; _} as x -> results := x :: !results
+      | {disk_node = {Disk_types.details = `Action _; _}; _} as x -> results := x :: !results
       | _ -> ()
     );
     List.rev !results
 
   let projects parent =
     let results = ref [] in
-    parent.R.child_nodes |> List.iter (fun child ->
+    parent.child_nodes |> R.NodeSet.iter (fun child ->
       match child with
-      | {R.disk_node = {Disk_types.details = `Project _; _}; _} as x -> results := x :: !results
+      | {disk_node = {Disk_types.details = `Project _; _}; _} as x -> results := x :: !results
       | _ -> ()
     );
     List.rev !results
 
   let areas parent =
     let results = ref [] in
-    parent.R.child_nodes |> List.iter (fun child ->
+    parent.child_nodes |> R.NodeSet.iter (fun child ->
       match child with
-      | {R.disk_node = {Disk_types.details = `Area; _}; _} as x -> results := x :: !results
+      | {disk_node = {Disk_types.details = `Area; _}; _} as x -> results := x :: !results
       | _ -> ()
     );
     List.rev !results
 
-  let name node = node.R.disk_node.Disk_types.name
+  let name node = node.disk_node.Disk_types.name
 
-  let uuid node = node.R.uuid
+  let uuid node = node.R.Node.uuid
 
   let add details t ~parent ~name ~description =
     let disk_node = { Disk_types.
@@ -277,7 +297,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   let set_name t node name =
     let r = React.S.value t.current in
     let new_node = {node with
-      R.disk_node = {node.R.disk_node with Disk_types.name}
+      disk_node = {node.disk_node with Disk_types.name}
     } in
     let msg = Printf.sprintf "Rename '%s' to '%s'" (R.name node) (R.name new_node) in
     R.update r ~msg new_node >|= t.set_current
@@ -286,12 +306,12 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let r = React.S.value t.current in
     let node = R.get_exn r uuid in
     let new_node = {node with
-      R.disk_node = {node.R.disk_node with Disk_types.details = new_state}
+      disk_node = {node.disk_node with Disk_types.details = new_state}
     } in
     let msg = Printf.sprintf "Change state of '%s'" (R.name node) in
     R.update r ~msg new_node >|= t.set_current
 
-  let node_type {R.disk_node = {Disk_types.details; _}; _} = details
+  let node_type {disk_node = {Disk_types.details; _}; _} = details
   let opt_node_type = function
     | None -> `Deleted
     | Some x -> (node_type x :> [action | project | area | `Deleted])
@@ -300,21 +320,21 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     | Some x -> R.name x
   let opt_node_description = function
     | None -> "(deleted)"
-    | Some x -> x.R.disk_node.Disk_types.description
+    | Some x -> x.disk_node.Disk_types.description
   let opt_child_nodes = function
-    | None -> []
-    | Some x -> x.R.child_nodes
+    | None -> R.NodeSet.empty
+    | Some x -> x.child_nodes
 
   let process_tree t =
     let rec view node =
-      let live_node = t.current |> React.S.map (fun r -> R.get r node.R.uuid) in
+      let live_node = t.current |> React.S.map (fun r -> R.get r node.R.Node.uuid) in
       let child_nodes = live_node |> React.S.map opt_child_nodes in
-      let child_views =
-        rlist_of ~init:node.R.child_nodes child_nodes
+      let child_views = child_nodes
+        |> NodeList.make ~init:(node.R.Node.child_nodes)
         |> ReactiveData.RList.map view in
       {
-        uuid = node.R.uuid;
-        ctime = node.R.disk_node.Disk_types.ctime;
+        uuid = node.R.Node.uuid;
+        ctime = node.disk_node.Disk_types.ctime;
         node_type = live_node |> React.S.map opt_node_type;
         name = live_node |> React.S.map opt_node_name;
         child_views;
@@ -323,26 +343,26 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     view root_node
 
   let collect_next_actions r =
-    let results = ref NodeSet.empty in
+    let results = ref R.NodeSet.empty in
     let rec scan = function
-      | {R.disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x ->
+      | {disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x ->
           results := actions x |> List.fold_left (fun set action ->
             match action with
-            | {R.disk_node = {Disk_types.details = `Action {Ck_sigs.astate = `Next}; _}; _} ->
-                NodeSet.add (action :> R.Node.t) set
+            | {disk_node = {Disk_types.details = `Action {Ck_sigs.astate = `Next}; _}; _} ->
+                R.NodeSet.add (action :> R.Node.t) set
             | _ -> set
           ) !results;
-          x.R.child_nodes |> List.iter scan
-      | {R.disk_node = {Disk_types.details = `Action _; _}; _} -> ()
+          x.child_nodes |> R.NodeSet.iter scan
+      | {disk_node = {Disk_types.details = `Action _; _}; _} -> ()
     in
     scan r.R.root;
     !results
 
   let render_node t node =
-    let live_node = t.current |> React.S.map (fun r -> R.get r node.R.uuid) in
+    let live_node = t.current |> React.S.map (fun r -> R.get r node.R.Node.uuid) in
     {
-      uuid = node.R.uuid;
-      ctime = node.R.disk_node.Disk_types.ctime;
+      uuid = node.R.Node.uuid;
+      ctime = node.R.Node.disk_node.Disk_types.ctime;
       node_type = live_node |> React.S.map opt_node_type;
       name = live_node |> React.S.map opt_node_name;
       child_views = ReactiveData.RList.empty;
@@ -357,12 +377,12 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   let details t uuid =
     let initial_node = R.get_exn (React.S.value t.current) uuid in
     let node = t.current |> React.S.map (fun r -> R.get r uuid) in
-    let details_children =
-      let child_nodes = node |> React.S.map opt_child_nodes in
-      rlist_of ~init:initial_node.R.child_nodes child_nodes
+    let details_children = node
+      |> React.S.map opt_child_nodes
+      |> NodeList.make
       |> ReactiveData.RList.map (render_node t) in
     {
-      details_uuid = initial_node.R.uuid;
+      details_uuid = initial_node.R.Node.uuid;
       details_type = node |> React.S.map opt_node_type;
       details_name = node |> React.S.map opt_node_name;
       details_description = node |> React.S.map opt_node_description;

@@ -6,5 +6,7 @@
  * rather than replacing the whole list every time the signal changes. *)
 
 module Make (Item : Set.OrderedType) (Input : Set.S with type elt = Item.t) : sig
-  val make : Input.t React.S.t -> Item.t ReactiveData.RList.t
+  (* If this can be called from a React update, you must provide the [init] field,
+   * since [React.S.value input] won't be ready yet. *)
+  val make : ?init:Input.t -> Input.t React.S.t -> Item.t ReactiveData.RList.t
 end
