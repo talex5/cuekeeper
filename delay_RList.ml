@@ -14,6 +14,23 @@ type pending = {
   mutable i : int;    (* Current index in list. *)
 }
 
+type set_state = [ `Current | `Removed ] -> unit
+
+type 'a item = {
+  set_state : set_state;
+  state : [ `Current | `Removed ] React.S.t;
+  data : 'a;
+}
+
+let current = React.S.const `Current
+let fixed data = {
+  state = current; set_state = ignore; data
+}
+
+let make_item data =
+  let state, set_state = React.S.create `Current in
+  { state; set_state; data }
+
 module Make (C : CLOCK) = struct
   let make ~delay src =
     let src_events = ReactiveData.RList.event src in
@@ -48,6 +65,8 @@ module Make (C : CLOCK) = struct
           )
       | _ -> () in
 
+    let current_dst = ref ReactiveData.RList.empty in
+
     let filtered_events = src_events |> React.E.map (function
       | Set s ->
           pending_deletes := [];
@@ -57,7 +76,7 @@ module Make (C : CLOCK) = struct
               Lwt.cancel t;
               thread := None
           end;
-          Set s
+          Set (s |> List.map make_item)
       | Patch ps ->
           let ps = ps |> Ck_utils.filter_map (function
             | I (i, x) ->
@@ -65,16 +84,17 @@ module Make (C : CLOCK) = struct
                 !pending_deletes |> List.iter (fun d ->
                   if d.i >= i then d.i <- d.i + 1
                 );
-                Some (I (i, x))
+                Some (I (i, make_item x))
             | R i ->
                 let i = (* Need to add one as src has already been shortened. *)
                   if i < 0 then i + List.length (value src) + 1 else i in
                 let i = adjust i in
                 pending_deletes := !pending_deletes @ [{ time = C.now () +. delay; i}];
+                (List.nth (value !current_dst) i).set_state `Removed;
                 None
             | U (i, x) ->
                 let i = adjust i in
-                Some (U (i, x))
+                Some (U (i, make_item x))
             | X (i, offset) ->
                 let dst = adjust (i + offset) in
                 let i = adjust i in
@@ -93,5 +113,7 @@ module Make (C : CLOCK) = struct
           Patch ps
     ) in
     (* (since delete_events always fires from a Lwt async thread, it can't overlap with filtered_events) *)
-    ReactiveData.RList.make_from (value src) (React.E.select [filtered_events; delete_events])
+    let result = ReactiveData.RList.make_from (value src |> List.map make_item) (React.E.select [filtered_events; delete_events]) in
+    current_dst := result;
+    result
 end

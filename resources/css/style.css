@@ -160,10 +160,9 @@ div.ck-details ul {
 	margin-bottom: 0;
 }
 
-li.deleted {
+li.removed {
 	animation-name: fade-out;
 	animation-duration: 1.0s;
-	text-decoration: line-through;
 	max-height: 0;
 	opacity: 0;
 }

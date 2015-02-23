@@ -9,6 +9,16 @@ module type CLOCK = sig
   val sleep : float -> unit Lwt.t
 end
 
+type set_state
+
+type 'a item = {
+  set_state : set_state;
+  state : [ `Current | `Removed ] React.S.t;
+  data : 'a;
+}
+
+val fixed : 'a -> 'a item
+
 module Make (C : CLOCK) : sig
-  val make : delay:float -> 'a ReactiveData.RList.t -> 'a ReactiveData.RList.t
+  val make : delay:float -> 'a ReactiveData.RList.t -> 'a item ReactiveData.RList.t
 end

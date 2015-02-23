@@ -41,63 +41,72 @@ let suite =
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
       let open ReactiveData.RList in
-      let eq rl expected = assert_equal ~printer:format_list expected (value rl) in
+      let eq rl expected =
+        assert_equal ~printer:format_list expected (value rl) in
+      let eqd rl expected =
+        let actual = value rl |> List.map (fun d ->
+          let s = d.Delay_RList.data in
+          match React.S.value d.Delay_RList.state with
+          | `Current -> s
+          | `Removed -> "-" ^ s
+        ) in
+        assert_equal ~printer:format_list expected actual in
       let src, handle = make [] in
       let dst = D.make ~delay:1.0 src in
-      eq dst [];
+      eqd dst [];
       insert "first" 0 handle;
-      eq dst ["first"];
+      eqd dst ["first"];
       remove 0 handle;
-      eq dst ["first"];
+      eqd dst ["-first"];
       Test_clock.run_to 2.0;
-      eq dst [];
+      eqd dst [];
 
       insert "first" 0 handle;
       insert "second" 1 handle;
       insert "third" 2 handle;
       remove 1 handle;            (* Remove second at t=2.0 *)
       eq src ["first"; "third"];
-      eq dst ["first"; "second"; "third"];
+      eqd dst ["first"; "-second"; "third"];
       insert "zero" 0 handle;
       insert "1.5" 2 handle;
       eq src ["zero"; "first"; "1.5"; "third"];
-      eq dst ["zero"; "first"; "second"; "1.5"; "third"];
+      eqd dst ["zero"; "first"; "-second"; "1.5"; "third"];
       insert "3.5" (-1) handle;
       eq src ["zero"; "first"; "1.5"; "third"; "3.5"];
-      eq dst ["zero"; "first"; "second"; "1.5"; "third"; "3.5"];
+      eqd dst ["zero"; "first"; "-second"; "1.5"; "third"; "3.5"];
       Test_clock.run_to 2.1;
       remove 0 handle;            (* Remove zero at t=2.1 *)
       eq src ["first"; "1.5"; "third"; "3.5"];
-      eq dst ["zero"; "first"; "second"; "1.5"; "third"; "3.5"];
+      eqd dst ["-zero"; "first"; "-second"; "1.5"; "third"; "3.5"];
       Test_clock.run_to 3.0;
-      eq dst ["zero"; "first"; "1.5"; "third"; "3.5"];
+      eqd dst ["-zero"; "first"; "1.5"; "third"; "3.5"];
       Test_clock.run_to 3.1;
-      eq dst ["first"; "1.5"; "third"; "3.5"];
+      eqd dst ["first"; "1.5"; "third"; "3.5"];
 
       remove (-1) handle;
       eq src ["first"; "1.5"; "third"];
-      eq dst ["first"; "1.5"; "third"; "3.5"];
+      eqd dst ["first"; "1.5"; "third"; "-3.5"];
       Test_clock.run_to 4.1;
-      eq dst ["first"; "1.5"; "third"];
+      eqd dst ["first"; "1.5"; "third"];
 
       remove 0 handle;
       update "middle" 0 handle;
       eq src ["middle"; "third"];
-      eq dst ["first"; "middle"; "third"];
+      eqd dst ["-first"; "middle"; "third"];
       Test_clock.run_to 5.1;
-      eq dst ["middle"; "third"];
+      eqd dst ["middle"; "third"];
 
       remove 0 handle;
       insert "zero" 0 handle;
       move 0 1 handle;
       eq src ["third"; "zero"];
-      eq dst ["middle"; "third"; "zero"];
+      eqd dst ["-middle"; "third"; "zero"];
 
       move 1 (-1) handle;
       eq src ["zero"; "third"];
-      eq dst ["middle"; "zero"; "third"];
+      eqd dst ["-middle"; "zero"; "third"];
       Test_clock.run_to 6.1;
-      eq dst ["zero"; "third"];
+      eqd dst ["zero"; "third"];
     )
   ]
 

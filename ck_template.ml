@@ -76,13 +76,15 @@ module Make (M : Ck_sigs.MODEL) = struct
     let toggles = node.M.node_type >|~= toggles_for_type m node in
     rlist_of ~init toggles
 
-  let rec make_node_view m ~show_node (node:M.node_view) : _ Html5.elt =
-    let children = node.M.child_views |> ReactiveData.RList.map (make_node_view m ~show_node) in
+  let rec make_node_view m ~show_node {Delay_RList.data = node; state; _} : _ Html5.elt =
+    let children = node.M.child_views
+      |> Delay.make ~delay:1.0
+      |> ReactiveData.RList.map (make_node_view m ~show_node) in
     let clicked _ev = show_node node.M.uuid; true in
     let delete _ev = async (fun () -> M.delete m node.M.uuid); true in
     let title_cl = React.S.map (class_of_time_and_type node.M.ctime) node.M.node_type in
-    let deleted = node.M.node_type >|~= function
-      | `Deleted -> ["deleted"]
+    let deleted = state >|~= function
+      | `Removed -> ["removed"]
       | _ -> [] in
     li ~a:[R.Html5.a_class deleted] [
       R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
@@ -123,7 +125,8 @@ module Make (M : Ck_sigs.MODEL) = struct
         if m = mode then ["content"; "active"] else ["content"]
       ) in
       div ~a:[R.Html5.a_class cl] contents in
-    let process = M.process_tree m |> make_node_view m ~show_node in
+    let process_tree = M.process_tree m  in
+    let process = make_node_view m ~show_node (Delay_RList.fixed process_tree) in
     let work = M.work_tree m |> make_work_view m ~show_node in
     div ~a:[a_class ["tabs-content"]] [
       tab `Process [ul [process]];
@@ -237,7 +240,9 @@ module Make (M : Ck_sigs.MODEL) = struct
       ) in
     let title_cl =
       item.M.details_type >|~= (fun node_type -> ["ck-title"; class_of_node_type node_type]) in
-    let children = item.M.details_children |> ReactiveData.RList.map (make_node_view m ~show_node) in
+    let children = item.M.details_children
+      |> Delay.make ~delay:1.0
+      |> ReactiveData.RList.map (make_node_view m ~show_node) in
     div ~a:[R.Html5.a_class cl] [
       a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
       h4 ~a:[R.Html5.a_class title_cl] [R.Html5.pcdata item.M.details_name];
