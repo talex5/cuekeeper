@@ -167,6 +167,11 @@ li.removed {
 	opacity: 0;
 }
 
+li.new {
+	animation-name: fade-in;
+	animation-duration: 1.0s;
+}
+
 /*
 li {
 	animation-name: debug;

@@ -10,6 +10,7 @@ let async : (unit -> unit Lwt.t) -> unit = Lwt_js_events.async
 
 module Delay = Delay_RList.Make(struct
   let now = Unix.gettimeofday
+  let async = async
   let sleep = Lwt_js.sleep
 end)
 
@@ -83,10 +84,11 @@ module Make (M : Ck_sigs.MODEL) = struct
     let clicked _ev = show_node node.M.uuid; true in
     let delete _ev = async (fun () -> M.delete m node.M.uuid); true in
     let title_cl = React.S.map (class_of_time_and_type node.M.ctime) node.M.node_type in
-    let deleted = state >|~= function
-      | `Removed -> ["removed"]
-      | _ -> [] in
-    li ~a:[R.Html5.a_class deleted] [
+    let li_state = state >|~= function
+      | `New -> ["new"]
+      | `Current -> []
+      | `Removed -> ["removed"] in
+    li ~a:[R.Html5.a_class li_state] [
       R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
       a ~a:[R.Html5.a_class title_cl; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
       if M.is_root node.M.uuid then pcdata ""

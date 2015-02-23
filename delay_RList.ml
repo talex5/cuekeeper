@@ -6,6 +6,7 @@ open Lwt
 
 module type CLOCK = sig
   val now : unit -> float
+  val async : (unit -> unit Lwt.t) -> unit
   val sleep : float -> unit Lwt.t
 end
 
@@ -14,11 +15,11 @@ type pending = {
   mutable i : int;    (* Current index in list. *)
 }
 
-type set_state = [ `Current | `Removed ] -> unit
+type set_state = [ `New | `Current | `Removed ] -> unit
 
 type 'a item = {
   set_state : set_state;
-  state : [ `Current | `Removed ] React.S.t;
+  state : [ `New | `Current | `Removed ] React.S.t;
   data : 'a;
 }
 
@@ -27,8 +28,8 @@ let fixed data = {
   state = current; set_state = ignore; data
 }
 
-let make_item data =
-  let state, set_state = React.S.create `Current in
+let make_item state data =
+  let state, set_state = React.S.create state in
   { state; set_state; data }
 
 module Make (C : CLOCK) = struct
@@ -76,7 +77,7 @@ module Make (C : CLOCK) = struct
               Lwt.cancel t;
               thread := None
           end;
-          Set (s |> List.map make_item)
+          Set (s |> List.map (make_item `Current))
       | Patch ps ->
           let ps = ps |> Ck_utils.filter_map (function
             | I (i, x) ->
@@ -84,7 +85,13 @@ module Make (C : CLOCK) = struct
                 !pending_deletes |> List.iter (fun d ->
                   if d.i >= i then d.i <- d.i + 1
                 );
-                Some (I (i, make_item x))
+                let item = make_item `New x in
+                let no_longer_new = C.sleep delay in
+                C.async (fun () ->
+                  no_longer_new >|= fun () ->
+                  if React.S.value item.state = `New then item.set_state `Current;
+                );
+                Some (I (i, item))
             | R i ->
                 let i = (* Need to add one as src has already been shortened. *)
                   if i < 0 then i + List.length (value src) + 1 else i in
@@ -94,7 +101,7 @@ module Make (C : CLOCK) = struct
                 None
             | U (i, x) ->
                 let i = adjust i in
-                Some (U (i, make_item x))
+                Some (U (i, make_item `Current x))
             | X (i, offset) ->
                 let dst = adjust (i + offset) in
                 let i = adjust i in
@@ -113,7 +120,9 @@ module Make (C : CLOCK) = struct
           Patch ps
     ) in
     (* (since delete_events always fires from a Lwt async thread, it can't overlap with filtered_events) *)
-    let result = ReactiveData.RList.make_from (value src |> List.map make_item) (React.E.select [filtered_events; delete_events]) in
+    let result = ReactiveData.RList.make_from
+      (value src |> List.map (make_item `Current))
+      (React.E.select [filtered_events; delete_events]) in
     current_dst := result;
     result
 end

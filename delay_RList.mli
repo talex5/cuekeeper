@@ -6,6 +6,7 @@
 
 module type CLOCK = sig
   val now : unit -> float
+  val async : (unit -> unit Lwt.t) -> unit
   val sleep : float -> unit Lwt.t
 end
 
@@ -13,7 +14,7 @@ type set_state
 
 type 'a item = {
   set_state : set_state;
-  state : [ `Current | `Removed ] React.S.t;
+  state : [ `New | `Current | `Removed ] React.S.t;
   data : 'a;
 }
 

@@ -1,4 +1,5 @@
 open OUnit
+open Lwt
 
 module Queue = Lwt_pqueue.Make(struct
   type t = (float * unit Lwt.u)
@@ -18,6 +19,12 @@ module Test_clock = struct
     let result, waker = Lwt.wait () in
     schedule := !schedule |> Queue.add (!time +. delay, waker);
     result
+
+  let async f =
+    let (_ : unit Lwt.t) =
+      catch (fun () -> sleep 0.0 >>= f)
+        (fun ex -> raise ex) in
+    ()
 
   let rec run_to t =
     debug "run_to %.2f\n" t;
@@ -47,6 +54,7 @@ let suite =
         let actual = value rl |> List.map (fun d ->
           let s = d.Delay_RList.data in
           match React.S.value d.Delay_RList.state with
+          | `New -> "+" ^ s
           | `Current -> s
           | `Removed -> "-" ^ s
         ) in
@@ -55,7 +63,7 @@ let suite =
       let dst = D.make ~delay:1.0 src in
       eqd dst [];
       insert "first" 0 handle;
-      eqd dst ["first"];
+      eqd dst ["+first"];
       remove 0 handle;
       eqd dst ["-first"];
       Test_clock.run_to 2.0;
@@ -66,18 +74,18 @@ let suite =
       insert "third" 2 handle;
       remove 1 handle;            (* Remove second at t=2.0 *)
       eq src ["first"; "third"];
-      eqd dst ["first"; "-second"; "third"];
+      eqd dst ["+first"; "-second"; "+third"];
       insert "zero" 0 handle;
       insert "1.5" 2 handle;
       eq src ["zero"; "first"; "1.5"; "third"];
-      eqd dst ["zero"; "first"; "-second"; "1.5"; "third"];
+      eqd dst ["+zero"; "+first"; "-second"; "+1.5"; "+third"];
       insert "3.5" (-1) handle;
       eq src ["zero"; "first"; "1.5"; "third"; "3.5"];
-      eqd dst ["zero"; "first"; "-second"; "1.5"; "third"; "3.5"];
+      eqd dst ["+zero"; "+first"; "-second"; "+1.5"; "+third"; "+3.5"];
       Test_clock.run_to 2.1;
       remove 0 handle;            (* Remove zero at t=2.1 *)
       eq src ["first"; "1.5"; "third"; "3.5"];
-      eqd dst ["-zero"; "first"; "-second"; "1.5"; "third"; "3.5"];
+      eqd dst ["-zero"; "+first"; "-second"; "+1.5"; "+third"; "+3.5"];
       Test_clock.run_to 3.0;
       eqd dst ["-zero"; "first"; "1.5"; "third"; "3.5"];
       Test_clock.run_to 3.1;
@@ -100,11 +108,11 @@ let suite =
       insert "zero" 0 handle;
       move 0 1 handle;
       eq src ["third"; "zero"];
-      eqd dst ["-middle"; "third"; "zero"];
+      eqd dst ["-middle"; "third"; "+zero"];
 
       move 1 (-1) handle;
       eq src ["zero"; "third"];
-      eqd dst ["-middle"; "zero"; "third"];
+      eqd dst ["-middle"; "+zero"; "third"];
       Test_clock.run_to 6.1;
       eqd dst ["zero"; "third"];
     )
