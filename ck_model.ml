@@ -322,11 +322,16 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let root_node = R.get_exn (React.S.value t.current) root_id in
     view root_node
 
-  let collect_actions r =
+  let collect_next_actions r =
     let results = ref NodeSet.empty in
     let rec scan = function
       | {R.disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x ->
-          results := actions x |> List.fold_left (fun set action -> NodeSet.add action set) !results;
+          results := actions x |> List.fold_left (fun set action ->
+            match action with
+            | {R.disk_node = {Disk_types.details = `Action {Ck_sigs.astate = `Next}; _}; _} ->
+                NodeSet.add (action :> R.Node.t) set
+            | _ -> set
+          ) !results;
           x.R.child_nodes |> List.iter scan
       | {R.disk_node = {Disk_types.details = `Action _; _}; _} -> ()
     in
@@ -345,7 +350,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let work_tree t =
     t.current
-    |> React.S.map collect_actions
+    |> React.S.map collect_next_actions
     |> NodeList.make
     |> ReactiveData.RList.map (render_node t)
 

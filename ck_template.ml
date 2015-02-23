@@ -97,7 +97,7 @@ module Make (M : Ck_sigs.MODEL) = struct
       |> Delay.make ~delay:1.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     [
-      h4 [pcdata "Actions"];
+      h4 [pcdata "Next actions"];
       R.Html5.ul children;
     ]
 
