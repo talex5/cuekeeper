@@ -333,19 +333,21 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     scan r.R.root;
     !results
 
-  let render_node node = {
-    uuid = node.R.uuid;
-    ctime = node.R.disk_node.Disk_types.ctime;
-    node_type = React.S.const (node_type node :> [action | project | area | `Deleted]);
-    name = React.S.const node.R.disk_node.Disk_types.name;    (* Signal? *)
-    child_views = ReactiveData.RList.empty;
-  }
+  let render_node t node =
+    let live_node = t.current |> React.S.map (fun r -> R.get r node.R.uuid) in
+    {
+      uuid = node.R.uuid;
+      ctime = node.R.disk_node.Disk_types.ctime;
+      node_type = live_node |> React.S.map opt_node_type;
+      name = live_node |> React.S.map opt_node_name;
+      child_views = ReactiveData.RList.empty;
+    }
 
   let work_tree t =
     t.current
     |> React.S.map collect_actions
     |> NodeList.make
-    |> ReactiveData.RList.map render_node
+    |> ReactiveData.RList.map (render_node t)
 
   let details t uuid =
     let initial_node = R.get_exn (React.S.value t.current) uuid in
@@ -353,7 +355,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let details_children =
       let child_nodes = node |> React.S.map opt_child_nodes in
       rlist_of ~init:initial_node.R.child_nodes child_nodes
-      |> ReactiveData.RList.map render_node in
+      |> ReactiveData.RList.map (render_node t) in
     {
       details_uuid = initial_node.R.uuid;
       details_type = node |> React.S.map opt_node_type;

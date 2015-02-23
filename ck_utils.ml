@@ -28,6 +28,3 @@ let rec filter_map fn = function
 let rlist_of ~init s =
   let changes = React.S.changes s |> React.E.map (fun x -> ReactiveData.RList.Set x) in
   ReactiveData.RList.make_from init changes
-
-(* (forces return type to be unit) *)
-let async : (unit -> unit Lwt.t) -> unit = Lwt_js_events.async

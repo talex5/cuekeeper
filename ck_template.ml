@@ -5,6 +5,14 @@ open Tyxml_js
 open Html5
 open Ck_utils
 
+(* (forces return type to be unit) *)
+let async : (unit -> unit Lwt.t) -> unit = Lwt_js_events.async
+
+module Delay = Delay_RList.Make(struct
+  let now = Unix.gettimeofday
+  let sleep = Lwt_js.sleep
+end)
+
 (* Get the index of an item in an assoc list. *)
 let index_of key items =
   let rec aux i = function
@@ -73,15 +81,21 @@ module Make (M : Ck_sigs.MODEL) = struct
     let clicked _ev = show_node node.M.uuid; true in
     let delete _ev = async (fun () -> M.delete m node.M.uuid); true in
     let title_cl = React.S.map (class_of_time_and_type node.M.ctime) node.M.node_type in
-    li [
+    let deleted = node.M.node_type >|~= function
+      | `Deleted -> ["deleted"]
+      | _ -> [] in
+    li ~a:[R.Html5.a_class deleted] [
       R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
       a ~a:[R.Html5.a_class title_cl; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
-      if M.is_root node.M.uuid then pcdata "" else a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
+      if M.is_root node.M.uuid then pcdata ""
+      else a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
       R.Html5.ul children;
     ]
 
   let make_work_view m ~show_node actions =
-    let children = actions |> ReactiveData.RList.map (make_node_view m ~show_node) in
+    let children = actions
+      |> Delay.make ~delay:1.0
+      |> ReactiveData.RList.map (make_node_view m ~show_node) in
     [
       h4 [pcdata "Actions"];
       R.Html5.ul children;
