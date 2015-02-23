@@ -160,6 +160,18 @@ div.ck-details ul {
 	margin-bottom: 0;
 }
 
+/*
+li {
+	animation-name: debug;
+	animation-duration: 1.0s;
+}
+
+@keyframes debug {
+	0% { background: yellow; }
+	100% { background: yellow; }
+}
+*/
+
 @keyframes flash {
 	0% { color: yellow; }
 	24% { color: black; }
@@ -177,4 +189,13 @@ div.ck-details ul {
 	0% { opacity: 1; max-height: 200px; }
 	50% { opacity: 0; max-height: 200px; }
 	100% { opacity: 0; max-height: 0; }
+}
+
+a.delete {
+	color: #a00;
+	padding-left: 0.5em;
+}
+a.delete:hover {
+	color: #f00;
+	padding-left: 0.5em;
 }

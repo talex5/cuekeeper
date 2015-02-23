@@ -22,7 +22,7 @@ module type MODEL = sig
 
   type node_view = {
     uuid : uuid;
-    node_type : [ area | project | action ] React.S.t;
+    node_type : [ area | project | action | `Deleted ] React.S.t;
     ctime : float;
     name : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
@@ -30,13 +30,14 @@ module type MODEL = sig
 
   type details = {
     details_uuid : uuid;
-    details_type : [ area | project | action ] React.S.t;
+    details_type : [ area | project | action | `Deleted ] React.S.t;
     details_name : string React.S.t;
     details_description : string React.S.t;
     details_children : node_view ReactiveData.RList.t;
   }
 
   val root : t -> [area] full_node React.S.t
+  val is_root : uuid -> bool
 
   val all_areas_and_projects : t -> (string * [> area | project] full_node) list
 
@@ -50,6 +51,8 @@ module type MODEL = sig
   val add_action : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
   val add_project : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
   val add_area : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
+
+  val delete : t -> uuid -> unit Lwt.t
 
   val set_name : t ->  [< area | action | project] full_node -> string -> unit Lwt.t
   val set_state : t -> uuid -> [< action | project | area] -> unit Lwt.t

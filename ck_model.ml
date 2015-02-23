@@ -62,10 +62,13 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     fn node;
     node.child_nodes |> List.iter (walk fn)
 
-  let by_name a b =
-    match String.compare a.disk_node.name b.disk_node.name with
-    | 0 -> compare a.uuid b.uuid
-    | r -> r
+  module Node = struct
+    type t = [area | project | action] n
+    let compare a b =
+      match String.compare a.disk_node.name b.disk_node.name with
+      | 0 -> compare a.uuid b.uuid
+      | r -> r
+  end
 
   let make store =
     let disk_nodes = Hashtbl.create 100 in
@@ -100,7 +103,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     and make_child_nodes uuid =
       begin try Hashtbl.find children uuid with Not_found -> [] end
       |> List.map make_node
-      |> List.sort by_name in
+      |> List.sort Node.compare in
 
     let root = {
       uuid = root_id;
@@ -126,6 +129,10 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     { store; root; index; history}
 
   let get t uuid =
+    try Some (Hashtbl.find t.index uuid)
+    with Not_found -> None
+
+  let get_exn t uuid =
     try Hashtbl.find t.index uuid
     with Not_found -> error "UUID '%s' not found in database!" uuid
 
@@ -138,7 +145,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     if not (Hashtbl.mem t.index node.parent) then
       error "Parent '%s' does not exist!" node.parent;
     let s = Sexplib.Sexp.to_string (sexp_of_general_node node) in
-    let msg = Printf.sprintf "Created '%s'" node.name in
+    let msg = Printf.sprintf "Create '%s'" node.name in
     I.update (t.store msg) ["db"; uuid] s >>= fun () ->
     make t.store >|= fun t_new ->
     (Hashtbl.find t_new.index uuid, t_new)
@@ -153,10 +160,20 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     make t.store
 
   let name n = n.disk_node.name
+
+  let delete t uuid =
+    assert (uuid <> root_id);
+    let node = get_exn t uuid in
+    let msg = Printf.sprintf "Delete '%s'" (name node) in
+    I.remove (t.store msg) ["db"; uuid] >>= fun () ->
+    make t.store
 end
 
 module Make(I : Irmin.BASIC with type key = string list and type value = string) = struct
   module R = Raw(I)
+
+  module NodeSet = Set.Make(R.Node)
+  module NodeList = Delta_RList.Make(R.Node)(NodeSet)
 
   type t = {
     current : R.t React.S.t;
@@ -171,7 +188,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   type node_view = {
     uuid : uuid;
-    node_type : [ area | project | action ] React.S.t;
+    node_type : [ area | project | action | `Deleted ] React.S.t;
     ctime : float;
     name : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
@@ -179,7 +196,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   type details = {
     details_uuid : uuid;
-    details_type : [ area | project | action ] React.S.t;
+    details_type : [ area | project | action | `Deleted ] React.S.t;
     details_name : string React.S.t;
     details_description : string React.S.t;
     details_children : node_view ReactiveData.RList.t;
@@ -191,6 +208,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     { current; set_current }
 
   let root t = t.current |> React.S.map (fun r -> r.R.root)
+  let is_root = (=) root_id
 
   let all_areas_and_projects t =
     let results = ref [] in
@@ -252,6 +270,10 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   let add_project = add (`Project {Ck_sigs.pstate = `Active})
   let add_area = add `Area
 
+  let delete t uuid =
+    let r = React.S.value t.current in
+    R.delete r uuid >|= t.set_current
+
   let set_name t node name =
     let r = React.S.value t.current in
     let new_node = {node with
@@ -262,7 +284,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let set_state t uuid new_state =
     let r = React.S.value t.current in
-    let node = R.get r uuid in
+    let node = R.get_exn r uuid in
     let new_node = {node with
       R.disk_node = {node.R.disk_node with Disk_types.details = new_state}
     } in
@@ -270,29 +292,41 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     R.update r ~msg new_node >|= t.set_current
 
   let node_type {R.disk_node = {Disk_types.details; _}; _} = details
+  let opt_node_type = function
+    | None -> `Deleted
+    | Some x -> (node_type x :> [action | project | area | `Deleted])
+  let opt_node_name = function
+    | None -> "(deleted)"
+    | Some x -> R.name x
+  let opt_node_description = function
+    | None -> "(deleted)"
+    | Some x -> x.R.disk_node.Disk_types.description
+  let opt_child_nodes = function
+    | None -> []
+    | Some x -> x.R.child_nodes
 
   let process_tree t =
     let rec view node =
       let live_node = t.current |> React.S.map (fun r -> R.get r node.R.uuid) in
-      let child_nodes = live_node |> React.S.map (fun node -> node.R.child_nodes) in
+      let child_nodes = live_node |> React.S.map opt_child_nodes in
       let child_views =
         rlist_of ~init:node.R.child_nodes child_nodes
         |> ReactiveData.RList.map view in
       {
         uuid = node.R.uuid;
         ctime = node.R.disk_node.Disk_types.ctime;
-        node_type = live_node |> React.S.map node_type;
-        name = live_node |> React.S.map (fun node -> node.R.disk_node.Disk_types.name);
+        node_type = live_node |> React.S.map opt_node_type;
+        name = live_node |> React.S.map opt_node_name;
         child_views;
       } in
-    let root_node = R.get (React.S.value t.current) root_id in
+    let root_node = R.get_exn (React.S.value t.current) root_id in
     view root_node
 
   let collect_actions r =
-    let results = ref [] in
+    let results = ref NodeSet.empty in
     let rec scan = function
       | {R.disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x ->
-          results := actions x @ !results;
+          results := actions x |> List.fold_left (fun set action -> NodeSet.add action set) !results;
           x.R.child_nodes |> List.iter scan
       | {R.disk_node = {Disk_types.details = `Action _; _}; _} -> ()
     in
@@ -302,35 +336,29 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   let render_node node = {
     uuid = node.R.uuid;
     ctime = node.R.disk_node.Disk_types.ctime;
-    node_type = React.S.const (node_type node);
+    node_type = React.S.const (node_type node :> [action | project | area | `Deleted]);
     name = React.S.const node.R.disk_node.Disk_types.name;    (* Signal? *)
     child_views = ReactiveData.RList.empty;
   }
 
   let work_tree t =
-    let init = collect_actions (React.S.value t.current) in
     t.current
     |> React.S.map collect_actions
-    |> rlist_of ~init
+    |> NodeList.make
     |> ReactiveData.RList.map render_node
 
-  let leaf_view t uuid =
-    let r = React.S.value t.current in
-    let node = R.get r uuid in
-    render_node node
-
   let details t uuid =
-    let initial_node = R.get (React.S.value t.current) uuid in
+    let initial_node = R.get_exn (React.S.value t.current) uuid in
     let node = t.current |> React.S.map (fun r -> R.get r uuid) in
     let details_children =
-      let child_nodes = node |> React.S.map (fun node -> node.R.child_nodes) in
+      let child_nodes = node |> React.S.map opt_child_nodes in
       rlist_of ~init:initial_node.R.child_nodes child_nodes
-      |> ReactiveData.RList.map (fun node -> leaf_view t (node.R.uuid)) in
+      |> ReactiveData.RList.map render_node in
     {
       details_uuid = initial_node.R.uuid;
-      details_type = node |> React.S.map node_type;
-      details_name = node |> React.S.map (fun n -> n.R.disk_node.Disk_types.name);
-      details_description = node |> React.S.map (fun n -> n.R.disk_node.Disk_types.description);
+      details_type = node |> React.S.map opt_node_type;
+      details_name = node |> React.S.map opt_node_name;
+      details_description = node |> React.S.map opt_node_description;
       details_children;
     }
 

@@ -23,6 +23,7 @@ module Make (M : Ck_sigs.MODEL) = struct
     | `Area -> "ck-area"
     | `Project _ -> "ck-project"
     | `Action _ -> "ck-action"
+    | `Deleted -> "ck-deleted"
 
   let class_of_time_and_type ctime node_type =
     let ty = ["ck-title"; class_of_node_type node_type] in
@@ -60,7 +61,7 @@ module Make (M : Ck_sigs.MODEL) = struct
             M.set_state m node.M.uuid (`Project {Ck_sigs.pstate = n})
           ) in
         make_toggles ~set_state s [`Done; `Active; `SomedayMaybe]
-    | `Area -> []
+    | `Area | `Deleted -> []
 
   let make_state_toggles m node =
     let init = React.S.value node.M.node_type |> toggles_for_type m node in
@@ -70,10 +71,12 @@ module Make (M : Ck_sigs.MODEL) = struct
   let rec make_node_view m ~show_node (node:M.node_view) : _ Html5.elt =
     let children = node.M.child_views |> ReactiveData.RList.map (make_node_view m ~show_node) in
     let clicked _ev = show_node node.M.uuid; true in
+    let delete _ev = async (fun () -> M.delete m node.M.uuid); true in
     let title_cl = React.S.map (class_of_time_and_type node.M.ctime) node.M.node_type in
     li [
       R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
       a ~a:[R.Html5.a_class title_cl; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
+      if M.is_root node.M.uuid then pcdata "" else a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
       R.Html5.ul children;
     ]
 
@@ -154,6 +157,7 @@ module Make (M : Ck_sigs.MODEL) = struct
         (* When we're not editing, display the add buttons. *)
         | None ->
             item.M.details_type |> React.S.map (function
+              | `Deleted -> []
               | `Action _ -> []
               | `Project _ -> [
                   add_button `Action "+action";
