@@ -4,12 +4,6 @@
 open ReactiveData.RList
 open Lwt
 
-module type CLOCK = sig
-  val now : unit -> float
-  val async : (unit -> unit Lwt.t) -> unit
-  val sleep : float -> unit Lwt.t
-end
-
 type pending = {
   time : float;       (* When to actually delete it *)
   mutable i : int;    (* Current index in list. *)
@@ -35,7 +29,7 @@ let make_item state data =
   let state, set_state = React.S.create state in
   { state; set_state; data }
 
-module Make (C : CLOCK) = struct
+module Make (C : Ck_clock.S) = struct
   let make ~delay src =
     let src_events = ReactiveData.RList.event src in
     let delete_events, send_delete = React.E.create () in

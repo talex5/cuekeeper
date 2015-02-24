@@ -4,12 +4,6 @@
 (* A list that delays delete events. This is useful if you want to display a fade-out animation
  * when things are removed. *)
 
-module type CLOCK = sig
-  val now : unit -> float
-  val async : (unit -> unit Lwt.t) -> unit
-  val sleep : float -> unit Lwt.t
-end
-
 type set_state
 
 type 'a item = {
@@ -20,6 +14,6 @@ type 'a item = {
 
 val fixed : 'a -> 'a item
 
-module Make (C : CLOCK) : sig
+module Make (C : Ck_clock.S) : sig
   val make : delay:float -> 'a ReactiveData.RList.t -> 'a item ReactiveData.RList.t
 end
