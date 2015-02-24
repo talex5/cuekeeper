@@ -42,6 +42,9 @@ end
 
 module D = Delay_RList.Make (Test_clock)
 
+module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
+module M = Ck_model.Make(Store)
+
 let format_list l = "[" ^ (String.concat "; " l) ^ "]"
 
 let suite = 
@@ -123,7 +126,30 @@ let suite =
       eqd dst ["-zero"; "-third"; "-end"];
       Test_clock.run_to 7.1;
       eqd dst [];
-    )
+    );
+
+    "model">:: (fun () ->
+      Lwt_unix.run begin
+        Test_clock.time := 0.0;
+        let config = Irmin_mem.config () in
+        let task s =
+          let date = Test_clock.now () |> Int64.of_float in
+          Irmin.Task.create ~date ~owner:"User" s in
+        Store.create config task >>= M.make >>= fun m ->
+        let root = M.uuid (React.S.value (M.root m)) in
+        M.add_area ~parent:root ~name:"Personal" ~description:"" m >>= fun _personal ->
+        M.add_area ~parent:root ~name:"Work" ~description:"" m >>= fun work ->
+        M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun _units ->
+        let next_actions = M.work_tree m in
+        match ReactiveData.RList.value next_actions with
+        | ([] | _::_::_) -> assert false
+        | [units] ->
+        assert (React.S.value units.M.name = "Write unit tests");
+        M.set_state m units.M.uuid (`Action {Ck_sigs.astate = `Waiting}) >>= fun () ->
+        assert (List.length (ReactiveData.RList.value next_actions) = 0);
+        return ()
+      end
+    );
   ]
 
 let is_error = function
