@@ -11,27 +11,26 @@ div.ck-details li.add input {
 	margin: 2px;
 }
 
-a.ck-title {
+span.ck-item a.ck-title {
 	color: black;
 }
 
-.ck-title.ck-area {
+span.ck-item.ck-area a.ck-title {
 	font-weight: bold;
 	font-variant: small-caps;
 	text-decoration: underline;
 	color: #222;
 }
-.ck-title.ck-project {
+span.ck-item.ck-project a.ck-title {
 	font-weight: medium;
 	text-decoration: underline;
 }
-.ck-title.ck-action {
+span.ck-item.ck-action a.ck-title {
 	font-style: italic;
 	color: #444;
 }
 
-
-.ck-node {
+.ck-title {
 	padding-left: 0.4rem;
 	margin-bottom: 4px;
 	white-space: nowrap;
@@ -85,10 +84,13 @@ span.ck-toggles a.ck-active-w {
 	color: #B84;
 	background-color: #FDB;
 }
-span.ck-toggles a.ck-active-x {
+span.ck-toggles a.ck-active-✓ {
 	border-color: black;
 	color: black;
-	background-color: white;
+	background-color: yellow;
+}
+span.ck-item.ck-done a.ck-title {
+	text-decoration: line-through;
 }
 
 li.new {
@@ -162,14 +164,14 @@ div.ck-details ul {
 
 li.removed {
 	animation-name: fade-out;
-	animation-duration: 1.0s;
+	animation-duration: 2.0s;
 	max-height: 0;
 	opacity: 0;
 }
 
 li.new {
 	animation-name: fade-in;
-	animation-duration: 1.0s;
+	animation-duration: 0.5s;
 }
 
 /*

@@ -28,6 +28,11 @@ module Make (M : Ck_sigs.MODEL) = struct
 
   let current_highlight, set_highlight = React.S.create None
 
+  let with_done cls = function
+    | `Project {Ck_sigs.pstate = `Done}
+    | `Action {Ck_sigs.astate = `Done} -> "ck-done" :: cls
+    | _ -> cls
+
   let class_of_node_type = function
     | `Area -> "ck-area"
     | `Project _ -> "ck-project"
@@ -35,7 +40,7 @@ module Make (M : Ck_sigs.MODEL) = struct
     | `Deleted -> "ck-deleted"
 
   let class_of_time_and_type ctime node_type =
-    let ty = ["ck-title"; class_of_node_type node_type] in
+    let ty = with_done ["ck-item"; class_of_node_type node_type] node_type in
     let lifetime = Unix.gettimeofday () -. ctime in
     if lifetime >= 0.0 && lifetime <  1.0 then "new" :: ty
     else ty
@@ -43,7 +48,7 @@ module Make (M : Ck_sigs.MODEL) = struct
   let toggle_label ~set_state ~current state =
     let l =
       match state with
-      | `Done -> "x"
+      | `Done -> "✓"
       | `Next -> "n"
       | `Waiting -> "w"
       | `Future -> "f"
@@ -77,28 +82,31 @@ module Make (M : Ck_sigs.MODEL) = struct
     let toggles = node.M.node_type >|~= toggles_for_type m node in
     rlist_of ~init toggles
 
+  (* A <li>[toggles] name x [children]</li> element *)
   let rec make_node_view m ~show_node {Delay_RList.data = node; state; _} : _ Html5.elt =
     let children = node.M.child_views
-      |> Delay.make ~delay:1.0
+      |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     let clicked _ev = show_node node.M.uuid; true in
     let delete _ev = async (fun () -> M.delete m node.M.uuid); true in
-    let title_cl = React.S.map (class_of_time_and_type node.M.ctime) node.M.node_type in
+    let item_cl = React.S.map (class_of_time_and_type node.M.ctime) node.M.node_type in
     let li_state = state >|~= function
       | `New -> ["new"]
       | `Current -> []
       | `Removed -> ["removed"] in
     li ~a:[R.Html5.a_class li_state] [
-      R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
-      a ~a:[R.Html5.a_class title_cl; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
-      if M.is_root node.M.uuid then pcdata ""
-      else a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
+      span ~a:[R.Html5.a_class item_cl] [
+        R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
+        a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
+        if M.is_root node.M.uuid then pcdata ""
+        else a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
+      ];
       R.Html5.ul children;
     ]
 
   let make_work_view m ~show_node actions =
     let children = actions
-      |> Delay.make ~delay:1.0
+      |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     [
       h4 [pcdata "Next actions"];
@@ -243,7 +251,7 @@ module Make (M : Ck_sigs.MODEL) = struct
     let title_cl =
       item.M.details_type >|~= (fun node_type -> ["ck-title"; class_of_node_type node_type]) in
     let children = item.M.details_children
-      |> Delay.make ~delay:1.0
+      |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     div ~a:[R.Html5.a_class cl] [
       a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
