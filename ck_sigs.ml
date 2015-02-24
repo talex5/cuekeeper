@@ -25,15 +25,8 @@ module type MODEL = sig
     node_type : [ area | project | action | `Deleted ] React.S.t;
     ctime : float;
     name : string React.S.t;
+    description : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
-  }
-
-  type details = {
-    details_uuid : uuid;
-    details_type : [ area | project | action | `Deleted ] React.S.t;
-    details_name : string React.S.t;
-    details_description : string React.S.t;
-    details_children : node_view ReactiveData.RList.t;
   }
 
   val root : t -> [area] full_node React.S.t
@@ -59,6 +52,6 @@ module type MODEL = sig
 
   val process_tree : t -> node_view
   val work_tree : t -> node_view ReactiveData.RList.t
-  val details : t -> uuid -> details
+  val details : t -> uuid -> node_view
   val history : t -> (float * string) list React.S.t
 end

@@ -211,15 +211,8 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     node_type : [ area | project | action | `Deleted ] React.S.t;
     ctime : float;
     name : string React.S.t;
+    description : string React.S.t;
     child_views : node_view ReactiveData.RList.t;
-  }
-
-  type details = {
-    details_uuid : uuid;
-    details_type : [ area | project | action | `Deleted ] React.S.t;
-    details_name : string React.S.t;
-    details_description : string React.S.t;
-    details_children : node_view ReactiveData.RList.t;
   }
 
   let make store =
@@ -325,22 +318,27 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     | None -> R.NodeSet.empty
     | Some x -> x.child_nodes
 
+  let rec render_node ?include_child t node =
+    let live_node = t.current |> React.S.map (fun r -> R.get r node.R.Node.uuid) in
+    let child_views =
+      match include_child with
+      | None -> ReactiveData.RList.empty
+      | Some fn -> live_node
+          |> React.S.map (fun node -> opt_child_nodes node |> R.NodeSet.filter fn)
+          |> NodeList.make ~init:(node.R.Node.child_nodes |> R.NodeSet.filter fn)
+          |> ReactiveData.RList.map (render_node ?include_child t) in
+    {
+      uuid = node.R.Node.uuid;
+      ctime = node.R.Node.disk_node.Disk_types.ctime;
+      node_type = live_node |> React.S.map opt_node_type;
+      name = live_node |> React.S.map opt_node_name;
+      description = live_node |> React.S.map opt_node_description;
+      child_views;
+    }
+
   let process_tree t =
-    let rec view node =
-      let live_node = t.current |> React.S.map (fun r -> R.get r node.R.Node.uuid) in
-      let child_nodes = live_node |> React.S.map opt_child_nodes in
-      let child_views = child_nodes
-        |> NodeList.make ~init:(node.R.Node.child_nodes)
-        |> ReactiveData.RList.map view in
-      {
-        uuid = node.R.Node.uuid;
-        ctime = node.disk_node.Disk_types.ctime;
-        node_type = live_node |> React.S.map opt_node_type;
-        name = live_node |> React.S.map opt_node_name;
-        child_views;
-      } in
     let root_node = R.get_exn (React.S.value t.current) root_id in
-    view root_node
+    render_node t ~include_child:(fun _ -> true) root_node
 
   let collect_next_actions r =
     let results = ref R.NodeSet.empty in
@@ -358,16 +356,6 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     scan r.R.root;
     !results
 
-  let render_node t node =
-    let live_node = t.current |> React.S.map (fun r -> R.get r node.R.Node.uuid) in
-    {
-      uuid = node.R.Node.uuid;
-      ctime = node.R.Node.disk_node.Disk_types.ctime;
-      node_type = live_node |> React.S.map opt_node_type;
-      name = live_node |> React.S.map opt_node_name;
-      child_views = ReactiveData.RList.empty;
-    }
-
   let work_tree t =
     t.current
     |> React.S.map collect_next_actions
@@ -376,18 +364,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let details t uuid =
     let initial_node = R.get_exn (React.S.value t.current) uuid in
-    let node = t.current |> React.S.map (fun r -> R.get r uuid) in
-    let details_children = node
-      |> React.S.map opt_child_nodes
-      |> NodeList.make
-      |> ReactiveData.RList.map (render_node t) in
-    {
-      details_uuid = initial_node.R.Node.uuid;
-      details_type = node |> React.S.map opt_node_type;
-      details_name = node |> React.S.map opt_node_name;
-      details_description = node |> React.S.map opt_node_description;
-      details_children;
-    }
+    render_node t ~include_child:(fun _ -> true) initial_node
 
   let history t =
     t.current >|~= fun r -> r.R.history

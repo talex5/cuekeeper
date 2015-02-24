@@ -183,7 +183,7 @@ module Make (M : Ck_sigs.MODEL) = struct
       editing >>~= (function
         (* When we're not editing, display the add buttons. *)
         | None ->
-            item.M.details_type |> React.S.map (function
+            item.M.node_type |> React.S.map (function
               | `Deleted -> []
               | `Action _ -> []
               | `Project _ -> [
@@ -214,7 +214,7 @@ module Make (M : Ck_sigs.MODEL) = struct
                     | `Action -> M.add_action
                     | `Project -> M.add_project
                     | `Area -> M.add_area in
-                  Lwt_js_events.async (fun () -> adder m ~parent:item.M.details_uuid ~name ~description:"")
+                  Lwt_js_events.async (fun () -> adder m ~parent:item.M.uuid ~name ~description:"")
                 );
                 set_editing None;
               );
@@ -249,17 +249,17 @@ module Make (M : Ck_sigs.MODEL) = struct
         )
       ) in
     let title_cl =
-      item.M.details_type >|~= (fun node_type -> ["ck-title"; class_of_node_type node_type]) in
-    let children = item.M.details_children
+      item.M.node_type >|~= (fun node_type -> ["ck-title"; class_of_node_type node_type]) in
+    let children = item.M.child_views
       |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     div ~a:[R.Html5.a_class cl] [
       a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
-      h4 ~a:[R.Html5.a_class title_cl] [R.Html5.pcdata item.M.details_name];
+      h4 ~a:[R.Html5.a_class title_cl] [R.Html5.pcdata item.M.name];
       R.Html5.ul children;
       make_child_adder m item;
       div ~a:[a_class ["description"]] [
-        p [R.Html5.pcdata item.M.details_description];
+        p [R.Html5.pcdata item.M.description];
       ]
     ]
 
