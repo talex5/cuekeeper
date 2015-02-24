@@ -183,7 +183,7 @@ module Make (M : Ck_sigs.MODEL) = struct
       editing >>~= (function
         (* When we're not editing, display the add buttons. *)
         | None ->
-            item.M.node_type |> React.S.map (function
+            item.M.node_type >|~= (function
               | `Deleted -> []
               | `Action _ -> []
               | `Project _ -> [
@@ -249,13 +249,16 @@ module Make (M : Ck_sigs.MODEL) = struct
         )
       ) in
     let title_cl =
-      item.M.node_type >|~= (fun node_type -> ["ck-title"; class_of_node_type node_type]) in
+      item.M.node_type >|~= (fun node_type -> [class_of_node_type node_type]) in
     let children = item.M.child_views
       |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     div ~a:[R.Html5.a_class cl] [
       a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
-      h4 ~a:[R.Html5.a_class title_cl] [R.Html5.pcdata item.M.name];
+      h4 ~a:[R.Html5.a_class title_cl] [
+        R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
+        span ~a:[a_class ["ck-title"]] [R.Html5.pcdata item.M.name];
+      ];
       R.Html5.ul children;
       make_child_adder m item;
       div ~a:[a_class ["description"]] [

@@ -318,15 +318,20 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     | None -> R.NodeSet.empty
     | Some x -> x.child_nodes
 
-  let rec render_node ?include_child t node =
+  type child_filter = {
+    pred : R.Node.t -> bool;        (* Whether to include a child *)
+    render : R.Node.t -> node_view; (* How to render it *)
+  }
+
+  let render_node ?child_filter t node =
     let live_node = t.current |> React.S.map (fun r -> R.get r node.R.Node.uuid) in
     let child_views =
-      match include_child with
+      match child_filter with
       | None -> ReactiveData.RList.empty
-      | Some fn -> live_node
-          |> React.S.map (fun node -> opt_child_nodes node |> R.NodeSet.filter fn)
-          |> NodeList.make ~init:(node.R.Node.child_nodes |> R.NodeSet.filter fn)
-          |> ReactiveData.RList.map (render_node ?include_child t) in
+      | Some filter -> live_node
+          |> React.S.map (fun node -> opt_child_nodes node |> R.NodeSet.filter filter.pred)
+          |> NodeList.make ~init:(node.R.Node.child_nodes |> R.NodeSet.filter filter.pred)
+          |> ReactiveData.RList.map filter.render in
     {
       uuid = node.R.Node.uuid;
       ctime = node.R.Node.disk_node.Disk_types.ctime;
@@ -336,9 +341,15 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       child_views;
     }
 
+  let include_all _ = true
+
   let process_tree t =
     let root_node = R.get_exn (React.S.value t.current) root_id in
-    render_node t ~include_child:(fun _ -> true) root_node
+    let rec child_filter = {
+      pred = include_all;
+      render = (fun n -> render_node ~child_filter t n);
+    } in
+    render_node t ~child_filter root_node
 
   let collect_next_actions r =
     let results = ref R.NodeSet.empty in
@@ -364,7 +375,11 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let details t uuid =
     let initial_node = R.get_exn (React.S.value t.current) uuid in
-    render_node t ~include_child:(fun _ -> true) initial_node
+    let child_filter = {
+      pred = include_all;
+      render = render_node t;
+    } in
+    render_node t ~child_filter initial_node
 
   let history t =
     t.current >|~= fun r -> r.R.history
