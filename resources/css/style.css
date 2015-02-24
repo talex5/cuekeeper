@@ -11,23 +11,23 @@ div.ck-details li.add input {
 	margin: 2px;
 }
 
-span.ck-item a.ck-title {
+a.ck-title {
 	color: black;
 }
 
-div.ck-details h4.ck-area span.ck-title,
+div.ck-details h4.ck-area a.ck-title,
 span.ck-item.ck-area a.ck-title {
 	font-weight: bold;
 	font-variant: small-caps;
 	text-decoration: underline;
 	color: #222;
 }
-div.ck-details h4.ck-project span.ck-title,
+div.ck-details h4.ck-project a.ck-title,
 span.ck-item.ck-project a.ck-title {
 	font-weight: medium;
 	text-decoration: underline;
 }
-div.ck-details h4.ck-action span.ck-title,
+div.ck-details h4.ck-action a.ck-title,
 span.ck-item.ck-action a.ck-title {
 	font-style: italic;
 	color: #444;
@@ -92,7 +92,9 @@ span.ck-toggles a.ck-active-✓ {
 	color: black;
 	background-color: yellow;
 }
-span.ck-item.ck-done a.ck-title {
+
+h4.ck-done span.allow-strikethrough,
+span.ck-done span.allow-strikethrough {
 	text-decoration: line-through;
 }
 

@@ -97,7 +97,9 @@ module Make (M : Ck_sigs.MODEL) = struct
     li ~a:[R.Html5.a_class li_state] [
       span ~a:[R.Html5.a_class item_cl] [
         R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
-        a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
+        span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
+          a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.M.name];
+        ];
         if M.is_root node.M.uuid then pcdata ""
         else a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
       ];
@@ -249,7 +251,7 @@ module Make (M : Ck_sigs.MODEL) = struct
         )
       ) in
     let title_cl =
-      item.M.node_type >|~= (fun node_type -> [class_of_node_type node_type]) in
+      item.M.node_type >|~= (fun node_type -> with_done [class_of_node_type node_type] node_type) in
     let children = item.M.child_views
       |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
@@ -257,7 +259,9 @@ module Make (M : Ck_sigs.MODEL) = struct
       a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
       h4 ~a:[R.Html5.a_class title_cl] [
         R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
-        span ~a:[a_class ["ck-title"]] [R.Html5.pcdata item.M.name];
+        span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
+          a ~a:[a_class ["ck-title"]] [R.Html5.pcdata item.M.name];
+        ]
       ];
       R.Html5.ul children;
       make_child_adder m item;
