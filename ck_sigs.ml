@@ -1,8 +1,6 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-type uuid = string
-
 type action_details = {
   astate : [ `Next | `Waiting | `Future | `Done ]
 } with sexp
@@ -10,7 +8,6 @@ type action_details = {
 type project_details = {
   pstate : [ `Active | `SomedayMaybe | `Done ]
 } with sexp
-
 
 module type MODEL = sig
   type t
@@ -21,7 +18,7 @@ module type MODEL = sig
   type area = [`Area]
 
   type node_view = {
-    uuid : uuid;
+    uuid : Ck_id.t;
     node_type : [ area | project | action | `Deleted ] React.S.t;
     ctime : float;
     name : string React.S.t;
@@ -30,28 +27,28 @@ module type MODEL = sig
   }
 
   val root : t -> [area] full_node React.S.t
-  val is_root : uuid -> bool
+  val is_root : Ck_id.t -> bool
 
   val all_areas_and_projects : t -> (string * [> area | project] full_node) list
 
   val name : _ full_node -> string
-  val uuid : _ full_node -> string
+  val uuid : _ full_node -> Ck_id.t
 
   val actions : [< area | project] full_node -> [action] full_node list
   val projects : [< area | project] full_node -> [project] full_node list
   val areas : [area] full_node -> [area] full_node list
 
-  val add_action : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
-  val add_project : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
-  val add_area : t -> parent:uuid -> name:string -> description:string -> unit Lwt.t
+  val add_action : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
+  val add_project : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
+  val add_area : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
 
-  val delete : t -> uuid -> unit Lwt.t
+  val delete : t -> Ck_id.t -> unit Lwt.t
 
-  val set_name : t ->  [< area | action | project] full_node -> string -> unit Lwt.t
-  val set_state : t -> uuid -> [< action | project | area] -> unit Lwt.t
+  val set_name : t ->  Ck_id.t -> string -> unit Lwt.t
+  val set_state : t -> Ck_id.t -> [< action | project | area] -> unit Lwt.t
 
   val process_tree : t -> node_view
   val work_tree : t -> node_view ReactiveData.RList.t
-  val details : t -> uuid -> node_view
+  val details : t -> Ck_id.t -> node_view
   val history : t -> (float * string) list React.S.t
 end

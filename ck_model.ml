@@ -6,19 +6,13 @@ open Lwt
 
 open Ck_utils
 
-type uuid = string with sexp
-
-let root_id : uuid = ""
-
-let mint_uuid () = Uuidm.(create `V4 |> to_string)
-
 module Disk_types = struct
   type action = [`Action of Ck_sigs.action_details]
   type project = [`Project of Ck_sigs.project_details]
   type area = [`Area]
 
   type 'a node = {
-    parent : uuid;
+    parent : Ck_id.t;
     name : string;
     description : string;
     ctime : float with default(0.0);
@@ -33,7 +27,7 @@ module Disk_types = struct
 end
 
 let root_node = { Disk_types.
-  parent = root_id;
+  parent = Ck_id.root;
   name = "All";
   description = "Root area";
   details = `Area;
@@ -46,7 +40,7 @@ module type NODE = sig
   type node_set
 
   type 'a n = {
-    uuid : uuid;
+    uuid : Ck_id.t;
     disk_node : 'a node;
     child_nodes : node_set;
   }
@@ -64,7 +58,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     type node_set = NodeSet.t
 
     type 'a n = {
-      uuid : uuid;
+      uuid : Ck_id.t;
       disk_node : 'a Disk_types.node;
       child_nodes : node_set;
     }
@@ -81,7 +75,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
   type t = {
     store : string -> I.t;
     root : 'a. ([> area] as 'a) Node.n;
-    index : (uuid, Node.t) Hashtbl.t;
+    index : (Ck_id.t, Node.t) Hashtbl.t;
     history : (float * string) list;
   }
 
@@ -92,11 +86,12 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
   let make store =
     let disk_nodes = Hashtbl.create 100 in
     let children = Hashtbl.create 100 in
-    Hashtbl.add disk_nodes root_id root_node;
+    Hashtbl.add disk_nodes Ck_id.root root_node;
     I.list (store "Find db nodes") ["db"] >>=
     Lwt_list.iter_s (function
       | ["db"; uuid] as key ->
-          assert (uuid <> root_id);
+          let uuid = Ck_id.of_string uuid in
+          assert (uuid <> Ck_id.root);
           I.read_exn (store "Load db node") key >|= fun s ->
           let node = general_node_of_sexp (Sexplib.Sexp.of_string s) in
           Hashtbl.add disk_nodes uuid node;
@@ -108,7 +103,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     ) >>= fun () ->
     children |> Hashtbl.iter (fun parent children ->
       if not (Hashtbl.mem disk_nodes parent) then (
-        error "Parent UUID '%s' of child nodes %s missing!" parent (String.concat ", " children)
+        error "Parent UUID '%a' of child nodes %s missing!" Ck_id.fmt parent (String.concat ", " (List.map Ck_id.to_string children))
       )
     );
 
@@ -125,9 +120,9 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
       |> List.fold_left (fun set node -> NodeSet.add node set) NodeSet.empty in
 
     let root = { Node.
-      uuid = root_id;
+      uuid = Ck_id.root;
       disk_node = root_node;
-      child_nodes = make_child_nodes root_id;
+      child_nodes = make_child_nodes Ck_id.root;
     } in
     let index = Hashtbl.create 100 in
     root |> walk (fun node -> Hashtbl.add index node.Node.uuid node);
@@ -153,19 +148,19 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
 
   let get_exn t uuid =
     try Hashtbl.find t.index uuid
-    with Not_found -> error "UUID '%s' not found in database!" uuid
+    with Not_found -> error "UUID '%a' not found in database!" Ck_id.fmt uuid
 
   (* Note: in theory, the result might not match the input type, if the
    * merge changes it for some reason. In practice, this shouldn't happen. *)
   let create t (node:[< action | project | area] node) =
     let node = (node :> general_node) in
-    let uuid = mint_uuid () in
+    let uuid = Ck_id.mint () in
     assert (not (Hashtbl.mem t.index uuid));
     if not (Hashtbl.mem t.index node.parent) then
-      error "Parent '%s' does not exist!" node.parent;
+      error "Parent '%a' does not exist!" Ck_id.fmt node.parent;
     let s = Sexplib.Sexp.to_string (sexp_of_general_node node) in
     let msg = Printf.sprintf "Create '%s'" node.name in
-    I.update (t.store msg) ["db"; uuid] s >>= fun () ->
+    I.update (t.store msg) ["db"; Ck_id.to_string uuid] s >>= fun () ->
     make t.store >|= fun t_new ->
     (Hashtbl.find t_new.index uuid, t_new)
 
@@ -174,18 +169,18 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     let node = (node :> Node.t) in
     assert (Hashtbl.mem t.index node.uuid);
     if not (Hashtbl.mem t.index node.disk_node.parent) then
-      error "Parent '%s' does not exist!" node.disk_node.parent;
+      error "Parent '%a' does not exist!" Ck_id.fmt node.disk_node.parent;
     let s = Sexplib.Sexp.to_string (sexp_of_general_node node.disk_node) in
-    I.update (t.store msg) ["db"; node.uuid] s >>= fun () ->
+    I.update (t.store msg) ["db"; Ck_id.to_string node.uuid] s >>= fun () ->
     make t.store
 
   let name n = n.Node.disk_node.name
 
   let delete t uuid =
-    assert (uuid <> root_id);
+    assert (uuid <> Ck_id.root);
     let node = get_exn t uuid in
     let msg = Printf.sprintf "Delete '%s'" (name node) in
-    I.remove (t.store msg) ["db"; uuid] >>= fun () ->
+    I.remove (t.store msg) ["db"; Ck_id.to_string uuid] >>= fun () ->
     make t.store
 end
 
@@ -207,7 +202,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   type action = Disk_types.action
 
   type node_view = {
-    uuid : uuid;
+    uuid : Ck_id.t;
     node_type : [ area | project | action | `Deleted ] React.S.t;
     ctime : float;
     name : string React.S.t;
@@ -221,7 +216,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     { current; set_current }
 
   let root t = t.current |> React.S.map (fun r -> r.R.root)
-  let is_root = (=) root_id
+  let is_root = (=) Ck_id.root
 
   let all_areas_and_projects t =
     let results = ref [] in
@@ -276,8 +271,9 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       details;
     } in
     let r = React.S.value t.current in
-    R.create r disk_node >|= fun (_node, r_new) ->
-    t.set_current r_new
+    R.create r disk_node >|= fun (node, r_new) ->
+    t.set_current r_new;
+    node.R.Node.uuid
 
   let add_action = add (`Action {Ck_sigs.astate = `Next})
   let add_project = add (`Project {Ck_sigs.pstate = `Active})
@@ -287,8 +283,9 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let r = React.S.value t.current in
     R.delete r uuid >|= t.set_current
 
-  let set_name t node name =
+  let set_name t uuid name =
     let r = React.S.value t.current in
+    let node = R.get_exn r uuid in
     let new_node = {node with
       disk_node = {node.disk_node with Disk_types.name}
     } in
@@ -344,7 +341,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   let include_all _ = true
 
   let process_tree t =
-    let root_node = R.get_exn (React.S.value t.current) root_id in
+    let root_node = R.get_exn (React.S.value t.current) Ck_id.root in
     let rec child_filter = {
       pred = include_all;
       render = (fun n -> render_node ~child_filter t n);
