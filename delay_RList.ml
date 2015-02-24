@@ -15,6 +15,9 @@ type pending = {
   mutable i : int;    (* Current index in list. *)
 }
 
+let by_index a b =
+  compare a.i b.i
+
 type set_state = [ `New | `Current | `Removed ] -> unit
 
 type 'a item = {
@@ -41,13 +44,12 @@ module Make (C : CLOCK) = struct
       let i =
         if i < 0 then i + List.length (value src) else i in
       (* Source wants to change index i. Undo changes due to pending deletes. *)
-      let rpending = List.rev !pending_deletes in
       let rec aux i = function
         | [] -> i
         | d::ds ->
             if i >= d.i then aux (i + 1) ds
             else aux i ds in
-      aux i rpending in
+      aux i (List.sort by_index !pending_deletes) in
 
     let thread = ref None in
     let rec schedule () : unit =
@@ -56,6 +58,9 @@ module Make (C : CLOCK) = struct
           let interval = d.time -. C.now () in
           if interval <= 0.0 then (
             send_delete (Patch [R d.i]);
+            ds |> List.iter (fun other_d ->
+              if other_d.i > d.i then other_d.i <- other_d.i - 1
+            );
             pending_deletes := ds;
             schedule ()
           ) else (

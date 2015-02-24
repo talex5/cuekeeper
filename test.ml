@@ -115,6 +115,14 @@ let suite =
       eqd dst ["-middle"; "+zero"; "third"];
       Test_clock.run_to 6.1;
       eqd dst ["zero"; "third"];
+
+      insert "end" (-1) handle;
+      remove 0 handle;
+      remove 0 handle;
+      remove 0 handle;
+      eqd dst ["-zero"; "-third"; "-end"];
+      Test_clock.run_to 7.1;
+      eqd dst [];
     )
   ]
 
