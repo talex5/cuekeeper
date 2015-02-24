@@ -3,8 +3,17 @@ div.ck-details li { list-style-type: none; }
 li.add  { list-style-type: none; }
 li.add a { margin-right: 1em; }
 
+div.inline {
+	display: inline;
+}
+
+div.ck-details form.rename,
 div.ck-details li.add form {
 	display: inline;
+}
+
+div.ck-heading {
+	padding-bottom: 0.2rem;
 }
 
 div.ck-details li.add input {
@@ -15,19 +24,19 @@ a.ck-title {
 	color: black;
 }
 
-div.ck-details h4.ck-area a.ck-title,
+div.ck-details div.ck-area a.ck-title,
 span.ck-item.ck-area a.ck-title {
 	font-weight: bold;
 	font-variant: small-caps;
 	text-decoration: underline;
 	color: #222;
 }
-div.ck-details h4.ck-project a.ck-title,
+div.ck-details div.ck-project a.ck-title,
 span.ck-item.ck-project a.ck-title {
 	font-weight: medium;
 	text-decoration: underline;
 }
-div.ck-details h4.ck-action a.ck-title,
+div.ck-details div.ck-action a.ck-title,
 span.ck-item.ck-action a.ck-title {
 	font-style: italic;
 	color: #444;
@@ -93,7 +102,7 @@ span.ck-toggles a.ck-active-✓ {
 	background-color: yellow;
 }
 
-h4.ck-done span.allow-strikethrough,
+div.ck-done span.allow-strikethrough,
 span.ck-done span.allow-strikethrough {
 	text-decoration: line-through;
 }

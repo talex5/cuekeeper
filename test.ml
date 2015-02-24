@@ -40,92 +40,83 @@ module Test_clock = struct
         debug "time = %.2f\n" !time
 end
 
-module D = Delay_RList.Make (Test_clock)
+module StringSet = Set.Make(String)
+module Slow = Slow_set.Make(Test_clock)(String)(StringSet)
 
 module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
-module M = Ck_model.Make(Store)
+module M = Ck_model.Make(Test_clock)(Store)
 
 let format_list l = "[" ^ (String.concat "; " l) ^ "]"
 
 let suite = 
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
-      let open ReactiveData.RList in
-      let eq rl expected =
-        assert_equal ~printer:format_list expected (value rl) in
+      Test_clock.time := 0.0;
+      let src, set_src = React.S.create StringSet.empty in
+      let set items =
+        List.fold_left (fun acc i -> StringSet.add i acc) StringSet.empty items
+        |> set_src in
       let eqd rl expected =
-        let actual = value rl |> List.map (fun d ->
-          let s = d.Delay_RList.data in
-          match React.S.value d.Delay_RList.state with
-          | `New -> "+" ^ s
-          | `Current -> s
-          | `Removed -> "-" ^ s
-        ) in
+        let actual =
+          Slow.M.fold (fun key state acc ->
+            let s = match state with
+              | `New -> "+" ^ key
+              | `Current -> key
+              | `Removed _ -> "-" ^ key in
+            s :: acc
+          ) (React.S.value rl) []
+          |> List.rev in
         assert_equal ~printer:format_list expected actual in
-      let src, handle = make [] in
-      let dst = D.make ~delay:1.0 src in
+      let dst = Slow.make ~delay:1.0 src in
       eqd dst [];
-      insert "first" 0 handle;
-      eqd dst ["+first"];
-      remove 0 handle;
-      eqd dst ["-first"];
+
+      set ["1"];
+      eqd dst ["+1"];
+
+      set [];
+      eqd dst ["-1"];
       Test_clock.run_to 2.0;
       eqd dst [];
 
-      insert "first" 0 handle;
-      insert "second" 1 handle;
-      insert "third" 2 handle;
-      remove 1 handle;            (* Remove second at t=2.0 *)
-      eq src ["first"; "third"];
-      eqd dst ["+first"; "-second"; "+third"];
-      insert "zero" 0 handle;
-      insert "1.5" 2 handle;
-      eq src ["zero"; "first"; "1.5"; "third"];
-      eqd dst ["+zero"; "+first"; "-second"; "+1.5"; "+third"];
-      insert "3.5" (-1) handle;
-      eq src ["zero"; "first"; "1.5"; "third"; "3.5"];
-      eqd dst ["+zero"; "+first"; "-second"; "+1.5"; "+third"; "+3.5"];
+      set ["1"; "2"; "3"];
+      set ["1"; "3"];   (* Remove 2 at t=2.0 *)
+      eqd dst ["+1"; "-2"; "+3"];
+
+      set ["0"; "1"; "1.5"; "3"];
+      eqd dst ["+0"; "+1"; "+1.5"; "-2"; "+3"];
+
+      set ["0"; "1"; "1.5"; "3"; "3.5"];
+      eqd dst ["+0"; "+1"; "+1.5"; "-2"; "+3"; "+3.5"];
       Test_clock.run_to 2.1;
-      remove 0 handle;            (* Remove zero at t=2.1 *)
-      eq src ["first"; "1.5"; "third"; "3.5"];
-      eqd dst ["-zero"; "+first"; "-second"; "+1.5"; "+third"; "+3.5"];
+      eqd dst ["+0"; "+1"; "+1.5"; "-2"; "+3"; "+3.5"];
+
+      set ["1"; "1.5"; "3"; "3.5"];
+      eqd dst ["-0"; "+1"; "+1.5"; "-2"; "+3"; "+3.5"];
       Test_clock.run_to 3.0;
-      eqd dst ["-zero"; "first"; "1.5"; "third"; "3.5"];
+      eqd dst ["-0"; "1"; "1.5"; "3"; "3.5"];
       Test_clock.run_to 3.1;
-      eqd dst ["first"; "1.5"; "third"; "3.5"];
+      eqd dst ["1"; "1.5"; "3"; "3.5"];
 
-      remove (-1) handle;
-      eq src ["first"; "1.5"; "third"];
-      eqd dst ["first"; "1.5"; "third"; "-3.5"];
+      set ["1"; "1.5"; "3"];
+      eqd dst ["1"; "1.5"; "3"; "-3.5"];
       Test_clock.run_to 4.1;
-      eqd dst ["first"; "1.5"; "third"];
+      eqd dst ["1"; "1.5"; "3"];
 
-      remove 0 handle;
-      update "middle" 0 handle;
-      eq src ["middle"; "third"];
-      eqd dst ["-first"; "middle"; "third"];
+      set ["1.5"; "3"];
+      eqd dst ["-1"; "1.5"; "3"];
       Test_clock.run_to 5.1;
-      eqd dst ["middle"; "third"];
+      eqd dst ["1.5"; "3"];
 
-      remove 0 handle;
-      insert "zero" 0 handle;
-      move 0 1 handle;
-      eq src ["third"; "zero"];
-      eqd dst ["-middle"; "third"; "+zero"];
+      set ["0"; "3"];
+      eqd dst ["+0"; "-1.5"; "3"];
 
-      move 1 (-1) handle;
-      eq src ["zero"; "third"];
-      eqd dst ["-middle"; "+zero"; "third"];
       Test_clock.run_to 6.1;
-      eqd dst ["zero"; "third"];
+      eqd dst ["0"; "3"];
 
-      insert "end" (-1) handle;
-      remove 0 handle;
-      remove 0 handle;
-      remove 0 handle;
-      eqd dst ["-zero"; "-third"; "-end"];
+      set ["4"];
+      eqd dst ["-0"; "-3"; "+4"];
       Test_clock.run_to 7.1;
-      eqd dst [];
+      eqd dst ["4"];
     );
 
     "model">:: (fun () ->
@@ -146,10 +137,12 @@ let suite =
         | [units] ->
         assert (React.S.value units.M.View.name = "Write unit tests");
         M.set_state m units.M.View.uuid (`Action {Ck_sigs.astate = `Waiting}) >>= fun () ->
+        assert (List.length (ReactiveData.RList.value next_actions) = 1);
+        Test_clock.run_to 2.0;
         assert (List.length (ReactiveData.RList.value next_actions) = 0);
         return ()
       end
-    );
+    )
   ]
 
 let is_error = function

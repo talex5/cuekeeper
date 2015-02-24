@@ -2,8 +2,14 @@ open Lwt
 
 (* let () = Log.(set_log_level DEBUG) *)
 
+module Clock = struct
+  let now = Unix.gettimeofday
+  let async = async
+  let sleep = Lwt_js.sleep
+end
+
 module Store = Irmin.Basic(Html_storage.Make)(Irmin.Contents.String)
-module M = Ck_model.Make(Store)
+module M = Ck_model.Make(Clock)(Store)
 module T = Ck_template.Make(M)
 
 let start (main:#Dom.node Js.t) =

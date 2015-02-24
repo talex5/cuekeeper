@@ -197,11 +197,8 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     make t.store
 end
 
-module Make(I : Irmin.BASIC with type key = string list and type value = string) = struct
+module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and type value = string) = struct
   module R = Raw(I)
-  module NodeList = Delta_RList.Make(R.Node)(R.NodeSet)
-
-  open R.Node
 
   type t = {
     current : R.t React.S.t;
@@ -223,8 +220,14 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       name : string React.S.t;
       description : string React.S.t;
       child_views : t ReactiveData.RList.t;
+      state : Slow_set.state;
     }
   end
+
+  module Slow = Slow_set.Make(Clock)(R.Node)(R.NodeSet)
+  module NodeList = Delta_RList.Make(R.Node)(Slow.M)
+
+  open R.Node
 
   let make store =
     R.make store >|= fun r ->
@@ -332,18 +335,19 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     | Some x -> x.child_nodes
 
   type child_filter = {
-    pred : R.Node.t -> bool;        (* Whether to include a child *)
-    render : R.Node.t -> View.t;    (* How to render it *)
+(*     pred : R.Node.t -> bool;        (* Whether to include a child *) *)
+    render : R.Node.t * Slow_set.state -> View.t;    (* How to render it *)
   }
 
-  let render_node ?child_filter t node =
+  let render_node ?child_filter t (node, state) =
     let live_node = t.current |> React.S.map (fun r -> R.get r node.R.Node.uuid) in
     let child_views =
       match child_filter with
       | None -> ReactiveData.RList.empty
       | Some filter -> live_node
-          |> React.S.map (fun node -> opt_child_nodes node |> R.NodeSet.filter filter.pred)
-          |> NodeList.make ~init:(node.R.Node.child_nodes |> R.NodeSet.filter filter.pred)
+          |> React.S.map opt_child_nodes
+          |> Slow.make ~init:node.R.Node.child_nodes ~delay:1.0
+          |> NodeList.make
           |> ReactiveData.RList.map filter.render in
     { View.
       uuid = node.R.Node.uuid;
@@ -353,17 +357,15 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       name = live_node |> React.S.map opt_node_name;
       description = live_node |> React.S.map opt_node_description;
       child_views;
+      state;
     }
-
-  let include_all _ = true
 
   let process_tree t =
     let root_node = R.get_exn (React.S.value t.current) Ck_id.root in
     let rec child_filter = {
-      pred = include_all;
       render = (fun n -> render_node ~child_filter t n);
     } in
-    render_node t ~child_filter root_node
+    render_node t ~child_filter (root_node, `Current)
 
   let collect_next_actions r =
     let results = ref R.NodeSet.empty in
@@ -384,16 +386,16 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   let work_tree t =
     t.current
     |> React.S.map collect_next_actions
+    |> Slow.make ~delay:1.0
     |> NodeList.make
     |> ReactiveData.RList.map (render_node t)
 
   let details t uuid =
     let initial_node = R.get_exn (React.S.value t.current) uuid in
     let child_filter = {
-      pred = include_all;
       render = render_node t;
     } in
-    render_node t ~child_filter initial_node
+    render_node t ~child_filter (initial_node, `Current)
 
   let history t =
     t.current >|~= fun r -> r.R.history

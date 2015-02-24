@@ -8,12 +8,6 @@ open Ck_utils
 (* (forces return type to be unit) *)
 let async : (unit -> unit Lwt.t) -> unit = Lwt_js_events.async
 
-module Delay = Delay_RList.Make(struct
-  let now = Unix.gettimeofday
-  let async = async
-  let sleep = Lwt_js.sleep
-end)
-
 (* Get the index of an item in an assoc list. *)
 let index_of key items =
   let rec aux i = function
@@ -84,18 +78,17 @@ module Make (M : Ck_sigs.MODEL) = struct
     rlist_of ~init toggles
 
   (* A <li>[toggles] name x [children]</li> element *)
-  let rec make_node_view m ~show_node {Delay_RList.data = node; state; _} : _ Html5.elt =
+  let rec make_node_view m ~show_node node : _ Html5.elt =
     let children = node.View.child_views
-      |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     let clicked _ev = show_node node.View.uuid; true in
     let delete _ev = async (fun () -> M.delete m node.View.uuid); true in
     let item_cl = React.S.map (class_of_time_and_type node.View.ctime) node.View.node_type in
-    let li_state = state >|~= function
+    let li_state = match node.View.state with
       | `New -> ["new"]
       | `Current -> []
-      | `Removed -> ["removed"] in
-    li ~a:[R.Html5.a_class li_state] [
+      | `Removed _ -> ["removed"] in
+    li ~a:[a_class li_state] [
       span ~a:[R.Html5.a_class item_cl] [
         R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
         span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
@@ -109,7 +102,6 @@ module Make (M : Ck_sigs.MODEL) = struct
 
   let make_work_view m ~show_node actions =
     let children = actions
-      |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     [
       h4 [pcdata "Next actions"];
@@ -139,7 +131,7 @@ module Make (M : Ck_sigs.MODEL) = struct
       ) in
       div ~a:[R.Html5.a_class cl] contents in
     let process_tree = M.process_tree m  in
-    let process = make_node_view m ~show_node (Delay_RList.fixed process_tree) in
+    let process = make_node_view m ~show_node process_tree in
     let work = M.work_tree m |> make_work_view m ~show_node in
     div ~a:[a_class ["tabs-content"]] [
       tab `Process [ul [process]];
@@ -236,6 +228,37 @@ module Make (M : Ck_sigs.MODEL) = struct
       R.Html5.li ~a:[a_class ["add"]] rlist
     ]
 
+  let make_editable_title m node =
+    let editing, set_editing = React.S.create false in
+    let widgets =
+      editing >|~= (function
+        | false ->
+            let edit _ev = set_editing true; true in [
+              span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
+                a ~a:[a_class ["ck-title"]; a_onclick edit] [R.Html5.pcdata node.View.name];
+              ]
+            ]
+        | true ->
+            let submit ev =
+              let form = ev##target >>?= Dom_html.CoerceTo.form in
+              Js.Opt.iter form (fun form ->
+                let f = Form.get_form_contents form in
+                let name = List.assoc "name" f |> String.trim in
+                if name <> "" then (
+                  async (fun () -> M.set_name m node.View.uuid name)
+                )
+              );
+              set_editing false;
+              true in
+            let old_name = React.S.value node.View.name in [
+              form ~a:[a_class ["rename"]; a_onsubmit submit] [
+                input ~a:[a_name "name"; a_placeholder "Name"; a_size 25; a_value old_name] ();
+                input ~a:[a_input_type `Submit; a_value "OK"] ();
+              ]
+            ]
+      ) in
+    rlist_of ~init:(React.S.value widgets) widgets
+
   let make_details_panel m ~show_node ~remove ~uuid item =
     let closed, set_closed = React.S.create false in
     let close () =
@@ -253,17 +276,14 @@ module Make (M : Ck_sigs.MODEL) = struct
         )
       ) in
     let title_cl =
-      item.View.node_type >|~= (fun node_type -> with_done [class_of_node_type node_type] node_type) in
+      item.View.node_type >|~= (fun node_type -> with_done ["ck-heading"; class_of_node_type node_type] node_type) in
     let children = item.View.child_views
-      |> Delay.make ~delay:2.0
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
     div ~a:[R.Html5.a_class cl] [
       a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
-      h4 ~a:[R.Html5.a_class title_cl] [
+      div ~a:[R.Html5.a_class title_cl] [
         R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
-        span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
-          a ~a:[a_class ["ck-title"]] [R.Html5.pcdata item.View.name];
-        ]
+        R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
       ];
       R.Html5.ul children;
       make_child_adder m item;

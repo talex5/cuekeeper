@@ -26,6 +26,7 @@ module type MODEL = sig
       name : string React.S.t;
       description : string React.S.t;
       child_views : t ReactiveData.RList.t;
+      state : Slow_set.state;
     }
   end
 
