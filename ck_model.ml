@@ -74,16 +74,29 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
 
   type t = {
     store : string -> I.t;
+    commit : I.head;
     root : 'a. ([> area] as 'a) Node.n;
     index : (Ck_id.t, Node.t) Hashtbl.t;
     history : (float * string) list;
   }
 
+  let eq a b =
+    a.commit = b.commit
+
   let rec walk fn node =
     fn node;
     node.Node.child_nodes |> NodeSet.iter (walk fn)
 
+  let get_current store =
+    I.head (store "Get latest commit") >>= function
+    | Some commit -> return commit
+    | None ->
+        I.update (store "Init") ["ck-version"] "0.1" >>= fun () ->
+        I.head_exn (store "Get initial commit")
+
   let make store =
+    get_current store >>= fun commit ->
+    (* TODO: do all reads using this commit *)
     let disk_nodes = Hashtbl.create 100 in
     let children = Hashtbl.create 100 in
     Hashtbl.add disk_nodes Ck_id.root root_node;
@@ -140,7 +153,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
       let date = Irmin.Task.date task |> Int64.to_float in
       (date, summary)
     ) >|= fun history ->
-    { store; root; index; history}
+    { store; commit; root; index; history}
 
   let get t uuid =
     try Some (Hashtbl.find t.index uuid)
@@ -212,7 +225,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let make store =
     R.make store >|= fun r ->
-    let current, set_current = React.S.create r in
+    let current, set_current = React.S.create ~eq:R.eq r in
     { current; set_current }
 
   let root t = t.current |> React.S.map (fun r -> r.R.root)
