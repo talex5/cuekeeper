@@ -86,6 +86,7 @@ module Make (M : Ck_sigs.MODEL) = struct
     let item_cl = React.S.map (class_of_time_and_type node.View.ctime) node.View.node_type in
     let li_state = match node.View.state with
       | `New -> ["new"]
+      | `Moved -> ["moved"]
       | `Current -> []
       | `Removed _ -> ["removed"] in
     li ~a:[a_class li_state] [

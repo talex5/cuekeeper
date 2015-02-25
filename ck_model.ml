@@ -34,49 +34,36 @@ let root_node = { Disk_types.
   ctime = 0.0;
 }
 
-module type NODE = sig
-  open Disk_types
-
-  type node_set
-
-  type 'a n = {
-    uuid : Ck_id.t;
-    disk_node : 'a node;
-    child_nodes : node_set;
-  }
-
-  include Set.OrderedType
-  with type t = [area | project | action] n
-end
-
 module Raw(I : Irmin.BASIC with type key = string list and type value = string) = struct
   open Disk_types
 
   module Top = Graph.Topological.Make(I.History)
 
-  module rec Node : (NODE with type node_set = NodeSet.t) = struct
-    type node_set = NodeSet.t
+  module SortKey = struct
+    type t = string * Ck_id.t
+    let compare (a_name, a_id) (b_name, b_id) =
+      match String.compare a_name b_name with
+      | 0 -> compare a_id b_id
+      | r -> r
+    let id = snd
+  end
+  module M = Map.Make(SortKey)
 
+  module Node = struct
     type 'a n = {
       uuid : Ck_id.t;
       disk_node : 'a Disk_types.node;
-      child_nodes : node_set;
+      child_nodes : t M.t;
     }
+    and t = [area | project | action] n
 
-    type t = [area | project | action] n
+    let key node = (node.disk_node.Disk_types.name, node.uuid)
 
-    let compare a b =
-      match String.compare a.disk_node.name b.disk_node.name with
-      | 0 -> compare a.uuid b.uuid
-      | r -> r
+    let rec eq a b =
+      a.uuid = b.uuid &&
+      a.disk_node = b.disk_node &&
+      M.equal eq a.child_nodes b.child_nodes
   end
-  and NodeSet : (Set.S with type elt = Node.t) = Set.Make(Node)
-
-  let node_eq a b =
-    let open Node in
-    a.uuid = b.uuid &&
-    a.disk_node = b.disk_node &&
-    NodeSet.equal a.child_nodes b.child_nodes
 
   type t = {
     store : string -> I.t;
@@ -91,7 +78,7 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
 
   let rec walk fn node =
     fn node;
-    node.Node.child_nodes |> NodeSet.iter (walk fn)
+    node.Node.child_nodes |> M.iter (fun _k v -> walk fn v)
 
   let get_current store =
     I.head (store "Get latest commit") >>= function
@@ -136,7 +123,9 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
     and make_child_nodes uuid =
       begin try Hashtbl.find children uuid with Not_found -> [] end
       |> List.map make_node
-      |> List.fold_left (fun set node -> NodeSet.add node set) NodeSet.empty in
+      |> List.fold_left (fun set node ->
+          M.add (Node.key node) node set
+        ) M.empty in
 
     let root = { Node.
       uuid = Ck_id.root;
@@ -228,10 +217,18 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       child_views : t ReactiveData.RList.t;
       state : Slow_set.state;
     }
+
+    let eq a b =
+      a.uuid = b.uuid &&
+      a.init_node_type = b.init_node_type &&
+      a.ctime = b.ctime &&
+      a.state = b.state
+      (* We ignore the signals, since any view with the same
+       * uuid with have the same signals values. *)
   end
 
-  module Slow = Slow_set.Make(Clock)(R.Node)(R.NodeSet)
-  module NodeList = Delta_RList.Make(R.Node)(Slow.M)
+  module Slow = Slow_set.Make(Clock)(R.SortKey)(R.M)
+  module NodeList = Delta_RList.Make(R.SortKey)(View)(R.M)
 
   open R.Node
 
@@ -250,7 +247,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     let rec scan prefix x =
       let full_path = prefix ^ "/" ^ x.disk_node.Disk_types.name in
       results := (full_path, x) :: !results;
-      x.child_nodes |> R.NodeSet.iter (fun child ->
+      x.child_nodes |> R.M.iter (fun _k child ->
         match child with
         | {disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x -> scan full_path x
         | _ -> ()
@@ -260,7 +257,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let actions parent =
     let results = ref [] in
-    parent.child_nodes |> R.NodeSet.iter (fun child ->
+    parent.child_nodes |> R.M.iter (fun _k child ->
       match child with
       | {disk_node = {Disk_types.details = `Action _; _}; _} as x -> results := x :: !results
       | _ -> ()
@@ -269,7 +266,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let projects parent =
     let results = ref [] in
-    parent.child_nodes |> R.NodeSet.iter (fun child ->
+    parent.child_nodes |> R.M.iter (fun _k child ->
       match child with
       | {disk_node = {Disk_types.details = `Project _; _}; _} as x -> results := x :: !results
       | _ -> ()
@@ -278,7 +275,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let areas parent =
     let results = ref [] in
-    parent.child_nodes |> R.NodeSet.iter (fun child ->
+    parent.child_nodes |> R.M.iter (fun _k child ->
       match child with
       | {disk_node = {Disk_types.details = `Area; _}; _} as x -> results := x :: !results
       | _ -> ()
@@ -339,7 +336,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     | None -> "(deleted)"
     | Some x -> x.disk_node.Disk_types.description
   let opt_child_nodes = function
-    | None -> R.NodeSet.empty
+    | None -> R.M.empty
     | Some x -> x.child_nodes
 
   type child_filter = {
@@ -350,7 +347,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let opt_node_eq a b =
     match a, b with
     | None, None -> true
-    | Some a, Some b -> R.node_eq a b
+    | Some a, Some b -> R.Node.eq a b
     | _ -> false
 
   let render_node ?child_filter t (node, state) =
@@ -359,10 +356,10 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       match child_filter with
       | None -> ReactiveData.RList.empty
       | Some filter -> live_node
-          |> React.S.map ~eq:R.NodeSet.equal opt_child_nodes
-          |> Slow.make ~init:node.R.Node.child_nodes ~delay:1.0
-          |> NodeList.make
-          |> ReactiveData.RList.map filter.render in
+          |> React.S.map ~eq:(R.M.equal R.Node.eq) opt_child_nodes
+          |> Slow.make ~eq:R.Node.eq ~init:node.R.Node.child_nodes ~delay:1.0
+          |> React.S.map ~eq:(R.M.equal View.eq) (R.M.map filter.render)
+          |> NodeList.make in
     { View.
       uuid = node.R.Node.uuid;
       ctime = node.R.Node.disk_node.Disk_types.ctime;
@@ -382,16 +379,16 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     render_node t ~child_filter (root_node, `Current)
 
   let collect_next_actions r =
-    let results = ref R.NodeSet.empty in
+    let results = ref R.M.empty in
     let rec scan = function
       | {disk_node = {Disk_types.details = `Area | `Project _; _}; _} as x ->
           results := actions x |> List.fold_left (fun set action ->
             match action with
             | {disk_node = {Disk_types.details = `Action {Ck_sigs.astate = `Next}; _}; _} ->
-                R.NodeSet.add (action :> R.Node.t) set
+                R.M.add (R.Node.key action) (action :> R.Node.t) set
             | _ -> set
           ) !results;
-          x.child_nodes |> R.NodeSet.iter scan
+          x.child_nodes |> R.M.iter (fun _k v -> scan v)
       | {disk_node = {Disk_types.details = `Action _; _}; _} -> ()
     in
     scan r.R.root;
@@ -399,10 +396,10 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let work_tree t =
     t.current
-    |> React.S.map ~eq:R.NodeSet.equal collect_next_actions
-    |> Slow.make ~delay:1.0
+    |> React.S.map ~eq:(R.M.equal R.Node.eq) collect_next_actions
+    |> Slow.make ~eq:R.Node.eq ~delay:1.0
+    |> React.S.map ~eq:(R.M.equal View.eq) (R.M.map (render_node t))
     |> NodeList.make
-    |> ReactiveData.RList.map (render_node t)
 
   let details t uuid =
     let initial_node = R.get_exn (React.S.value t.current) uuid in

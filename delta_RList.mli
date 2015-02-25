@@ -5,8 +5,18 @@
  * Unlike RList.make_from_s, this generates individual add and remove events
  * rather than replacing the whole list every time the signal changes. *)
 
-module Make (Item : Set.OrderedType) (Input : Map.S with type key = Item.t) : sig
+module type Eq = sig
+  type t
+  val eq : t -> t -> bool
+end
+
+module Make (Key : Set.OrderedType)
+            (Value : Eq)
+            (M : Map.S with type key = Key.t) : sig
   (* If this can be called from a React update, you must provide the [init] field,
    * since [React.S.value input] won't be ready yet. *)
-  val make : ?init:'a Input.t -> 'a Input.t React.S.t -> (Item.t * 'a) ReactiveData.RList.t
+  val make :
+    ?init:Value.t M.t ->
+    Value.t M.t React.S.t ->
+    Value.t ReactiveData.RList.t
 end

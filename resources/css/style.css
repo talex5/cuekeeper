@@ -107,11 +107,6 @@ span.ck-done span.allow-strikethrough {
 	text-decoration: line-through;
 }
 
-li.new {
-	animation-name: fade-in;
-	animation-duration: 1.0s;
-}
-
 li a a.add {
 	visibility: hidden;
 	border: none;
@@ -176,16 +171,21 @@ div.ck-details ul {
 	margin-bottom: 0;
 }
 
+li.new {
+	animation-name: fade-in;
+	animation-duration: 0.5s;
+}
+
+li.moved {
+	animation-name: fade-in-move;
+	animation-duration: 2.0s;
+}
+
 li.removed {
 	animation-name: fade-out;
 	animation-duration: 2.0s;
 	max-height: 0;
 	opacity: 0;
-}
-
-li.new {
-	animation-name: fade-in;
-	animation-duration: 0.5s;
 }
 
 /*
@@ -214,9 +214,15 @@ li {
 }
 
 @keyframes fade-out {
-	0% { opacity: 1; max-height: 200px; }
-	50% { opacity: 0; max-height: 200px; }
+	0% { opacity: 1; max-height: 24px; }
+	50% { opacity: 0; max-height: 24px; }
 	100% { opacity: 0; max-height: 0; }
+}
+
+@keyframes fade-in-move {
+	0% { opacity: 0.0; max-height: 0; }
+	50% { opacity: 0.0; max-height: 0; }
+	100% { opacity: 1.0; max-height: 24px; }
 }
 
 a.delete {

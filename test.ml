@@ -40,9 +40,17 @@ module Test_clock = struct
         debug "time = %.2f\n" !time
 end
 
-module StringSet = Set.Make(String)
-module Slow = Slow_set.Make(Test_clock)(String)(StringSet)
+module Key = struct
+  type t = Ck_id.t * string
+  let id = fst
+  let compare a b =
+    match compare (snd a) (snd b) with
+    | 0 -> compare (fst a) (fst b)
+    | r -> r
+end
 
+module ItemMap = Map.Make(Key)
+module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
 module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
 module M = Ck_model.Make(Test_clock)(Store)
 
@@ -52,25 +60,46 @@ let suite =
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
       Test_clock.time := 0.0;
-      let src, set_src = React.S.create StringSet.empty in
+      let src, set_src = React.S.create ~eq:(ItemMap.equal (=)) ItemMap.empty in
       let set items =
-        List.fold_left (fun acc i -> StringSet.add i acc) StringSet.empty items
+        List.fold_left (fun acc i ->
+          ItemMap.add i i acc
+        ) ItemMap.empty items
         |> set_src in
+      let rename o n =
+        React.S.value src
+        |> ItemMap.remove o
+        |> ItemMap.add n n
+        |> set_src in
+
       let eqd rl expected =
         let actual =
-          Slow.M.fold (fun key state acc ->
+          ItemMap.fold (fun _k ((_id, b), state) acc ->
             let s = match state with
-              | `New -> "+" ^ key
-              | `Current -> key
-              | `Removed _ -> "-" ^ key in
+              | `New -> "+" ^ b
+              | `Moved -> ">" ^ b
+              | `Current -> b
+              | `Removed _ -> "-" ^ b in
             s :: acc
           ) (React.S.value rl) []
           |> List.rev in
         assert_equal ~printer:format_list expected actual in
-      let dst = Slow.make ~delay:1.0 src in
+      let dst = Slow.make ~eq:(=) ~delay:1.0 src in
       eqd dst [];
 
-      set ["1"];
+      let n name =
+        let id = float_of_string name *. 10. |> Printf.sprintf "%g" |> Ck_id.of_string in
+        (id, name) in
+
+      let a0  = n "0" in
+      let a1  = n "1" in
+      let a15 = n "1.5" in
+      let a2  = n "2" in
+      let a3  = n "3" in
+      let a35 = n "3.5" in
+      let a4  = n "4" in
+
+      set [a1];
       eqd dst ["+1"];
 
       set [];
@@ -78,45 +107,53 @@ let suite =
       Test_clock.run_to 2.0;
       eqd dst [];
 
-      set ["1"; "2"; "3"];
-      set ["1"; "3"];   (* Remove 2 at t=2.0 *)
+      set [a1; a2; a3];
+      set [a1; a3];   (* Remove 2 at t=2.0 *)
       eqd dst ["+1"; "-2"; "+3"];
 
-      set ["0"; "1"; "1.5"; "3"];
+      set [a0; a1; a15; a3];
       eqd dst ["+0"; "+1"; "+1.5"; "-2"; "+3"];
 
-      set ["0"; "1"; "1.5"; "3"; "3.5"];
+      set [a0; a1; a15; a3; a35];
       eqd dst ["+0"; "+1"; "+1.5"; "-2"; "+3"; "+3.5"];
       Test_clock.run_to 2.1;
       eqd dst ["+0"; "+1"; "+1.5"; "-2"; "+3"; "+3.5"];
 
-      set ["1"; "1.5"; "3"; "3.5"];
+      set [a1; a15; a3; a35];
       eqd dst ["-0"; "+1"; "+1.5"; "-2"; "+3"; "+3.5"];
       Test_clock.run_to 3.0;
       eqd dst ["-0"; "1"; "1.5"; "3"; "3.5"];
       Test_clock.run_to 3.1;
       eqd dst ["1"; "1.5"; "3"; "3.5"];
 
-      set ["1"; "1.5"; "3"];
+      set [a1; a15; a3];
       eqd dst ["1"; "1.5"; "3"; "-3.5"];
       Test_clock.run_to 4.1;
       eqd dst ["1"; "1.5"; "3"];
 
-      set ["1.5"; "3"];
+      set [a15; a3];
       eqd dst ["-1"; "1.5"; "3"];
       Test_clock.run_to 5.1;
       eqd dst ["1.5"; "3"];
 
-      set ["0"; "3"];
+      set [a0; a3];
       eqd dst ["+0"; "-1.5"; "3"];
 
       Test_clock.run_to 6.1;
       eqd dst ["0"; "3"];
 
-      set ["4"];
+      set [a4];
       eqd dst ["-0"; "-3"; "+4"];
       Test_clock.run_to 7.1;
       eqd dst ["4"];
+
+      set [a0; a1; a2; a3];
+      Test_clock.run_to 10.0;
+      eqd dst ["0"; "1"; "2"; "3"];
+
+      let two = (fst a2, "two") in
+      rename a2 two;
+      eqd dst ["0"; "1"; "-2"; "3"; ">two"];
     );
 
     "model">:: (fun () ->
