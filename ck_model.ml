@@ -214,14 +214,17 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   type project = Disk_types.project
   type action = Disk_types.action
 
-  type node_view = {
-    uuid : Ck_id.t;
-    node_type : [ area | project | action | `Deleted ] React.S.t;
-    ctime : float;
-    name : string React.S.t;
-    description : string React.S.t;
-    child_views : node_view ReactiveData.RList.t;
-  }
+  module View = struct
+    type t = {
+      uuid : Ck_id.t;
+      init_node_type : [ area | project | action ];
+      node_type : [ area | project | action | `Deleted ] React.S.t;
+      ctime : float;
+      name : string React.S.t;
+      description : string React.S.t;
+      child_views : t ReactiveData.RList.t;
+    }
+  end
 
   let make store =
     R.make store >|= fun r ->
@@ -330,7 +333,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   type child_filter = {
     pred : R.Node.t -> bool;        (* Whether to include a child *)
-    render : R.Node.t -> node_view; (* How to render it *)
+    render : R.Node.t -> View.t;    (* How to render it *)
   }
 
   let render_node ?child_filter t node =
@@ -342,9 +345,10 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
           |> React.S.map (fun node -> opt_child_nodes node |> R.NodeSet.filter filter.pred)
           |> NodeList.make ~init:(node.R.Node.child_nodes |> R.NodeSet.filter filter.pred)
           |> ReactiveData.RList.map filter.render in
-    {
+    { View.
       uuid = node.R.Node.uuid;
       ctime = node.R.Node.disk_node.Disk_types.ctime;
+      init_node_type = node_type node;
       node_type = live_node |> React.S.map opt_node_type;
       name = live_node |> React.S.map opt_node_name;
       description = live_node |> React.S.map opt_node_description;

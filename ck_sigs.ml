@@ -17,14 +17,17 @@ module type MODEL = sig
   type project = [`Project of project_details]
   type area = [`Area]
 
-  type node_view = {
-    uuid : Ck_id.t;
-    node_type : [ area | project | action | `Deleted ] React.S.t;
-    ctime : float;
-    name : string React.S.t;
-    description : string React.S.t;
-    child_views : node_view ReactiveData.RList.t;
-  }
+  module View : sig
+    type t = {
+      uuid : Ck_id.t;
+      init_node_type : [ area | project | action ]; (* Hack for "signal value undefined yet" *)
+      node_type : [ area | project | action | `Deleted ] React.S.t;
+      ctime : float;
+      name : string React.S.t;
+      description : string React.S.t;
+      child_views : t ReactiveData.RList.t;
+    }
+  end
 
   val root : t -> [area] full_node React.S.t
   val is_root : Ck_id.t -> bool
@@ -47,8 +50,8 @@ module type MODEL = sig
   val set_name : t ->  Ck_id.t -> string -> unit Lwt.t
   val set_state : t -> Ck_id.t -> [< action | project | area] -> unit Lwt.t
 
-  val process_tree : t -> node_view
-  val work_tree : t -> node_view ReactiveData.RList.t
-  val details : t -> Ck_id.t -> node_view
+  val process_tree : t -> View.t
+  val work_tree : t -> View.t ReactiveData.RList.t
+  val details : t -> Ck_id.t -> View.t
   val history : t -> (float * string) list React.S.t
 end
