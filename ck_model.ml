@@ -72,6 +72,12 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
   end
   and NodeSet : (Set.S with type elt = Node.t) = Set.Make(Node)
 
+  let node_eq a b =
+    let open Node in
+    a.uuid = b.uuid &&
+    a.disk_node = b.disk_node &&
+    NodeSet.equal a.child_nodes b.child_nodes
+
   type t = {
     store : string -> I.t;
     commit : I.head;
@@ -229,12 +235,14 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   open R.Node
 
+  let assume_changed _ _ = false
+
   let make store =
     R.make store >|= fun r ->
     let current, set_current = React.S.create ~eq:R.eq r in
     { current; set_current }
 
-  let root t = t.current |> React.S.map (fun r -> r.R.root)
+  let root t = t.current |> React.S.map ~eq:assume_changed (fun r -> r.R.root)
   let is_root = (=) Ck_id.root
 
   let all_areas_and_projects t =
@@ -339,13 +347,19 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     render : R.Node.t * Slow_set.state -> View.t;    (* How to render it *)
   }
 
+  let opt_node_eq a b =
+    match a, b with
+    | None, None -> true
+    | Some a, Some b -> R.node_eq a b
+    | _ -> false
+
   let render_node ?child_filter t (node, state) =
-    let live_node = t.current |> React.S.map (fun r -> R.get r node.R.Node.uuid) in
+    let live_node = t.current |> React.S.map ~eq:opt_node_eq (fun r -> R.get r node.R.Node.uuid) in
     let child_views =
       match child_filter with
       | None -> ReactiveData.RList.empty
       | Some filter -> live_node
-          |> React.S.map opt_child_nodes
+          |> React.S.map ~eq:R.NodeSet.equal opt_child_nodes
           |> Slow.make ~init:node.R.Node.child_nodes ~delay:1.0
           |> NodeList.make
           |> ReactiveData.RList.map filter.render in
@@ -385,7 +399,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let work_tree t =
     t.current
-    |> React.S.map collect_next_actions
+    |> React.S.map ~eq:R.NodeSet.equal collect_next_actions
     |> Slow.make ~delay:1.0
     |> NodeList.make
     |> ReactiveData.RList.map (render_node t)

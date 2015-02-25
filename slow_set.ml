@@ -11,6 +11,8 @@ type state =
 module Make (C : Ck_clock.S) (Item : Set.OrderedType) (Input : Set.S with type elt = Item.t) = struct
   module M = Map.Make(Item)
 
+  let eq : state M.t -> state M.t -> bool = M.equal (=)
+
   let make ~delay ?init input =
     let init =
       match init with
@@ -19,7 +21,7 @@ module Make (C : Ck_clock.S) (Item : Set.OrderedType) (Input : Set.S with type e
 
     let output, set_output =
       Input.fold (fun elt acc -> acc |> M.add elt `Current) init M.empty
-      |> React.S.create in
+      |> React.S.create ~eq in
 
     (* Called [delay] after some items have been added or removed.
      * Update their status if appropriate. *)
