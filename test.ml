@@ -78,7 +78,7 @@ let suite =
             let (_id, b) = Slow_set.data item in
             let s = match React.S.value (Slow_set.state item) with
               | `New -> "+" ^ b
-              | `Moved -> ">" ^ b
+              | `Moved _ -> ">" ^ b
               | `Current -> b
               | `Removed _ -> "-" ^ b in
             s :: acc

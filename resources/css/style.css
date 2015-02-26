@@ -126,8 +126,6 @@ div.ck-details {
 }
 
 div.ck-details.closed {
-	animation-name: fade-out;
-	animation-duration: 0.5s;
 	overflow: hidden;
 	max-height: 0;
 }
@@ -177,15 +175,13 @@ li.new {
 }
 
 li.moved {
-	animation-name: fade-in-move;
-	animation-duration: 2.0s;
+	max-height: 0;
+	overflow: hidden;
+	opacity: 0;
 }
 
 li.removed {
-	animation-name: fade-out;
-	animation-duration: 2.0s;
-	max-height: 0;
-	opacity: 0;
+	overflow: hidden;
 }
 
 /*
@@ -211,18 +207,6 @@ li {
 @keyframes fade-in {
 	0% { opacity: 0.0; margin-top: -10px}
 	100% { opacity: 1.0; margin-top: 0px}
-}
-
-@keyframes fade-out {
-	0% { opacity: 1; max-height: 24px; }
-	50% { opacity: 0; max-height: 24px; }
-	100% { opacity: 0; max-height: 0; }
-}
-
-@keyframes fade-in-move {
-	0% { opacity: 0.0; max-height: 0; }
-	50% { opacity: 0.0; max-height: 0; }
-	100% { opacity: 1.0; max-height: 24px; }
 }
 
 a.delete {

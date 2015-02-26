@@ -3,21 +3,21 @@
 
 open Lwt
 
-type state =
+type 'a state =
   [ `New
-  | `Moved
+  | `Moved of 'a option ref    (* Ref is shared with removed item *)
   | `Current
-  | `Removed of float ] (* Time item was removed from input *)
+  | `Removed of 'a option ref * float ] (* Time item was removed from input *)
 
 module type ITEM = sig
   include Map.OrderedType
   val id : t -> Ck_id.t
 end
 
-type 'a item = {
+type ('a, 'b) item = {
   data : 'a;
-  state : state React.S.t;
-  set_state : state -> unit;
+  state : 'b state React.S.t;
+  set_state : 'b state -> unit;
 }
 
 let data item = item.data
@@ -31,9 +31,10 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
   let diff_old_new ~removed_by_id ~time key i_old i_new =
     match i_old, i_new with
     | None, None -> None
-    | Some o, None ->
-        removed_by_id := !removed_by_id |> Ck_id.M.add (I.id key) o;
-        Some (`Removed time)
+    | Some _, None ->
+        let cell = ref None in
+        removed_by_id := !removed_by_id |> Ck_id.M.add (I.id key) cell;
+        Some (`Removed (cell, time))
     | None, Some n -> Some (`New n)
     | Some o, Some n when o <> n -> Some (`Updated n)
     | Some _, Some _ -> None
@@ -44,17 +45,17 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
     | Some old as prev, Some ((`Removed _) as r) -> old.set_state r; prev
     | Some old, Some (`Updated data) -> Some {old with data}
     | None, Some (`New data) -> Some (make_item `New data)
-    | None, Some (`Moved data) -> Some (make_item `Moved data)
-    | None, Some (`Updated _ | `Removed _)
-    | Some _, Some (`New _ | `Moved _) -> assert false
+    | None, Some (`Moved (data, cell)) -> Some (make_item (`Moved cell) data)
+    | Some old, Some (`New data | `Moved (data, _)) -> old.set_state `Current; Some {old with data}
+    | None, Some (`Updated _ | `Removed _) -> assert false
 
   let detect_moves ~removed_by_id =
     M.mapi (fun k v ->
       match v with
       | (`New data) as p ->
           begin try
-            let _old = Ck_id.M.find (I.id k) removed_by_id in
-            (`Moved data)
+            let cell = Ck_id.M.find (I.id k) removed_by_id in
+            `Moved (data, cell)
           with Not_found -> p end
       | p -> p
     )
@@ -79,8 +80,8 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
       delayed |> M.iter (fun k _v ->
         let item = M.find k !m in
         match React.S.value item.state with
-        | `New | `Moved -> item.set_state `Current
-        | `Removed t when t = start -> m := !m |> M.remove k
+        | `New | `Moved _ -> item.set_state `Current
+        | `Removed (_, t) when t = start -> m := !m |> M.remove k
         | `Current | `Removed _ -> ()
       );
       set_output !m in

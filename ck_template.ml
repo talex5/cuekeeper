@@ -77,6 +77,28 @@ module Make (M : Ck_sigs.MODEL) = struct
     let toggles = node.View.node_type >|~= toggles_for_type m node in
     rlist_of ~init toggles
 
+  (* Fade item in and out based on state. *)
+  let animated node item_ref =
+    let cancel = ref ignore in
+    node.View.state >|~= fun state ->
+      !cancel ();
+      cancel := ignore;
+      match state with
+      | `New -> ["new"]
+      | `Moved full_height ->
+          cancel := Ck_animate.fade_in_move ~full_height item_ref;
+          ["moved"]
+      | `Current -> []
+      | `Removed (full_height, _time) ->
+          begin match !item_ref with
+          | None -> ()
+          | Some elem ->
+              let elem = Tyxml_js.To_dom.of_element elem in
+              full_height := Some elem##offsetHeight;
+              cancel := Ck_animate.fade_out elem
+          end;
+          ["removed"]
+
   (* A <li>[toggles] name x [children]</li> element *)
   let rec make_node_view m ~show_node node : _ Html5.elt =
     let children = node.View.child_views
@@ -84,22 +106,22 @@ module Make (M : Ck_sigs.MODEL) = struct
     let clicked _ev = show_node node.View.uuid; true in
     let delete _ev = async (fun () -> M.delete m node.View.uuid); true in
     let item_cl = React.S.map (class_of_time_and_type node.View.ctime) node.View.node_type in
-    let li_state = node.View.state >|~= function
-      | `New -> ["new"]
-      | `Moved -> ["moved"]
-      | `Current -> []
-      | `Removed _ -> ["removed"] in
-    li ~a:[R.Html5.a_class li_state] [
-      span ~a:[R.Html5.a_class item_cl] [
-        R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
-        span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
-          a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.View.name];
+    let li_ref = ref None in
+    let li_state = animated node li_ref in
+    let result =
+      li ~a:[R.Html5.a_class li_state] [
+        span ~a:[R.Html5.a_class item_cl] [
+          R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
+          span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
+            a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [R.Html5.pcdata node.View.name];
+          ];
+          if M.is_root node.View.uuid then pcdata ""
+          else a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
         ];
-        if M.is_root node.View.uuid then pcdata ""
-        else a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
-      ];
-      R.Html5.ul children;
-    ]
+        R.Html5.ul children;
+      ] in
+    li_ref := Some result;
+    result
 
   let make_work_view m ~show_node actions =
     let children = actions
@@ -267,8 +289,16 @@ module Make (M : Ck_sigs.MODEL) = struct
       set_closed true;                          (* Start fade-out animation *)
       Lwt.async (fun () -> Lwt_js.sleep 0.5 >|= remove)  (* Actually remove *)
     in
+    let elem = ref None in
     let cl =
+      let cancel_close = ref ignore in
       closed >>~= (fun closed ->
+        !cancel_close ();
+        begin match closed, !elem with
+        | true, Some elem ->
+            let elem = Tyxml_js.To_dom.of_element elem in
+            cancel_close := Ck_animate.fade_out elem
+        | _ -> () end;
         current_highlight |> React.S.map (fun highlight ->
           "ck-details" :: List.concat [
             if highlight = Some uuid then ["ck-highlight"] else [];
@@ -280,18 +310,21 @@ module Make (M : Ck_sigs.MODEL) = struct
       item.View.node_type >|~= (fun node_type -> with_done ["ck-heading"; class_of_node_type node_type] node_type) in
     let children = item.View.child_views
       |> ReactiveData.RList.map (make_node_view m ~show_node) in
-    div ~a:[R.Html5.a_class cl] [
-      a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
-      div ~a:[R.Html5.a_class title_cl] [
-        R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
-        R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
-      ];
-      R.Html5.ul children;
-      make_child_adder m item;
-      div ~a:[a_class ["description"]] [
-        p [R.Html5.pcdata item.View.description];
-      ]
-    ]
+    let result =
+      div ~a:[R.Html5.a_class cl] [
+        a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
+        div ~a:[R.Html5.a_class title_cl] [
+          R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
+          R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
+        ];
+        R.Html5.ul children;
+        make_child_adder m item;
+        div ~a:[a_class ["description"]] [
+          p [R.Html5.pcdata item.View.description];
+        ]
+      ] in
+    elem := Some result;
+    result
 
   let make_details_area m =
     let details_pane, details_handle = ReactiveData.RList.make [] in

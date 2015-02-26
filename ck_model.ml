@@ -215,7 +215,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       name : string React.S.t;
       description : string React.S.t;
       child_views : t ReactiveData.RList.t;
-      state : Slow_set.state React.S.t;
+      state : int Slow_set.state React.S.t;
     }
 
     let eq a b =
@@ -341,7 +341,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   type child_filter = {
 (*     pred : R.Node.t -> bool;        (* Whether to include a child *) *)
-    render : R.Node.t Slow_set.item -> View.t;    (* How to render it *)
+    render : (R.Node.t, int) Slow_set.item -> View.t;    (* How to render it *)
   }
 
   let opt_node_eq a b =
