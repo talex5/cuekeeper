@@ -33,7 +33,7 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
     | None, None -> None
     | Some _, None ->
         let cell = ref None in
-        removed_by_id := !removed_by_id |> Ck_id.M.add (I.id key) cell;
+        removed_by_id := !removed_by_id |> Ck_id.M.add (I.id key) (key, cell);
         Some (`Removed (cell, time))
     | None, Some n -> Some (`New n)
     | Some o, Some n when o <> n -> Some (`Updated n)
@@ -45,20 +45,45 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
     | Some old as prev, Some ((`Removed _) as r) -> old.set_state r; prev
     | Some old, Some (`Updated data) -> Some {old with data}
     | None, Some (`New data) -> Some (make_item `New data)
+    | None, Some (`Renamed data) -> Some (make_item `Current data)
     | None, Some (`Moved (data, cell)) -> Some (make_item (`Moved cell) data)
-    | Some old, Some (`New data | `Moved (data, _)) -> old.set_state `Current; Some {old with data}
-    | None, Some (`Updated _ | `Removed _) -> assert false
+    | Some old, Some (`New data | `Moved (data, _) | `Renamed data) -> old.set_state `Current; Some {old with data}
+    | Some _, Some `Drop -> None
+    | None, Some (`Updated _ | `Removed _ | `Drop) -> assert false
 
-  let detect_moves ~removed_by_id =
-    M.mapi (fun k v ->
-      match v with
-      | (`New data) as p ->
-          begin try
-            let cell = Ck_id.M.find (I.id k) removed_by_id in
-            `Moved (data, cell)
-          with Not_found -> p end
-      | p -> p
-    )
+  let adjacent current current_k old_k =
+    let before_old, _, after_old = M.split old_k current in
+    try
+      let (adj_key, _) =
+        if I.compare current_k old_k < 0 then M.max_binding before_old
+        else M.min_binding after_old in
+      I.compare adj_key current_k = 0
+    with Not_found -> false
+
+  (* Modify the diff:
+   * - If a New item has the same ID as a Removed one then
+   *   - If it's next to the old one, turn the pair into a `Drop, `Rename pair.
+   *   - Otherwise, into a `Remove, `Moved pair.
+   *)
+  let detect_moves ~input ~removed_by_id diff =
+    let renamed_src = ref [] in
+    let diff = diff
+      |> M.mapi (fun k v ->
+        match v with
+        | (`New data) as p ->
+            begin try
+              let (src_key, cell) = Ck_id.M.find (I.id k) removed_by_id in
+              if adjacent input k src_key then (
+                renamed_src := src_key :: !renamed_src; `Renamed data
+              ) else `Moved (data, cell)
+            with Not_found -> p end
+        | p -> p
+      )
+      |> ref in
+    !renamed_src |> List.iter (fun src_key ->
+      diff := !diff |> M.add src_key `Drop
+    );
+    !diff
 
   let make ~delay ~eq ?init input =
     let init =
@@ -92,7 +117,7 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
         let removed_by_id = ref Ck_id.M.empty in
         let diff =
           M.merge (diff_old_new ~removed_by_id ~time) s_old s_new
-          |> detect_moves ~removed_by_id:!removed_by_id in
+          |> detect_moves ~input:s_new ~removed_by_id:!removed_by_id in
 
         if not (M.is_empty diff) then (
           M.merge merge_diff (React.S.value output) diff

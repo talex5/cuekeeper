@@ -155,6 +155,10 @@ let suite =
       let two = (fst a2, "two") in
       rename a2 two;
       eqd dst ["0"; "1"; "-2"; "3"; ">two"];
+      rename a1 (fst a1, "1.5");
+      eqd dst ["0"; "1.5"; "-2"; "3"; ">two"];
+      rename a3 (fst a3, "2.5");
+      eqd dst ["0"; "1.5"; "-2"; "2.5"; ">two"];
     );
 
     "model">:: (fun () ->
