@@ -178,7 +178,7 @@ let suite =
         | ([] | _::_::_) -> assert false
         | [units] ->
         assert (React.S.value units.M.View.name = "Write unit tests");
-        M.set_state m units.M.View.uuid (`Action {Ck_sigs.astate = `Waiting}) >>= fun () ->
+        M.set_details m units.M.View.uuid (`Action {Ck_sigs.astate = `Waiting}) >>= fun () ->
         assert (List.length (ReactiveData.RList.value next_actions) = 1);
         Test_clock.run_to 2.0;
         assert (List.length (ReactiveData.RList.value next_actions) = 0);

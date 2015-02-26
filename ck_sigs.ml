@@ -9,13 +9,26 @@ type project_details = {
   pstate : [ `Active | `SomedayMaybe | `Done ]
 } with sexp
 
+type action = [`Action of action_details]
+type project = [`Project of project_details]
+type area = [`Area]
+
+module type DISK_NODE = sig
+  type +'a t
+
+  val parent : 'a t -> Ck_id.t
+  val name : 'a t -> string
+  val description : 'a t -> string
+  val ctime : 'a t -> float
+  val details : 'a t -> 'a
+
+  val with_name : 'a t -> string -> 'a t
+  val with_details : _ t -> 'a -> 'a t
+end
+
 module type MODEL = sig
   type t
   type 'a full_node
-
-  type action = [`Action of action_details]
-  type project = [`Project of project_details]
-  type area = [`Area]
 
   module View : sig
     type t = {
@@ -35,12 +48,7 @@ module type MODEL = sig
 
   val all_areas_and_projects : t -> (string * [> area | project] full_node) list
 
-  val name : _ full_node -> string
   val uuid : _ full_node -> Ck_id.t
-
-  val actions : [< area | project] full_node -> [action] full_node list
-  val projects : [< area | project] full_node -> [project] full_node list
-  val areas : [area] full_node -> [area] full_node list
 
   val add_action : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
   val add_project : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
@@ -49,7 +57,7 @@ module type MODEL = sig
   val delete : t -> Ck_id.t -> unit Lwt.t
 
   val set_name : t ->  Ck_id.t -> string -> unit Lwt.t
-  val set_state : t -> Ck_id.t -> [< action | project | area] -> unit Lwt.t
+  val set_details : t -> Ck_id.t -> [< action | project | area] -> unit Lwt.t
 
   val process_tree : t -> View.t
   val work_tree : t -> View.t ReactiveData.RList.t

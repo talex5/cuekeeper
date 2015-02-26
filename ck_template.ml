@@ -40,36 +40,36 @@ module Make (M : Ck_sigs.MODEL) = struct
     if lifetime >= 0.0 && lifetime <  1.0 then "new" :: ty
     else ty
 
-  let toggle_label ~set_state ~current state =
+  let toggle_label ~set_details ~current details =
     let l =
-      match state with
+      match details with
       | `Done -> "✓"
       | `Next -> "n"
       | `Waiting -> "w"
       | `Future -> "f"
       | `Active -> "a"
       | `SomedayMaybe -> "sm" in
-    let cl = if current = state then "ck-active-" ^ l else "ck-inactive" in
+    let cl = if current = details then "ck-active-" ^ l else "ck-inactive" in
     let changed _ev =
-      if current <> state then set_state state; true in
+      if current <> details then set_details details; true in
     a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
 
-  let make_toggles ~set_state current options =
-    options |> List.map (toggle_label ~set_state ~current)
+  let make_toggles ~set_details current options =
+    options |> List.map (toggle_label ~set_details ~current)
 
   let toggles_for_type m node = function
     | `Action {Ck_sigs.astate = s; _} ->
-        let set_state n =
+        let set_details n =
           Lwt_js_events.async (fun () ->
-            M.set_state m node.View.uuid (`Action {Ck_sigs.astate = n})
+            M.set_details m node.View.uuid (`Action {Ck_sigs.astate = n})
           ) in
-        make_toggles ~set_state s [`Done; `Next; `Waiting; `Future]
+        make_toggles ~set_details s [`Done; `Next; `Waiting; `Future]
     | `Project {Ck_sigs.pstate = s; _} ->
-        let set_state n =
+        let set_details n =
           Lwt_js_events.async (fun () ->
-            M.set_state m node.View.uuid (`Project {Ck_sigs.pstate = n})
+            M.set_details m node.View.uuid (`Project {Ck_sigs.pstate = n})
           ) in
-        make_toggles ~set_state s [`Done; `Active; `SomedayMaybe]
+        make_toggles ~set_details s [`Done; `Active; `SomedayMaybe]
     | `Area | `Deleted -> []
 
   let make_state_toggles m node =
