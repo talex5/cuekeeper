@@ -61,6 +61,16 @@ span.ck-toggles a {
 	padding-right: 2px;
 }
 
+span.ck-toggles a.star-inactive {
+	border: none;
+	color: #DDD;
+}
+
+span.ck-toggles a.star-active {
+	border: none;
+	color: #F80;
+}
+
 span.ck-toggles a.ck-inactive:hover {
 	background: #FE8;
 	color: black;

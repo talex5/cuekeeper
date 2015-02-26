@@ -1,7 +1,6 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Sexplib.Std
 open Lwt
 
 open Ck_utils
@@ -207,8 +206,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     t.set_current r_new;
     node.Node.uuid
 
-  let add_action = add (`Action {Ck_sigs.astate = `Next})
-  let add_project = add (`Project {Ck_sigs.pstate = `Active})
+  let add_action = add (`Action {Ck_sigs.astate = `Next; astarred = false})
+  let add_project = add (`Project {Ck_sigs.pstate = `Active; pstarred = false})
   let add_area = add `Area
 
   let delete t uuid =
@@ -227,6 +226,18 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     let node = R.get_exn r uuid in
     let new_node = Node.with_details node new_details in
     let msg = Printf.sprintf "Change state of '%s'" (Node.name node) in
+    R.update r ~msg new_node >|= t.set_current
+
+  let set_starred t uuid s =
+    let r = React.S.value t.current in
+    let node = R.get_exn r uuid in
+    let new_node =
+      match node with
+      | {Node.disk_node = {Ck_disk_node.details = `Action d; _}; _} as n -> Node.with_details n (`Action {d with astarred = s})
+      | {Node.disk_node = {Ck_disk_node.details = `Project d; _}; _} as n -> Node.with_details n (`Project {d with pstarred = s})
+      | _ -> error "Not a project or action node: '%s'" (Node.name node) in
+    let action = if s then "Add" else "Remove" in
+    let msg = Printf.sprintf "%s star for '%s'" action (Node.name node) in
     R.update r ~msg new_node >|= t.set_current
 
   let node_type {Node.disk_node = {Ck_disk_node.details; _}; _} = details
@@ -293,7 +304,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       | {Node.disk_node = {Ck_disk_node.details = `Area | `Project _; _}; _} as x ->
           results := actions x |> List.fold_left (fun set action ->
             match action with
-            | {Node.disk_node = {Ck_disk_node.details = `Action {Ck_sigs.astate = `Next}; _}; _} ->
+            | {Node.disk_node = {Ck_disk_node.details = `Action {Ck_sigs.astate = `Next; _}; _}; _} ->
                 M.add (Node.key action) (action :> Node.generic) set
             | _ -> set
           ) !results;

@@ -24,8 +24,8 @@ module Make (M : Ck_sigs.MODEL) = struct
   let current_highlight, set_highlight = React.S.create None
 
   let with_done cls = function
-    | `Project {Ck_sigs.pstate = `Done}
-    | `Action {Ck_sigs.astate = `Done} -> "ck-done" :: cls
+    | `Project {Ck_sigs.pstate = `Done; _}
+    | `Action {Ck_sigs.astate = `Done; _} -> "ck-done" :: cls
     | _ -> cls
 
   let class_of_node_type = function
@@ -54,22 +54,30 @@ module Make (M : Ck_sigs.MODEL) = struct
       if current <> details then set_details details; true in
     a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
 
-  let make_toggles ~set_details current options =
-    options |> List.map (toggle_label ~set_details ~current)
+  let make_toggles ~m ~set_details ~uuid current options ~starred =
+    let state_toggles = options |> List.map (toggle_label ~set_details ~current) in
+    let cl = if starred then "star-active" else "star-inactive" in
+    let set_star _ev =
+      async (fun () -> M.set_starred m uuid (not starred));
+      true in
+    let star = a ~a:[a_class [cl]; a_onclick set_star] [pcdata "★"] in
+    state_toggles @ [star]
 
-  let toggles_for_type m node = function
-    | `Action {Ck_sigs.astate = s; _} ->
+  let toggles_for_type m node s =
+    let uuid = node.View.uuid in
+    match s with
+    | `Action ({Ck_sigs.astate = s; astarred; _} as old) ->
         let set_details n =
           Lwt_js_events.async (fun () ->
-            M.set_details m node.View.uuid (`Action {Ck_sigs.astate = n})
+            M.set_details m uuid (`Action {old with Ck_sigs.astate = n})
           ) in
-        make_toggles ~set_details s [`Done; `Next; `Waiting; `Future]
-    | `Project {Ck_sigs.pstate = s; _} ->
+        make_toggles ~m ~set_details ~uuid s [`Done; `Next; `Waiting; `Future] ~starred:astarred
+    | `Project ({Ck_sigs.pstate = s; pstarred; _} as old) ->
         let set_details n =
           Lwt_js_events.async (fun () ->
-            M.set_details m node.View.uuid (`Project {Ck_sigs.pstate = n})
+            M.set_details m uuid (`Project {old with Ck_sigs.pstate = n})
           ) in
-        make_toggles ~set_details s [`Done; `Active; `SomedayMaybe]
+        make_toggles ~m ~set_details ~uuid s [`Done; `Active; `SomedayMaybe] ~starred:pstarred
     | `Area | `Deleted -> []
 
   let make_state_toggles m node =

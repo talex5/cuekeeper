@@ -1,11 +1,15 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
+open Sexplib.Std
+
 type action_details = {
+  astarred : bool with default(false);
   astate : [ `Next | `Waiting | `Future | `Done ]
 } with sexp
 
 type project_details = {
+  pstarred : bool with default(false);
   pstate : [ `Active | `SomedayMaybe | `Done ]
 } with sexp
 
@@ -58,6 +62,7 @@ module type MODEL = sig
 
   val set_name : t ->  Ck_id.t -> string -> unit Lwt.t
   val set_details : t -> Ck_id.t -> [< action | project | area] -> unit Lwt.t
+  val set_starred : t -> Ck_id.t -> bool -> unit Lwt.t
 
   val process_tree : t -> View.t
   val work_tree : t -> View.t ReactiveData.RList.t
