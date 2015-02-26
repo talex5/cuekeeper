@@ -191,7 +191,7 @@ li.removed {
 /*
 li {
 	animation-name: debug;
-	animation-duration: 1.0s;
+	animation-duration: 0.5s;
 }
 
 @keyframes debug {

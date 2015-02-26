@@ -74,8 +74,9 @@ let suite =
 
       let eqd rl expected =
         let actual =
-          ItemMap.fold (fun _k ((_id, b), state) acc ->
-            let s = match state with
+          ItemMap.fold (fun _k item acc ->
+            let (_id, b) = Slow_set.data item in
+            let s = match React.S.value (Slow_set.state item) with
               | `New -> "+" ^ b
               | `Moved -> ">" ^ b
               | `Current -> b

@@ -7,6 +7,11 @@ type state =
   | `Current
   | `Removed of float ] (* Time item was removed from input *)
 
+type 'a item
+
+val data : 'a item -> 'a
+val state : _ item -> state React.S.t
+
 module type ITEM = sig
   include Map.OrderedType
   val id : t -> Ck_id.t
@@ -18,5 +23,5 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) : sig
     eq : ('a -> 'a -> bool) ->
     ?init : 'a M.t ->
     'a M.t React.S.t ->
-    ('a * state) M.t React.S.t
+    'a item M.t React.S.t
 end

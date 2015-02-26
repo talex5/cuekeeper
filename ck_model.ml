@@ -215,14 +215,14 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       name : string React.S.t;
       description : string React.S.t;
       child_views : t ReactiveData.RList.t;
-      state : Slow_set.state;
+      state : Slow_set.state React.S.t;
     }
 
     let eq a b =
       a.uuid = b.uuid &&
       a.init_node_type = b.init_node_type &&
       a.ctime = b.ctime &&
-      a.state = b.state
+      a.state == b.state
       (* We ignore the signals, since any view with the same
        * uuid with have the same signals values. *)
   end
@@ -341,7 +341,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   type child_filter = {
 (*     pred : R.Node.t -> bool;        (* Whether to include a child *) *)
-    render : R.Node.t * Slow_set.state -> View.t;    (* How to render it *)
+    render : R.Node.t Slow_set.item -> View.t;    (* How to render it *)
   }
 
   let opt_node_eq a b =
@@ -371,12 +371,17 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       state;
     }
 
+  let render_slow_node ?child_filter t item =
+    let node = Slow_set.data item in
+    let state = Slow_set.state item in
+    render_node ?child_filter t (node, state)
+
   let process_tree t =
     let root_node = R.get_exn (React.S.value t.current) Ck_id.root in
     let rec child_filter = {
-      render = (fun n -> render_node ~child_filter t n);
+      render = (fun n -> render_slow_node ~child_filter t n);
     } in
-    render_node t ~child_filter (root_node, `Current)
+    render_node t ~child_filter (root_node, React.S.const `Current)
 
   let collect_next_actions r =
     let results = ref R.M.empty in
@@ -398,15 +403,15 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     t.current
     |> React.S.map ~eq:(R.M.equal R.Node.eq) collect_next_actions
     |> Slow.make ~eq:R.Node.eq ~delay:1.0
-    |> React.S.map ~eq:(R.M.equal View.eq) (R.M.map (render_node t))
+    |> React.S.map ~eq:(R.M.equal View.eq) (R.M.map (render_slow_node t))
     |> NodeList.make
 
   let details t uuid =
     let initial_node = R.get_exn (React.S.value t.current) uuid in
     let child_filter = {
-      render = render_node t;
+      render = render_slow_node t;
     } in
-    render_node t ~child_filter (initial_node, `Current)
+    render_node t ~child_filter (initial_node, React.S.const `Current)
 
   let history t =
     t.current >|~= fun r -> r.R.history

@@ -84,12 +84,12 @@ module Make (M : Ck_sigs.MODEL) = struct
     let clicked _ev = show_node node.View.uuid; true in
     let delete _ev = async (fun () -> M.delete m node.View.uuid); true in
     let item_cl = React.S.map (class_of_time_and_type node.View.ctime) node.View.node_type in
-    let li_state = match node.View.state with
+    let li_state = node.View.state >|~= function
       | `New -> ["new"]
       | `Moved -> ["moved"]
       | `Current -> []
       | `Removed _ -> ["removed"] in
-    li ~a:[a_class li_state] [
+    li ~a:[R.Html5.a_class li_state] [
       span ~a:[R.Html5.a_class item_cl] [
         R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m node);
         span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
