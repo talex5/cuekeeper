@@ -12,12 +12,13 @@ type ('a, 'b) item
 val data : ('a, 'b) item -> 'a
 val state : ('a, 'b) item -> 'b state React.S.t
 
-module type ITEM = sig
+module type SORT_KEY = sig
   include Map.OrderedType
   val id : t -> Ck_id.t
+  val show : t -> string (* For debugging *)
 end
 
-module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) : sig
+module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) : sig
   val make :
     delay : float ->
     eq : ('a -> 'a -> bool) ->

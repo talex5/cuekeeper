@@ -43,6 +43,7 @@ end
 module Key = struct
   type t = Ck_id.t * string
   let id = fst
+  let show = snd
   let compare a b =
     match compare (snd a) (snd b) with
     | 0 -> compare (fst a) (fst b)

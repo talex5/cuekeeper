@@ -9,9 +9,10 @@ type 'a state =
   | `Current
   | `Removed of 'a option ref * float ] (* Time item was removed from input *)
 
-module type ITEM = sig
+module type SORT_KEY = sig
   include Map.OrderedType
   val id : t -> Ck_id.t
+  val show : t -> string
 end
 
 type ('a, 'b) item = {
@@ -27,13 +28,13 @@ let make_item initial_state data =
   let state, set_state = React.S.create initial_state in
   {data; state; set_state}
 
-module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
+module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = struct
   let diff_old_new ~removed_by_id ~time key i_old i_new =
     match i_old, i_new with
     | None, None -> None
     | Some _, None ->
         let cell = ref None in
-        removed_by_id := !removed_by_id |> Ck_id.M.add (I.id key) (key, cell);
+        removed_by_id := !removed_by_id |> Ck_id.M.add (K.id key) (key, cell);
         Some (`Removed (cell, time))
     | None, Some n -> Some (`New n)
     | Some o, Some n when o <> n -> Some (`Updated n)
@@ -55,9 +56,9 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
     let before_old, _, after_old = M.split old_k current in
     try
       let (adj_key, _) =
-        if I.compare current_k old_k < 0 then M.max_binding before_old
+        if K.compare current_k old_k < 0 then M.max_binding before_old
         else M.min_binding after_old in
-      I.compare adj_key current_k = 0
+      K.compare adj_key current_k = 0
     with Not_found -> false
 
   (* Modify the diff:
@@ -72,7 +73,7 @@ module Make (C : Ck_clock.S) (I : ITEM) (M : Map.S with type key = I.t) = struct
         match v with
         | (`New data) as p ->
             begin try
-              let (src_key, cell) = Ck_id.M.find (I.id k) removed_by_id in
+              let (src_key, cell) = Ck_id.M.find (K.id k) removed_by_id in
               if adjacent input k src_key then (
                 renamed_src := src_key :: !renamed_src; `Renamed data
               ) else `Moved (data, cell)

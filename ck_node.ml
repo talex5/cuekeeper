@@ -10,6 +10,7 @@ module SortKey = struct
     | 0 -> compare a_id b_id
     | r -> r
   let id = snd
+  let show = fst
 end
 module M = Map.Make(SortKey)
 

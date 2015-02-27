@@ -6,7 +6,7 @@
 
 open Ck_sigs
 
-module SortKey : Slow_set.ITEM
+module SortKey : Slow_set.SORT_KEY
 module M : Map.S with type key = SortKey.t
 
 type +'a t = {
