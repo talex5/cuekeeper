@@ -42,8 +42,11 @@ span.ck-item.ck-action a.ck-title {
 	color: #444;
 }
 
+span.ck-toggles a:last-child {
+	padding-right: 0.3rem;
+}
+
 .ck-title {
-	padding-left: 0.4rem;
 	margin-bottom: 4px;
 	white-space: nowrap;
 	overflow: hidden;
