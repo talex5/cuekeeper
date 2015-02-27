@@ -133,43 +133,60 @@ end
 module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and type value = string) = struct
   module R = Raw(I)
 
+  module TreeNode = struct
+    module Id_map = Ck_id.M
+    module Child_map = M
+    module Sort_key = Node.SortKey
+
+    module Item = struct
+      type t = Node.generic   (* Ignore children, though *)
+
+      let equal a b =
+        Node.uuid a = Node.uuid b &&
+        Ck_disk_node.equal a.Node.disk_node b.Node.disk_node
+
+      let show = Node.name
+      let id = Node.uuid
+      let node n = n.Node.disk_node
+    end
+
+    type t = {
+      item : Node.generic;
+      children : t M.t;
+    }
+
+    let item t = t.item
+    let children t = t.children
+
+    let leaf_of_node n = {
+      item = n;
+      children = M.empty;
+    }
+
+    let id t = Item.id t.item
+
+    let rec equal a b =
+      Item.equal a.item b.item &&
+      Child_map.equal equal a.children b.children
+
+    type move_data = int
+  end
+  module WidgetTree = Reactive_tree.Make(Clock)(TreeNode)
+
+  module Item = TreeNode.Item
+  module Widget = WidgetTree.Widget
+
   type t = {
     current : R.t React.S.t;
     set_current : R.t -> unit;
+    work_tree : WidgetTree.t;
+    process_tree : WidgetTree.t;
+    keep_me : unit React.S.t list;
   }
 
   type 'a full_node = 'a Node.t
 
-  module View = struct
-    type t = {
-      uuid : Ck_id.t;
-      init_node_type : [ area | project | action ];
-      node_type : [ area | project | action | `Deleted ] React.S.t;
-      ctime : float;
-      name : string React.S.t;
-      description : string React.S.t;
-      child_views : t ReactiveData.RList.t;
-      state : int Slow_set.state React.S.t;
-    }
-
-    let eq a b =
-      a.uuid = b.uuid &&
-      a.init_node_type = b.init_node_type &&
-      a.ctime = b.ctime &&
-      a.state == b.state
-      (* We ignore the signals, since any view with the same
-       * uuid with have the same signals values. *)
-  end
-
-  module Slow = Slow_set.Make(Clock)(Node.SortKey)(M)
-  module NodeList = Delta_RList.Make(Node.SortKey)(View)(M)
-
   let assume_changed _ _ = false
-
-  let make store =
-    R.make store >|= fun r ->
-    let current, set_current = React.S.create ~eq:R.eq r in
-    { current; set_current }
 
   let root t = t.current |> React.S.map ~eq:assume_changed (fun r -> r.R.root)
   let is_root = (=) Ck_id.root
@@ -185,15 +202,6 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
         | _ -> ()
       ) in
     scan "" (root t |> React.S.value);
-    List.rev !results
-
-  let actions parent =
-    let results = ref [] in
-    Node.child_nodes parent |> M.iter (fun _k child ->
-      match child with
-      | {Node.disk_node = {Ck_disk_node.details = `Action _; _}; _} as x -> results := x :: !results
-      | _ -> ()
-    );
     List.rev !results
 
   let uuid = Node.uuid
@@ -240,94 +248,81 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     let msg = Printf.sprintf "%s star for '%s'" action (Node.name node) in
     R.update r ~msg new_node >|= t.set_current
 
-  let node_type {Node.disk_node = {Ck_disk_node.details; _}; _} = details
-  let opt_node_type = function
-    | None -> `Deleted
-    | Some x -> (node_type x :> [action | project | area | `Deleted])
-  let opt_node_name = function
-    | None -> "(deleted)"
-    | Some x -> Node.name x
-  let opt_node_description = function
-    | None -> "(deleted)"
-    | Some x -> Node.description x
-  let opt_child_nodes = function
-    | None -> M.empty
-    | Some x -> Node.child_nodes x
+  let make_full_tree r =
+    let rec aux items =
+      items |> M.map (fun item ->
+        { TreeNode.item;
+          children = aux (Node.child_nodes item) }
+      ) in
+    aux (r.R.root.Node.child_nodes)
 
-  type child_filter = {
-(*     pred : Node.generic -> bool;        (* Whether to include a child *) *)
-    render : (Node.generic, int) Slow_set.item -> View.t;    (* How to render it *)
-  }
+  let make_process_tree = make_full_tree
 
-  let opt_node_eq a b =
-    match a, b with
-    | None, None -> true
-    | Some a, Some b -> Node.eq a b
+  let is_next_action _k = function
+    | {Node.disk_node = {Ck_disk_node.details = `Action {astate = `Next; _}; _}; _} -> true
     | _ -> false
 
-  let render_node ?child_filter t (node, state) =
-    let live_node = t.current |> React.S.map ~eq:opt_node_eq (fun r -> R.get r node.Node.uuid) in
-    let child_views =
-      match child_filter with
-      | None -> ReactiveData.RList.empty
-      | Some filter -> live_node
-          |> React.S.map ~eq:(M.equal Node.eq) opt_child_nodes
-          |> Slow.make ~eq:Node.eq ~init:node.Node.child_nodes ~delay:1.0
-          |> React.S.map ~eq:(M.equal View.eq) (M.map filter.render)
-          |> NodeList.make in
-    { View.
-      uuid = Node.uuid node;
-      ctime = Node.ctime node;
-      init_node_type = Node.details node;
-      node_type = live_node |> React.S.map opt_node_type;
-      name = live_node |> React.S.map opt_node_name;
-      description = live_node |> React.S.map opt_node_description;
-      child_views;
-      state;
-    }
-
-  let render_slow_node ?child_filter t item =
-    let node = Slow_set.data item in
-    let state = Slow_set.state item in
-    render_node ?child_filter t (node, state)
-
-  let process_tree t =
-    let root_node = R.get_exn (React.S.value t.current) Ck_id.root in
-    let rec child_filter = {
-      render = (fun n -> render_slow_node ~child_filter t n);
-    } in
-    render_node t ~child_filter (root_node, React.S.const `Current)
-
   let collect_next_actions r =
-    let results = ref M.empty in
+    let results = ref TreeNode.Child_map.empty in
     let rec scan = function
-      | {Node.disk_node = {Ck_disk_node.details = `Area | `Project _; _}; _} as x ->
-          results := actions x |> List.fold_left (fun set action ->
-            match action with
-            | {Node.disk_node = {Ck_disk_node.details = `Action {Ck_sigs.astate = `Next; _}; _}; _} ->
-                M.add (Node.key action) (action :> Node.generic) set
-            | _ -> set
-          ) !results;
-          Node.child_nodes x |> M.iter (fun _k v -> scan v)
+      | {Node.disk_node = {Ck_disk_node.details = `Area | `Project _; _}; _} as parent ->
+          let actions = Node.child_nodes parent |> M.filter is_next_action in
+          if not (M.is_empty actions) then (
+            let tree_node = { TreeNode.
+              item = parent;
+              children = actions |> M.map TreeNode.leaf_of_node
+            } in
+            results := !results |> M.add (Node.key parent) tree_node;
+          );
+          Node.child_nodes parent |> M.iter (fun _k v -> scan v)
       | {Node.disk_node = {Ck_disk_node.details = `Action _; _}; _} -> ()
     in
     scan r.R.root;
     !results
 
-  let work_tree t =
-    t.current
-    |> React.S.map ~eq:(M.equal Node.eq) collect_next_actions
-    |> Slow.make ~eq:Node.eq ~delay:1.0
-    |> React.S.map ~eq:(M.equal View.eq) (M.map (render_slow_node t))
-    |> NodeList.make
+  let work_tree t = WidgetTree.widgets t.work_tree
+  let process_tree t = WidgetTree.widgets t.process_tree
+
+  type details = {
+    details_item : Item.t option React.S.t;
+    details_children : Widget.t ReactiveData.RList.t;
+    details_stop : stop;
+  }
 
   let details t uuid =
     let initial_node = R.get_exn (React.S.value t.current) uuid in
-    let child_filter = {
-      render = render_slow_node t;
-    } in
-    render_node t ~child_filter (initial_node, React.S.const `Current)
+    let child_nodes node = Node.child_nodes node |> M.map TreeNode.leaf_of_node in
+    let children = WidgetTree.make (child_nodes initial_node) in
+    let node, set_node = React.S.create (Some initial_node) in
+    let updates =
+      t.current >|~= fun r ->
+        let node = R.get r uuid in
+        set_node node;
+        match node with
+        | None -> WidgetTree.update children M.empty
+        | Some node -> WidgetTree.update children (child_nodes node) in
+    {
+      details_item = node;
+      details_children = WidgetTree.widgets children;
+      details_stop = (fun () -> ignore updates; ignore children);
+    }
 
   let history t =
     t.current >|~= fun r -> r.R.history
+
+  let make store =
+    R.make store >|= fun r ->
+    let current, set_current = React.S.create ~eq:R.eq r in
+    let process_tree = WidgetTree.make (make_process_tree r) in
+    let update_process_tree =
+      current
+      |> React.S.map ~eq:(M.equal TreeNode.equal) make_process_tree
+      |> React.S.map (WidgetTree.update process_tree) in
+    let work_tree = WidgetTree.make (collect_next_actions r) in
+    let update_work_tree =
+      current
+      |> React.S.map ~eq:(M.equal TreeNode.equal) collect_next_actions
+      |> React.S.map (WidgetTree.update work_tree) in
+    let keep_me = [update_work_tree; update_process_tree] in
+    { current; set_current; work_tree; process_tree; keep_me }
 end

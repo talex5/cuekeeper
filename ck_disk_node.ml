@@ -45,3 +45,4 @@ let make ~name ~description ~parent ~ctime ~details = {
 
 let with_name node name = {node with name}
 let with_details node details = {node with details}
+let equal : _ t -> _ t -> bool = (=)

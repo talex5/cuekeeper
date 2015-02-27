@@ -3,6 +3,8 @@
 
 open Sexplib.Std
 
+type stop = unit -> unit
+
 type action_details = {
   astarred : bool with default(false);
   astate : [ `Next | `Waiting | `Future | `Done ]
@@ -30,42 +32,34 @@ module type DISK_NODE = sig
   val with_details : _ t -> 'a -> 'a t
 end
 
-module type MODEL = sig
+module type EQ = sig
   type t
-  type 'a full_node
+  val equal : t -> t -> bool
+end
 
-  module View : sig
-    type t = {
-      uuid : Ck_id.t;
-      init_node_type : [ area | project | action ]; (* Hack for "signal value undefined yet" *)
-      node_type : [ area | project | action | `Deleted ] React.S.t;
-      ctime : float;
-      name : string React.S.t;
-      description : string React.S.t;
-      child_views : t ReactiveData.RList.t;
-      state : int Slow_set.state React.S.t;
-    }
+module type TREE_MODEL = sig
+  module Id_map : Map.S with type key = Ck_id.t
+  (** Used to correlate nodes as the input updates. *)
+
+  module Sort_key : Slow_set.SORT_KEY
+
+  module Item : sig
+    (** The data part of a node (excluding the child nodes).
+     * This is passed through. *)
+    type t
+    val equal : t -> t -> bool
+    val show : t -> string
   end
 
-  val root : t -> [area] full_node React.S.t
-  val is_root : Ck_id.t -> bool
+  module Child_map : Map.S with type key = Sort_key.t
+  (** Ordered list of child nodes (probably not in the same order as Id_map). *)
 
-  val all_areas_and_projects : t -> (string * [> area | project] full_node) list
+  type move_data
+  (** This is a hack to allow animations to correlate source and target widgets
+   * for moves. *)
 
-  val uuid : _ full_node -> Ck_id.t
-
-  val add_action : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
-  val add_project : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
-  val add_area : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
-
-  val delete : t -> Ck_id.t -> unit Lwt.t
-
-  val set_name : t ->  Ck_id.t -> string -> unit Lwt.t
-  val set_details : t -> Ck_id.t -> [< action | project | area] -> unit Lwt.t
-  val set_starred : t -> Ck_id.t -> bool -> unit Lwt.t
-
-  val process_tree : t -> View.t
-  val work_tree : t -> View.t ReactiveData.RList.t
-  val details : t -> Ck_id.t -> View.t
-  val history : t -> (float * string) list React.S.t
+  type t
+  val item : t -> Item.t
+  val id : t -> Ck_id.t
+  val children : t -> t Child_map.t
 end

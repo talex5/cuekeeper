@@ -43,10 +43,10 @@ let child_nodes t = t.child_nodes
 
 let key node = (name node, uuid node)
 
-let rec eq a b =
+let rec equal a b =
   a.uuid = b.uuid &&
   a.disk_node = b.disk_node &&
-  M.equal eq a.child_nodes b.child_nodes
+  M.equal equal a.child_nodes b.child_nodes
 
 let with_name node name = {node with
   disk_node = Ck_disk_node.with_name node.disk_node name

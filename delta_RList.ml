@@ -1,13 +1,10 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-module type Eq = sig
-  type t
-  val eq : t -> t -> bool
-end
+open Ck_sigs
 
 module Make (Key : Set.OrderedType)
-            (Value : Eq)
+            (Value : EQ)
             (M : Map.S with type key = Key.t) = struct
   (* Generate a patch from xs to ys *)
   let rec diff acc i xs ys =
@@ -22,7 +19,7 @@ module Make (Key : Set.OrderedType)
           diff (R i :: acc) i xs (y::ys)
         else if d > 0 then
           diff (I (i, snd y) :: acc) (i + 1) (x::xs) ys
-        else if Value.eq (snd x) (snd y) then
+        else if Value.equal (snd x) (snd y) then
           diff acc (i + 1) xs ys
         else
           diff (U (i, snd y) :: acc) (i + 1) xs ys  (* Same key, but value has changed. *)

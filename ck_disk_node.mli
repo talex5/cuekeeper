@@ -26,3 +26,5 @@ val root : [> area] t
  * This can be used for the root to avoid needing options everywhere. *)
 
 val make : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> details:'a -> 'a t
+
+val equal : 'a t -> 'a t -> bool

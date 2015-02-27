@@ -20,6 +20,11 @@ div.ck-details li.add input {
 	margin: 2px;
 }
 
+a.ck-group {
+	color: black;
+	text-decoration: underline;
+}
+
 a.ck-title {
 	color: black;
 }

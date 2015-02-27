@@ -28,4 +28,4 @@ val child_nodes : _ t  -> generic M.t
 val key : _ t -> SortKey.t
 (** A key for sorting by name. *)
 
-val eq : generic -> generic -> bool
+val equal : generic -> generic -> bool

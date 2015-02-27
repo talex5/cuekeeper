@@ -3,7 +3,7 @@ export CAML_LD_LIBRARY_PATH
 
 .PHONY: all
 all:
-	ocamlbuild -no-links -use-ocamlfind client.byte test.byte
+	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte test.byte
 	ocamlrun _build/test.byte
 	js_of_ocaml +weak.js helpers.js _build/client.byte
 

@@ -3,3 +3,4 @@ true: package(lwt.syntax,irmin,lwt,sexplib.syntax,uuidm,irmin.mem,base64,ocamlgr
 true: syntax(camlp4o)
 <test.*>: package(oUnit, lwt.unix)
 not <test.*>: package(js_of_ocaml.syntax,js_of_ocaml,js_of_ocaml.tyxml)
+true: debug

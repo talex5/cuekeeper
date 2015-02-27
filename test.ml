@@ -54,8 +54,34 @@ module ItemMap = Map.Make(Key)
 module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
 module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
 module M = Ck_model.Make(Test_clock)(Store)
+module W = M.Widget
 
 let format_list l = "[" ^ (String.concat "; " l) ^ "]"
+
+type node = N of string * node list
+let n name children = N (name, children)
+
+let rec get_tree rl =
+  ReactiveData.RList.value rl
+  |> List.map (fun widget ->
+    let item = W.item widget |> React.S.value in
+    let name = Ck_disk_node.name (M.Item.node item) in
+    let children = get_tree (W.children widget) in
+    N (name, children)
+  )
+
+let assert_tree expected actual =
+  let rec printer items = items
+    |> List.map (fun (N (name, children)) -> name ^ "(" ^ printer children ^ ")")
+    |> String.concat ", " in
+  assert_equal ~printer expected (get_tree actual)
+
+let run_with_exn fn =
+  try
+    fn () |> Lwt_main.run
+  with ex ->
+    Printexc.print_backtrace stderr;
+    raise ex
 
 let suite = 
   "cue-keeper">:::[
@@ -163,7 +189,7 @@ let suite =
     );
 
     "model">:: (fun () ->
-      Lwt_unix.run begin
+      run_with_exn begin fun () ->
         Test_clock.time := 0.0;
         let config = Irmin_mem.config () in
         let task s =
@@ -173,16 +199,49 @@ let suite =
         let root = M.uuid (React.S.value (M.root m)) in
         M.add_area ~parent:root ~name:"Personal" ~description:"" m >>= fun _personal ->
         M.add_area ~parent:root ~name:"Work" ~description:"" m >>= fun work ->
-        M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun _units ->
+        M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun units ->
         let next_actions = M.work_tree m in
-        match ReactiveData.RList.value next_actions with
-        | ([] | _::_::_) -> assert false
-        | [units] ->
-        assert (React.S.value units.M.View.name = "Write unit tests");
-        M.set_details m units.M.View.uuid (`Action {Ck_sigs.astate = `Waiting; astarred = false}) >>= fun () ->
-        assert (List.length (ReactiveData.RList.value next_actions) = 1);
+
+        (* Initially, we have a single Next action *)
+        next_actions |> assert_tree [
+          n "Work" [
+            n "Write unit tests" []
+          ]
+        ];
+
+        (* After changing it to Waiting, it disappears from the list. *)
+        M.set_details m units (`Action {Ck_sigs.astate = `Waiting; astarred = false}) >>= fun () ->
+        next_actions |> assert_tree [
+          n "Work" [
+            n "Write unit tests" []
+          ]
+        ];
         Test_clock.run_to 2.0;
-        assert (List.length (ReactiveData.RList.value next_actions) = 0);
+        next_actions |> assert_tree [];
+
+        M.add_action ~parent:work ~name:"GC unused signals" ~description:"" m >>= fun _ ->
+        next_actions |> assert_tree [
+          n "Work" [
+            n "GC unused signals" [];
+          ]
+        ];
+
+        (* Changing back to Next makes it reappear *)
+        M.set_details m units (`Action {Ck_sigs.astate = `Next; astarred = false}) >>= fun () ->
+        next_actions |> assert_tree [
+          n "Work" [
+            n "GC unused signals" [];
+            n "Write unit tests" []
+          ]
+        ];
+
+        M.set_details m units (`Action {Ck_sigs.astate = `Waiting; astarred = false}) >>= fun () ->
+        Test_clock.run_to 4.0;
+        next_actions |> assert_tree [
+          n "Work" [
+            n "GC unused signals" [];
+          ]
+        ];
         return ()
       end
     )
