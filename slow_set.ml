@@ -29,7 +29,7 @@ let make_item initial_state data =
   {data; state; set_state}
 
 module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = struct
-  let diff_old_new ~removed_by_id ~time key i_old i_new =
+  let diff_old_new ~eq ~removed_by_id ~time key i_old i_new =
     match i_old, i_new with
     | None, None -> None
     | Some _, None ->
@@ -37,7 +37,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
         removed_by_id := !removed_by_id |> Ck_id.M.add (K.id key) (key, cell);
         Some (`Removed (cell, time))
     | None, Some n -> Some (`New n)
-    | Some o, Some n when o <> n -> Some (`Updated n)
+    | Some o, Some n when not (eq o n) -> Some (`Updated n)
     | Some _, Some _ -> None
 
   let merge_diff _key prev patch =
@@ -117,7 +117,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
         let time = C.now () in
         let removed_by_id = ref Ck_id.M.empty in
         let diff =
-          M.merge (diff_old_new ~removed_by_id ~time) s_old s_new
+          M.merge (diff_old_new ~eq ~removed_by_id ~time) s_old s_new
           |> detect_moves ~input:s_new ~removed_by_id:!removed_by_id in
 
         if not (M.is_empty diff) then (
