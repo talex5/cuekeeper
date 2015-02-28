@@ -101,8 +101,11 @@ module Raw(I : Irmin.BASIC with type key = string list and type value = string) 
 
   (* Note: in theory, the result might not match the input type, if the
    * merge changes it for some reason. In practice, this shouldn't happen. *)
-  let create t (node:_ Ck_disk_node.t) =
-    let uuid = Ck_id.mint () in
+  let create t ?uuid (node:_ Ck_disk_node.t) =
+    let uuid =
+      match uuid with
+      | Some uuid -> uuid
+      | None -> Ck_id.mint () in
     assert (not (Hashtbl.mem t.index uuid));
     let parent = Ck_disk_node.parent node in
     if not (Hashtbl.mem t.index parent) then
@@ -310,8 +313,53 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let history t =
     t.current >|~= fun r -> r.R.history
 
+  let initialise t =
+    let add ~uuid ?parent ~name ~description details =
+      let parent =
+        match parent with
+        | None -> Ck_id.root
+        | Some p -> p in
+      let disk_node =
+        Ck_disk_node.make ~name ~description ~parent ~ctime:(Unix.gettimeofday ()) ~details in
+      let r = React.S.value t.current in
+      R.create r ~uuid:(Ck_id.of_string uuid) disk_node >|= fun (node, r_new) ->
+      t.set_current r_new;
+      node.Node.uuid in
+    (* Add some default entries for first-time use.
+     * Use fixed UUIDs for unit-testing and in case we want to merge stores later. *)
+    add
+      ~uuid:"ad8c5bb1-f6b7-4a57-b090-d6ef2e3326c1"
+      ~name:"Personal"
+      ~description:"Add personal sub-areas here (Family, Car, Home, Exercise, etc)."
+      `Area
+    >>= fun personal ->
+
+    add
+      ~uuid:"1a7c8ea2-18ac-41cb-8f79-3566e49445f4"
+      ~parent:personal
+      ~name:"Start using CueKeeper"
+      ~description:""
+      (`Project {pstate = `Active; pstarred = false})
+    >>= fun switch_to_ck ->
+
+    add
+      ~uuid:"6002ea71-6f1c-4ba9-8728-720f4b4c9845"
+      ~parent:switch_to_ck
+      ~name:"Read wikipedia page on GTD"
+      ~description:"http://en.wikipedia.org/wiki/Getting_Things_Done"
+      (`Action {astate = `Next; astarred = false})
+    >>= fun _ ->
+
+    add
+      ~uuid:"1c6a6964-e6c8-499a-8841-8cb437e2930f"
+      ~name:"Work"
+      ~description:"Add work-related sub-areas here."
+      `Area
+    >>= fun _ ->
+    return ()
+
   let make store =
-    R.make store >|= fun r ->
+    R.make store >>= fun r ->
     let current, set_current = React.S.create ~eq:R.eq r in
     let process_tree = WidgetTree.make (make_process_tree r) in
     let update_process_tree =
@@ -324,5 +372,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       |> React.S.map ~eq:(M.equal TreeNode.equal) collect_next_actions
       |> React.S.map (WidgetTree.update work_tree) in
     let keep_me = [update_work_tree; update_process_tree] in
-    { current; set_current; work_tree; process_tree; keep_me }
+    let t = { current; set_current; work_tree; process_tree; keep_me } in
+    if M.is_empty (Node.child_nodes r.R.root) then (
+      initialise t >>= fun () -> return t
+    ) else return t
 end

@@ -196,14 +196,17 @@ let suite =
           let date = Test_clock.now () |> Int64.of_float in
           Irmin.Task.create ~date ~owner:"User" s in
         Store.create config task >>= M.make >>= fun m ->
-        let root = M.uuid (React.S.value (M.root m)) in
-        M.add_area ~parent:root ~name:"Personal" ~description:"" m >>= fun _personal ->
-        M.add_area ~parent:root ~name:"Work" ~description:"" m >>= fun work ->
+        let work = Ck_id.of_string "1c6a6964-e6c8-499a-8841-8cb437e2930f" in
+        let read = Ck_id.of_string "6002ea71-6f1c-4ba9-8728-720f4b4c9845" in
+
         M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun units ->
         let next_actions = M.work_tree m in
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree [
+          n "Start using CueKeeper" [
+            n "Read wikipedia page on GTD" []
+          ];
           n "Work" [
             n "Write unit tests" []
           ]
@@ -211,7 +214,11 @@ let suite =
 
         (* After changing it to Waiting, it disappears from the list. *)
         M.set_details m units (`Action {Ck_sigs.astate = `Waiting; astarred = false}) >>= fun () ->
+        M.delete m read >>= fun () ->
         next_actions |> assert_tree [
+          n "Start using CueKeeper" [
+            n "Read wikipedia page on GTD" []
+          ];
           n "Work" [
             n "Write unit tests" []
           ]
