@@ -125,12 +125,37 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     I.update (t.store msg) ["db"; Ck_id.to_string node.Node.uuid] s >>= fun () ->
     make t.store
 
-  let delete t uuid =
+  let delete t node =
+    let uuid = Node.uuid node in
     assert (uuid <> Ck_id.root);
     let node = get_exn t uuid in
     let msg = Printf.sprintf "Delete '%s'" (Node.name node) in
     I.remove (t.store msg) ["db"; Ck_id.to_string uuid] >>= fun () ->
     make t.store
+
+  let add t ?uuid details ~parent ~name ~description =
+    let disk_node =
+      Ck_disk_node.make ~name ~description ~parent ~ctime:(Unix.gettimeofday ()) ~details in
+    create ?uuid t disk_node
+
+  let set_name t node name =
+    let new_node = Node.with_name node name in
+    let msg = Printf.sprintf "Rename '%s' to '%s'" (Node.name node) (Node.name new_node) in
+    update t ~msg new_node
+
+  let set_details t node new_details =
+    let new_node = Node.with_details node new_details in
+    let msg = Printf.sprintf "Change state of '%s'" (Node.name node) in
+    update t ~msg new_node
+
+  let set_starred t node s =
+    let new_node =
+      match node with
+      | {Node.disk_node = {Ck_disk_node.details = `Action d; _}; _} as n -> Node.with_details n (`Action {d with astarred = s})
+      | {Node.disk_node = {Ck_disk_node.details = `Project d; _}; _} as n -> Node.with_details n (`Project {d with pstarred = s}) in
+    let action = if s then "Add" else "Remove" in
+    let msg = Printf.sprintf "%s star for '%s'" action (Node.name node) in
+    update t ~msg new_node
 
   let root t = t.root
   let history t = t.history

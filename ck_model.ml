@@ -86,10 +86,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let uuid = Node.uuid
 
   let add details t ~parent ~name ~description =
-    let disk_node =
-      Ck_disk_node.make ~name ~description ~parent ~ctime:(Unix.gettimeofday ()) ~details in
     let r = React.S.value t.current in
-    R.create r disk_node >|= fun (new_id, r_new) ->
+    R.add r details ~parent ~name ~description >|= fun (new_id, r_new) ->
     t.set_current r_new;
     new_id
 
@@ -99,33 +97,25 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let delete t uuid =
     let r = React.S.value t.current in
-    R.delete r uuid >|= t.set_current
+    let node = R.get_exn r uuid in
+    R.delete r node >|= t.set_current
 
   let set_name t uuid name =
     let r = React.S.value t.current in
     let node = R.get_exn r uuid in
-    let new_node = Node.with_name node name in
-    let msg = Printf.sprintf "Rename '%s' to '%s'" (Node.name node) (Node.name new_node) in
-    R.update r ~msg new_node >|= t.set_current
+    R.set_name r node name >|= t.set_current
 
   let set_details t uuid new_details =
     let r = React.S.value t.current in
     let node = R.get_exn r uuid in
-    let new_node = Node.with_details node new_details in
-    let msg = Printf.sprintf "Change state of '%s'" (Node.name node) in
-    R.update r ~msg new_node >|= t.set_current
+    R.set_details r node new_details >|= t.set_current
 
   let set_starred t uuid s =
     let r = React.S.value t.current in
-    let node = R.get_exn r uuid in
-    let new_node =
-      match node with
-      | {Node.disk_node = {Ck_disk_node.details = `Action d; _}; _} as n -> Node.with_details n (`Action {d with astarred = s})
-      | {Node.disk_node = {Ck_disk_node.details = `Project d; _}; _} as n -> Node.with_details n (`Project {d with pstarred = s})
-      | _ -> error "Not a project or action node: '%s'" (Node.name node) in
-    let action = if s then "Add" else "Remove" in
-    let msg = Printf.sprintf "%s star for '%s'" action (Node.name node) in
-    R.update r ~msg new_node >|= t.set_current
+    match R.get_exn r uuid with
+    | {Node.disk_node = {Ck_disk_node.details = (`Action _ | `Project _); _}; _} as node ->
+        R.set_starred r node s >|= t.set_current
+    | _ -> error "Not an action or project"
 
   let make_full_tree r =
     let rec aux items =
@@ -195,10 +185,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
         match parent with
         | None -> Ck_id.root
         | Some p -> p in
-      let disk_node =
-        Ck_disk_node.make ~name ~description ~parent ~ctime:(Unix.gettimeofday ()) ~details in
       let r = React.S.value t.current in
-      R.create r ~uuid:(Ck_id.of_string uuid) disk_node >|= fun (uuid, r_new) ->
+      R.add r ~uuid:(Ck_id.of_string uuid) details ~parent ~name ~description >|= fun (uuid, r_new) ->
       t.set_current r_new;
       uuid in
     (* Add some default entries for first-time use.

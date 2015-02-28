@@ -19,7 +19,11 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   val get : t -> Ck_id.t -> Ck_node.generic option
   val get_exn : t -> Ck_id.t -> Ck_node.generic (* XXX *)
 
-  val create : t -> ?uuid:Ck_id.t -> [action | project | area] Ck_disk_node.t -> (Ck_id.t * t) Lwt.t
-  val update : t -> msg:string -> [< action | project | area] Ck_node.t -> t Lwt.t
-  val delete : t -> Ck_id.t -> t Lwt.t
+  (*XXX: uuid *)
+  val add : t -> ?uuid:Ck_id.t -> [< action | project | area] -> parent:Ck_id.t -> name:string -> description:string -> (Ck_id.t * t) Lwt.t
+  val delete : t -> [< action | project | area] Ck_node.t -> t Lwt.t
+
+  val set_name : t -> [< action | project | area] Ck_node.t -> string -> t Lwt.t
+  val set_details : t -> [< action | project | area] Ck_node.t -> [< action | project | area] -> t Lwt.t
+  val set_starred : t -> [< action | project] Ck_node.t -> bool -> t Lwt.t
 end
