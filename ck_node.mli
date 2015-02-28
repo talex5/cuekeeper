@@ -24,6 +24,7 @@ val make_root : child_nodes:generic M.t -> [> area] t
 
 val uuid : _ t  -> Ck_id.t
 val child_nodes : _ t  -> generic M.t
+val disk_node : 'a t -> 'a Ck_disk_node.t
 
 val key : _ t -> SortKey.t
 (** A key for sorting by name. *)

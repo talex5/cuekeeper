@@ -40,6 +40,7 @@ let details t = Ck_disk_node.details t.disk_node
 
 let uuid t = t.uuid
 let child_nodes t = t.child_nodes
+let disk_node t = t.disk_node
 
 let key node = (name node, uuid node)
 

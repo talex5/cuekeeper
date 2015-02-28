@@ -22,11 +22,11 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
       let equal a b =
         Node.uuid a = Node.uuid b &&
-        Ck_disk_node.equal a.Node.disk_node b.Node.disk_node
+        Ck_disk_node.equal (Node.disk_node a) (Node.disk_node b)
 
       let show = Node.name
       let id = Node.uuid
-      let node n = n.Node.disk_node
+      let node = Node.disk_node
     end
 
     type t = {
