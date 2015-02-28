@@ -18,15 +18,13 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     module Sort_key = Node.SortKey
 
     module Item = struct
-      type t = Node.generic   (* Ignore children, though *)
+      include Node    (* We reuse Node.t, but ignore its children *)
 
       let equal a b =
         Node.uuid a = Node.uuid b &&
         Ck_disk_node.equal (Node.disk_node a) (Node.disk_node b)
-
-      let show = Node.name
+      let show = name
       let id = Node.uuid
-      let node = Node.disk_node
     end
 
     type t = {
@@ -70,6 +68,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let root t = t.current |> React.S.map ~eq:assume_changed R.root
   let is_root = (=) Ck_id.root
 
+(*
   let all_areas_and_projects t =
     let results = ref [] in
     let rec scan prefix x =
@@ -82,8 +81,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       ) in
     scan "" (root t |> React.S.value);
     List.rev !results
-
-  let uuid = Node.uuid
+*)
 
   let add details t ~parent ~name ~description =
     let r = React.S.value t.current in
@@ -95,9 +93,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let add_project = add (`Project {Ck_sigs.pstate = `Active; pstarred = false})
   let add_area = add `Area
 
-  let delete t uuid =
+  let delete t node =
     let r = React.S.value t.current in
-    let node = R.get_exn r uuid in
     R.delete r node >|= t.set_current
 
   let set_name t uuid name =
@@ -110,12 +107,17 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     let node = R.get_exn r uuid in
     R.set_details r node new_details >|= t.set_current
 
-  let set_starred t uuid s =
+  let set_action_state t item state =
     let r = React.S.value t.current in
-    match R.get_exn r uuid with
-    | {Node.disk_node = {Ck_disk_node.details = (`Action _ | `Project _); _}; _} as node ->
-        R.set_starred r node s >|= t.set_current
-    | _ -> error "Not an action or project"
+    R.set_action_state r item state >|= t.set_current
+
+  let set_project_state t item state =
+    let r = React.S.value t.current in
+    R.set_project_state r item state >|= t.set_current
+
+  let set_starred t item s =
+    let r = React.S.value t.current in
+    R.set_starred r item s >|= t.set_current
 
   let make_full_tree r =
     let rec aux items =
@@ -127,14 +129,16 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let make_process_tree = make_full_tree
 
-  let is_next_action _k = function
-    | {Node.disk_node = {Ck_disk_node.details = `Action {astate = `Next; _}; _}; _} -> true
+  let is_next_action _k node =
+    match Node.ty node with
+    | `Action a -> Node.action_state a = `Next
     | _ -> false
 
   let collect_next_actions r =
     let results = ref TreeNode.Child_map.empty in
-    let rec scan = function
-      | {Node.disk_node = {Ck_disk_node.details = `Area | `Project _; _}; _} as parent ->
+    let rec scan node =
+      match Node.ty node with
+      | `Area parent | `Project parent ->
           let actions = Node.child_nodes parent |> M.filter is_next_action in
           if not (M.is_empty actions) then (
             let tree_node = { TreeNode.
@@ -144,7 +148,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
             results := !results |> M.add (Node.key parent) tree_node;
           );
           Node.child_nodes parent |> M.iter (fun _k v -> scan v)
-      | {Node.disk_node = {Ck_disk_node.details = `Action _; _}; _} -> ()
+      | `Action _ -> ()
     in
     scan (R.root r);
     !results
@@ -153,7 +157,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let process_tree t = WidgetTree.widgets t.process_tree
 
   type details = {
-    details_item : Item.t option React.S.t;
+    details_item : Item.generic option React.S.t;
     details_children : Widget.t ReactiveData.RList.t;
     details_stop : stop;
   }

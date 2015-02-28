@@ -18,7 +18,7 @@ let description t = t.description
 let parent t = t.parent
 let details t = t.details
 
-type general_node =
+type generic =
   [ `Action of action_details
   | `Project of Ck_sigs.project_details
   | `Area ] t
@@ -32,8 +32,8 @@ let root = {
   ctime = 0.0;
 }
 
-let of_string s = general_node_of_sexp (Sexplib.Sexp.of_string s)
-let to_string (t : [< action | project | area] t) = Sexplib.Sexp.to_string (sexp_of_general_node (t :> general_node))
+let of_string s = generic_of_sexp (Sexplib.Sexp.of_string s)
+let to_string (t : [< action | project | area] t) = Sexplib.Sexp.to_string (sexp_of_generic (t :> generic))
 
 let make ~name ~description ~parent ~ctime ~details = {
   name;
@@ -46,3 +46,9 @@ let make ~name ~description ~parent ~ctime ~details = {
 let with_name node name = {node with name}
 let with_details node details = {node with details}
 let equal : _ t -> _ t -> bool = (=)
+
+let action_state { details = `Action { astate; _ }; _ } = astate
+let project_state { details = `Project { pstate; _ }; _ } = pstate
+let starred = function
+  | { details = `Project { pstarred; _ }; _ } -> pstarred
+  | { details = `Action { astarred; _ }; _ } -> astarred

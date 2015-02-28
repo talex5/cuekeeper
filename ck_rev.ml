@@ -27,7 +27,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   let rec walk fn node =
     fn node;
-    node.Node.child_nodes |> M.iter (fun _k v -> walk fn v)
+    Node.child_nodes node |> M.iter (fun _k v -> walk fn v)
 
   let get_current store =
     I.head (store "Get latest commit") >>= function
@@ -121,8 +121,8 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     assert (Hashtbl.mem t.index (Node.uuid node));
     if not (Hashtbl.mem t.index (Node.parent node)) then
       error "Parent '%a' does not exist!" Ck_id.fmt (Node.parent node);
-      let s = Ck_disk_node.to_string node.Node.disk_node in
-    I.update (t.store msg) ["db"; Ck_id.to_string node.Node.uuid] s >>= fun () ->
+      let s = Ck_disk_node.to_string (Node.disk_node node) in
+    I.update (t.store msg) ["db"; Ck_id.to_string (Node.uuid node)] s >>= fun () ->
     make t.store
 
   let delete t node =
@@ -148,11 +148,19 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let msg = Printf.sprintf "Change state of '%s'" (Node.name node) in
     update t ~msg new_node
 
+  let set_action_state t node astate =
+    match Node.disk_node node with
+    | { Ck_disk_node.details = `Action old; _ } -> set_details t node (`Action {old with astate})
+
+  let set_project_state t node pstate =
+    match Node.disk_node node with
+    | { Ck_disk_node.details = `Project old; _ } -> set_details t node (`Project {old with pstate})
+
   let set_starred t node s =
     let new_node =
-      match node with
-      | {Node.disk_node = {Ck_disk_node.details = `Action d; _}; _} as n -> Node.with_details n (`Action {d with astarred = s})
-      | {Node.disk_node = {Ck_disk_node.details = `Project d; _}; _} as n -> Node.with_details n (`Project {d with pstarred = s}) in
+      match Node.disk_node node with
+      | {Ck_disk_node.details = `Action d; _} -> Node.with_details node (`Action {d with astarred = s})
+      | {Ck_disk_node.details = `Project d; _} -> Node.with_details node (`Project {d with pstarred = s}) in
     let action = if s then "Add" else "Remove" in
     let msg = Printf.sprintf "%s star for '%s'" action (Node.name node) in
     update t ~msg new_node

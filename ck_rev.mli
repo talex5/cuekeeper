@@ -26,4 +26,6 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   val set_name : t -> [< action | project | area] Ck_node.t -> string -> t Lwt.t
   val set_details : t -> [< action | project | area] Ck_node.t -> [< action | project | area] -> t Lwt.t
   val set_starred : t -> [< action | project] Ck_node.t -> bool -> t Lwt.t
+  val set_action_state : t -> [action] Ck_node.t -> [ `Next | `Waiting | `Future | `Done ] -> t Lwt.t
+  val set_project_state : t -> [project] Ck_node.t -> [ `Active | `SomedayMaybe | `Done ] -> t Lwt.t
 end

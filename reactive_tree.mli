@@ -22,7 +22,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) : sig
     (** An object visible on the screen. *)
     type t
     val id : t -> Ck_id.t
-    val item : t -> M.Item.t React.S.t
+    val item : t -> M.Item.generic React.S.t
     val children : t -> t ReactiveData.RList.t
     val state : t -> M.move_data Slow_set.state React.S.t
   end

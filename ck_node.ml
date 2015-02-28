@@ -37,6 +37,9 @@ let name t = Ck_disk_node.name t.disk_node
 let description t = Ck_disk_node.description t.disk_node
 let ctime t = Ck_disk_node.ctime t.disk_node
 let details t = Ck_disk_node.details t.disk_node
+let action_state t = Ck_disk_node.action_state t.disk_node
+let project_state t = Ck_disk_node.project_state t.disk_node
+let starred t = Ck_disk_node.starred t.disk_node
 
 let uuid t = t.uuid
 let child_nodes t = t.child_nodes
@@ -56,3 +59,8 @@ let with_name node name = {node with
 let with_details node details = {node with
   disk_node = Ck_disk_node.with_details node.disk_node details
 }
+
+let ty = function
+  | { disk_node = { Ck_disk_node.details = `Action _; _ }; _ } as x -> `Action x
+  | { disk_node = { Ck_disk_node.details = `Project _; _ }; _ } as x -> `Project x
+  | { disk_node = { Ck_disk_node.details = `Area; _ }; _ } as x -> `Area x

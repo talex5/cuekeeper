@@ -54,32 +54,27 @@ module Make (M : Ck_model_s.MODEL) = struct
       if current <> details then set_details details; true in
     a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
 
-  let make_toggles ~m ~set_details ~uuid current options ~starred =
+  let make_toggles ~m ~set_details ~item current options =
+    let starred = M.Item.starred item in
     let state_toggles = options |> List.map (toggle_label ~set_details ~current) in
     let cl = if starred then "star-active" else "star-inactive" in
     let set_star _ev =
-      async (fun () -> M.set_starred m uuid (not starred));
+      async (fun () -> M.set_starred m item (not starred));
       true in
     let star = a ~a:[a_class [cl]; a_onclick set_star] [pcdata "★"] in
     state_toggles @ [star]
 
   let toggles_for_type m item =
-    let node = M.Item.node item in
-    let uuid = M.Item.id item in
-    match Ck_disk_node.details node with
-    | `Action ({Ck_sigs.astate = s; astarred; _} as old) ->
+    match M.Item.ty item with
+    | `Action item ->
         let set_details n =
-          Lwt_js_events.async (fun () ->
-            M.set_details m uuid (`Action {old with Ck_sigs.astate = n})
-          ) in
-        make_toggles ~m ~set_details ~uuid s [`Done; `Next; `Waiting; `Future] ~starred:astarred
-    | `Project ({Ck_sigs.pstate = s; pstarred; _} as old) ->
+          Lwt_js_events.async (fun () -> M.set_action_state m item n) in
+        make_toggles ~m ~set_details ~item (M.Item.action_state item) [`Done; `Next; `Waiting; `Future]
+    | `Project item ->
         let set_details n =
-          Lwt_js_events.async (fun () ->
-            M.set_details m uuid (`Project {old with Ck_sigs.pstate = n})
-          ) in
-        make_toggles ~m ~set_details ~uuid s [`Done; `Active; `SomedayMaybe] ~starred:pstarred
-    | `Area -> []
+          Lwt_js_events.async (fun () -> M.set_project_state m item n) in
+        make_toggles ~m ~set_details ~item (M.Item.project_state item) [`Done; `Active; `SomedayMaybe]
+    | `Area _ -> []
 
   let make_state_toggles m item =
     let toggles = item >|~= (function
@@ -116,16 +111,14 @@ module Make (M : Ck_model_s.MODEL) = struct
     result
 
   let render_item m ~show_node item =
-    let uuid = M.Item.id item in
-    let clicked _ev = show_node uuid; true in
-    let delete _ev = async (fun () -> M.delete m uuid); true in
-    let node = M.Item.node item in
-    let details = Ck_disk_node.details node in
-    let item_cl = class_of_time_and_type (Ck_disk_node.ctime node) details in
+    let clicked _ev = show_node item; true in
+    let delete _ev = async (fun () -> M.delete m item); true in
+    let details = M.Item.details item in
+    let item_cl = class_of_time_and_type (M.Item.ctime item) details in
     span ~a:[a_class item_cl] [
       span ~a:[a_class ["ck-toggles"]] (toggles_for_type m item);
       span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
-        a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [pcdata (Ck_disk_node.name node)];
+        a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [pcdata (M.Item.name item)];
       ];
       a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
     ]
@@ -147,8 +140,9 @@ module Make (M : Ck_model_s.MODEL) = struct
     let make_work_actions group =
       let show_group _ev =
         let item = React.S.value (W.item group) in
-        show_node (M.Item.id item); true in
-      let name = W.item group >|~= (fun item -> M.Item.node item |> Ck_disk_node.name) in
+        show_node item;
+        true in
+      let name = W.item group >|~= M.Item.name in
       animated group [
         a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.pcdata name];
         R.Html5.ul (
@@ -230,7 +224,7 @@ module Make (M : Ck_model_s.MODEL) = struct
             item >|~= (function
               | None -> []
               | Some item ->
-                  match Ck_disk_node.details (M.Item.node item) with
+                  match M.Item.details item with
                   | `Action _ -> []
                   | `Project _ -> [
                       add_button `Action "+action";
@@ -281,7 +275,7 @@ module Make (M : Ck_model_s.MODEL) = struct
 
   let make_editable_title m uuid item =
     let name = item >|~= (function
-      | Some item -> Ck_disk_node.name (M.Item.node item)
+      | Some item -> M.Item.name item
       | None -> "(deleted)"
     ) in
     let editing, set_editing = React.S.create false in
@@ -346,7 +340,7 @@ module Make (M : Ck_model_s.MODEL) = struct
             set_closed true;
             ["ck-heading"]
         | Some item ->
-            let node_type = Ck_disk_node.details (M.Item.node item) in
+            let node_type = M.Item.details item in
             with_done ["ck-heading"; class_of_node_type node_type] node_type
       ) in
     let children = details.M.details_children
@@ -362,7 +356,7 @@ module Make (M : Ck_model_s.MODEL) = struct
         make_child_adder m uuid item;
         div ~a:[a_class ["description"]] [
           p [R.Html5.pcdata (item >|~= function
-            | Some item -> Ck_disk_node.description (M.Item.node item)
+            | Some item -> M.Item.description item
             | None -> "This item has been deleted."
           )];
         ]
@@ -372,7 +366,8 @@ module Make (M : Ck_model_s.MODEL) = struct
 
   let make_details_area m =
     let details_pane, details_handle = ReactiveData.RList.make [] in
-    let rec show_node uuid =
+    let rec show_node item =
+      let uuid = M.Item.uuid item in
       let remove () =
         let current_items = ReactiveData.RList.value details_pane in
         match index_of uuid current_items with

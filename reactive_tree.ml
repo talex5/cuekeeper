@@ -29,8 +29,8 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
   module W = struct
     type t = {
       id : M.Id_map.key;
-      item : M.Item.t React.S.t;
-      set_item : M.Item.t -> unit;
+      item : M.Item.generic React.S.t;
+      set_item : M.Item.generic -> unit;
       children : (t, M.move_data) Slow_set.item ReactiveData.RList.t;
       set_child_widgets : ?step:React.step -> t M.Child_map.t -> unit;
     }

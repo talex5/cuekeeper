@@ -28,3 +28,6 @@ val root : [> area] t
 val make : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> details:'a -> 'a t
 
 val equal : 'a t -> 'a t -> bool
+
+val with_name : 'a t -> string -> 'a t
+val with_details : _ t -> 'a -> 'a t

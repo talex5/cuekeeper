@@ -65,7 +65,7 @@ let rec get_tree rl =
   ReactiveData.RList.value rl
   |> List.map (fun widget ->
     let item = W.item widget |> React.S.value in
-    let name = Ck_disk_node.name (M.Item.node item) in
+    let name = M.Item.name item in
     let children = get_tree (W.children widget) in
     N (name, children)
   )
@@ -197,7 +197,6 @@ let suite =
           Irmin.Task.create ~date ~owner:"User" s in
         Store.create config task >>= M.make >>= fun m ->
         let work = Ck_id.of_string "1c6a6964-e6c8-499a-8841-8cb437e2930f" in
-        let read = Ck_id.of_string "6002ea71-6f1c-4ba9-8728-720f4b4c9845" in
 
         M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun units ->
         let next_actions = M.work_tree m in
@@ -211,6 +210,14 @@ let suite =
             n "Write unit tests" []
           ]
         ];
+
+        let read =
+          match ReactiveData.RList.value next_actions with
+          | [start; _] ->
+              begin match ReactiveData.RList.value (W.children start) with
+              | [read] -> React.S.value (W.item read)
+              | _ -> assert false end
+          | _ -> assert false in
 
         (* After changing it to Waiting, it disappears from the list. *)
         M.set_details m units (`Action {Ck_sigs.astate = `Waiting; astarred = false}) >>= fun () ->
