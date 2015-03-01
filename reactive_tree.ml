@@ -115,19 +115,19 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
       set_root_widgets;
     }
 
-  let update t nodes =
+  let update t ~on_remove nodes =
     (* print_endline "\n== update ==\n"; *)
     let old_widgets = !(t.widgets) in
     t.widgets := M.Id_map.empty;
-    update t ~old_widgets nodes |> t.set_root_widgets
+    update t ~old_widgets nodes |> t.set_root_widgets;
 
-    (*
-      old_widgets |> M.Id_map.iter (fun k old ->
-        if not (M.Id_map.mem k !(t.widgets)) then (
-          Printf.printf "Removed unused widget '%s'\n" (M.Item.show (React.S.value old.W.item))
-        )
+    old_widgets |> M.Id_map.iter (fun k old ->
+      if not (M.Id_map.mem k !(t.widgets)) then (
+        match on_remove (W.id old) with
+        | None -> ()
+        | Some update -> old.W.set_item update
       )
-    *)
+    )
 
   let widgets t = t.root_widgets
 end

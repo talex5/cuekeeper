@@ -28,6 +28,13 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) : sig
   end
 
   val make : M.t M.Child_map.t -> t
-  val update : t -> M.t M.Child_map.t -> unit
+
+  (** Walk the new tree, updating the current RLists, creating new ones where necessary.
+   * Widgets that are no longer present are removed from the output lists and [on_remove]
+   * is called on each one. This is useful to provide one last update showing why the
+   * item was removed as it fades out.
+   *)
+  val update : t -> on_remove:(Ck_id.t -> M.Item.generic option) -> M.t M.Child_map.t -> unit
+
   val widgets : t -> Widget.t ReactiveData.RList.t
 end

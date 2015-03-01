@@ -167,13 +167,13 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     let child_nodes node = Node.child_nodes node |> M.map TreeNode.leaf_of_node in
     let children = WidgetTree.make (child_nodes initial_node) in
     let node, set_node = React.S.create (Some initial_node) in
-    let updates =
+    let updates : unit React.S.t =
       t.current >|~= fun r ->
         let node = R.get r uuid in
         set_node node;
         match node with
-        | None -> WidgetTree.update children M.empty
-        | Some node -> WidgetTree.update children (child_nodes node) in
+        | None -> WidgetTree.update children M.empty ~on_remove:(R.get r)
+        | Some node -> WidgetTree.update children (child_nodes node) ~on_remove:(R.get r) in
     {
       details_item = node;
       details_children = WidgetTree.widgets children;
@@ -226,19 +226,22 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     >>= fun _ ->
     return ()
 
+  let make_tree current fn =
+    let rtree = WidgetTree.make (fn (React.S.value current)) in
+    let keep_me =
+      current
+      |> React.S.map ~eq:(M.equal TreeNode.equal) fn
+      |> React.S.map (fun tree ->
+          let r = React.S.value current in
+          WidgetTree.update rtree tree ~on_remove:(R.get r)
+        ) in
+    (rtree, keep_me)
+
   let make store =
     R.make store >>= fun r ->
     let current, set_current = React.S.create ~eq:R.equal r in
-    let process_tree = WidgetTree.make (make_process_tree r) in
-    let update_process_tree =
-      current
-      |> React.S.map ~eq:(M.equal TreeNode.equal) make_process_tree
-      |> React.S.map (WidgetTree.update process_tree) in
-    let work_tree = WidgetTree.make (collect_next_actions r) in
-    let update_work_tree =
-      current
-      |> React.S.map ~eq:(M.equal TreeNode.equal) collect_next_actions
-      |> React.S.map (WidgetTree.update work_tree) in
+    let process_tree, update_process_tree = make_tree current make_process_tree in
+    let work_tree, update_work_tree = make_tree current collect_next_actions in
     let keep_me = [update_work_tree; update_process_tree] in
     let t = { current; set_current; work_tree; process_tree; keep_me } in
     if M.is_empty (Node.child_nodes (R.root r)) then (
