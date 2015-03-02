@@ -17,7 +17,6 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   val history : t -> commit list  (* XXX: recent *)
 
   val get : t -> Ck_id.t -> Ck_node.generic option
-  val get_exn : t -> Ck_id.t -> Ck_node.generic (* XXX *)
 
   (*XXX: uuid *)
   val add : t -> ?uuid:Ck_id.t -> [< action | project | area] -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t

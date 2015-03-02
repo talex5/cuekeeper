@@ -31,18 +31,13 @@ module type MODEL = sig
     details_stop : stop;
   }
 
-  val is_root : Ck_id.t -> bool
-
-(*   val all_areas_and_projects : t -> (string * [> area | project] full_node) list *)
-
-  val add_action : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
-  val add_project : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
-  val add_area : t -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
+  val add_action : t -> parent:Ck_id.t -> name:string -> description:string -> unit Lwt.t
+  val add_project : t -> parent:Ck_id.t -> name:string -> description:string -> unit Lwt.t
+  val add_area : t -> parent:Ck_id.t -> name:string -> description:string -> unit Lwt.t
 
   val delete : t -> [< action | project | area] Item.t -> unit Lwt.t
 
-  val set_name : t ->  Ck_id.t -> string -> unit Lwt.t
-  val set_details : t -> Ck_id.t -> [< action | project | area] -> unit Lwt.t
+  val set_name : t ->  [< action | project | area] Item.t -> string -> unit Lwt.t
   val set_starred : t -> [< project | action] Item.t -> bool -> unit Lwt.t
   val set_action_state : t -> [action] Item.t -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> [project] Item.t -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
@@ -55,5 +50,5 @@ module type MODEL = sig
                   | `Review of unit
                   | `Schedule of unit ] React.S.t
 
-  val details : t -> Ck_id.t -> details
+  val details : t -> [< action | project | area] Item.t -> details
 end

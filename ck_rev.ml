@@ -93,10 +93,6 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     try Some (Hashtbl.find t.index uuid)
     with Not_found -> None
 
-  let get_exn t uuid =
-    try Hashtbl.find t.index uuid
-    with Not_found -> error "UUID '%a' not found in database!" Ck_id.fmt uuid
-
   let merge_to_master t ~msg fn =
     let path = I.Key.empty in
     V.of_path (t.store msg) path >>= fun view ->

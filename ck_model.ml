@@ -77,25 +77,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let assume_changed _ _ = false
 
-  let is_root = (=) Ck_id.root
-
-(*
-  let all_areas_and_projects t =
-    let results = ref [] in
-    let rec scan prefix x =
-      let full_path = prefix ^ "/" ^ Node.name x in
-      results := (full_path, x) :: !results;
-      Node.child_nodes x |> M.iter (fun _k child ->
-        match child with
-        | {Node.disk_node = {Ck_disk_node.details = `Area | `Project _; _}; _} as x -> scan full_path x
-        | _ -> ()
-      ) in
-    scan "" (root t |> React.S.value);
-    List.rev !results
-*)
-
   let add details t ~parent ~name ~description =
-    R.add t.r details ~parent ~name ~description
+    R.add t.r details ~parent ~name ~description >>= fun (_ : Ck_id.t) -> return ()
 
   let add_action = add (`Action {Ck_sigs.astate = `Next; astarred = false})
   let add_project = add (`Project {Ck_sigs.pstate = `Active; pstarred = false})
@@ -104,15 +87,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let delete t node =
     R.delete t.r node
 
-  let set_name t uuid name =
-    let r = t.r in
-    let node = R.get_exn r uuid in
-    R.set_name r node name
-
-  let set_details t uuid new_details =
-    let r = t.r in
-    let node = R.get_exn r uuid in
-    R.set_details r node new_details
+  let set_name t item name =
+    R.set_name t.r item name
 
   let set_action_state t item state =
     R.set_action_state t.r item state
@@ -157,10 +133,11 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     scan (R.root r);
     !results
 
-  let details t uuid =
+  let details t initial_node =
+    let initial_node = (initial_node :> Node.generic) in
+    let uuid = Node.uuid initial_node in
     try fst (Ck_id.M.find uuid t.details)
     with Not_found ->
-      let initial_node = R.get_exn t.r uuid in
       let child_nodes node = Node.child_nodes node |> M.map TreeNode.leaf_of_node in
       let children = WidgetTree.make (child_nodes initial_node) in
       let node, set_node = React.S.create (Some initial_node) in

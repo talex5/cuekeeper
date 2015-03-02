@@ -279,31 +279,36 @@ module Make (M : Ck_model_s.MODEL) = struct
       R.Html5.li ~a:[a_class ["add"]] rlist
     ]
 
-  let make_editable_title m uuid item =
+  let make_editable_title m item =
     let name = item >|~= (function
       | Some item -> M.Item.name item
       | None -> "(deleted)"
     ) in
-    let editing, set_editing = React.S.create false in
+    let editing, set_editing = React.S.create None in
     let widgets =
       editing >|~= (function
-        | false ->
-            let edit _ev = set_editing true; true in [
+        | None ->
+            let edit _ev =
+              begin match React.S.value item with
+              | None -> ()
+              | Some item -> set_editing (Some item) end;
+              true in
+            [
               span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
                 a ~a:[a_class ["ck-title"]; a_onclick edit] [R.Html5.pcdata name];
               ]
             ]
-        | true ->
+        | Some item ->
             let submit ev =
               let form = ev##target >>?= Dom_html.CoerceTo.form in
               Js.Opt.iter form (fun form ->
                 let f = Form.get_form_contents form in
                 let name = List.assoc "name" f |> String.trim in
                 if name <> "" then (
-                  async (fun () -> M.set_name m uuid name)
+                  async (fun () -> M.set_name m item name)
                 )
               );
-              set_editing false;
+              set_editing None;
               true in
             let old_name = React.S.value name in [
               form ~a:[a_class ["rename"]; a_onsubmit submit] [
@@ -356,7 +361,7 @@ module Make (M : Ck_model_s.MODEL) = struct
         a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
         div ~a:[R.Html5.a_class title_cl] [
           R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
-          R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m uuid item);
+          R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
         ];
         R.Html5.ul children;
         make_child_adder m uuid item;
@@ -386,7 +391,7 @@ module Make (M : Ck_model_s.MODEL) = struct
         with Not_found -> None in
       match existing with
       | None ->
-          let details = M.details m uuid in
+          let details = M.details m item in
           ReactiveData.RList.insert (uuid, make_details_panel m ~show_node ~remove ~uuid details) (List.length current_items) details_handle;
       | Some _ ->
           let open Lwt in

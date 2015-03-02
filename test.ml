@@ -88,6 +88,11 @@ let run_with_exn fn =
     Printexc.print_backtrace stderr;
     raise ex
 
+let expect_action item =
+  match M.Item.ty item with
+  | `Action x -> x
+  | _ -> assert_failure "Not an action!"
+
 let suite = 
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
@@ -203,7 +208,7 @@ let suite =
         M.make config task >>= fun m ->
         let work = Ck_id.of_string "1c6a6964-e6c8-499a-8841-8cb437e2930f" in
 
-        M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun units ->
+        M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun () ->
         let next_actions = M.tree m |> expect_tree in
 
         (* Initially, we have a single Next action *)
@@ -216,16 +221,18 @@ let suite =
           ]
         ];
 
-        let read =
+        let read, units =
           match ReactiveData.RList.value next_actions with
-          | [start; _] ->
-              begin match ReactiveData.RList.value (W.children start) with
-              | [read] -> React.S.value (W.item read)
+          | [start; work] ->
+              begin match ReactiveData.RList.value (W.children start), ReactiveData.RList.value (W.children work) with
+              | [read], [units] -> (React.S.value (W.item read), React.S.value (W.item units))
               | _ -> assert false end
           | _ -> assert false in
 
+        let units = expect_action units in
+
         (* After changing it to Waiting, it disappears from the list. *)
-        M.set_details m units (`Action {Ck_sigs.astate = `Waiting; astarred = false}) >>= fun () ->
+        M.set_action_state m units `Waiting >>= fun () ->
         M.delete m read >>= fun () ->
         next_actions |> assert_tree [
           n "Start using CueKeeper" [
@@ -246,7 +253,7 @@ let suite =
         ];
 
         (* Changing back to Next makes it reappear *)
-        M.set_details m units (`Action {Ck_sigs.astate = `Next; astarred = false}) >>= fun () ->
+        M.set_action_state m units `Next >>= fun () ->
         next_actions |> assert_tree [
           n "Work" [
             n "GC unused signals" [];
@@ -254,7 +261,7 @@ let suite =
           ]
         ];
 
-        M.set_details m units (`Action {Ck_sigs.astate = `Waiting; astarred = false}) >>= fun () ->
+        M.set_action_state m units `Waiting >>= fun () ->
         Test_clock.run_to 4.0;
         next_actions |> assert_tree [
           n "Work" [
