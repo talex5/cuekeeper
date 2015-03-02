@@ -70,6 +70,11 @@ let rec get_tree rl =
     N (name, children)
   )
 
+let expect_tree s =
+  match React.S.value s with
+  | `Process rl | `Work rl -> rl
+  | _ -> assert false
+
 let assert_tree expected actual =
   let rec printer items = items
     |> List.map (fun (N (name, children)) -> name ^ "(" ^ printer children ^ ")")
@@ -199,7 +204,7 @@ let suite =
         let work = Ck_id.of_string "1c6a6964-e6c8-499a-8841-8cb437e2930f" in
 
         M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun units ->
-        let next_actions = M.work_tree m in
+        let next_actions = M.tree m |> expect_tree in
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree [

@@ -3,7 +3,6 @@
 
 open Lwt
 
-open Ck_utils
 open Ck_sigs
 
 module Node = Ck_node
@@ -42,10 +41,6 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
     let id t = Item.id t.item
 
-    let rec equal a b =
-      Item.equal a.item b.item &&
-      Child_map.equal equal a.children b.children
-
     type move_data = int
   end
   module WidgetTree = Reactive_tree.Make(Clock)(TreeNode)
@@ -53,20 +48,38 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   module Item = TreeNode.Item
   module Widget = WidgetTree.Widget
 
+  type tree_view =
+    [ `Process of Widget.t ReactiveData.RList.t
+    | `Work of Widget.t ReactiveData.RList.t
+    | `Sync of (float * string) list React.S.t
+    | `Contact of unit
+    | `Review of unit
+    | `Schedule of unit ]
+
+  type details = {
+    details_item : Item.generic option React.S.t;
+    details_children : Widget.t ReactiveData.RList.t;
+    details_stop : stop;
+  }
+
   type t = {
-    current : R.t React.S.t;
-    set_current : R.t -> unit;
-    work_tree : WidgetTree.t;
-    process_tree : WidgetTree.t;
-    keep_me : unit React.S.t list;
+    mutable r : R.t;
+    tree : tree_view React.S.t;
+    set_tree : tree_view -> unit;
+    mutable details : (details * (R.t -> unit)) Ck_id.M.t;
+    mutable update_tree : R.t -> unit;
   }
 
   type 'a full_node = 'a Node.t
 
   let assume_changed _ _ = false
 
-  let root t = t.current |> React.S.map ~eq:assume_changed R.root
   let is_root = (=) Ck_id.root
+
+  let set_current t r =
+    t.r <- r;
+    t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
+    t.update_tree r
 
 (*
   let all_areas_and_projects t =
@@ -84,9 +97,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 *)
 
   let add details t ~parent ~name ~description =
-    let r = React.S.value t.current in
-    R.add r details ~parent ~name ~description >|= fun (new_id, r_new) ->
-    t.set_current r_new;
+    R.add t.r details ~parent ~name ~description >|= fun (new_id, r_new) ->
+    set_current t r_new;
     new_id
 
   let add_action = add (`Action {Ck_sigs.astate = `Next; astarred = false})
@@ -94,30 +106,26 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let add_area = add `Area
 
   let delete t node =
-    let r = React.S.value t.current in
-    R.delete r node >|= t.set_current
+    R.delete t.r node >|= set_current t
 
   let set_name t uuid name =
-    let r = React.S.value t.current in
+    let r = t.r in
     let node = R.get_exn r uuid in
-    R.set_name r node name >|= t.set_current
+    R.set_name r node name >|= set_current t
 
   let set_details t uuid new_details =
-    let r = React.S.value t.current in
+    let r = t.r in
     let node = R.get_exn r uuid in
-    R.set_details r node new_details >|= t.set_current
+    R.set_details r node new_details >|= set_current t
 
   let set_action_state t item state =
-    let r = React.S.value t.current in
-    R.set_action_state r item state >|= t.set_current
+    R.set_action_state t.r item state >|= set_current t
 
   let set_project_state t item state =
-    let r = React.S.value t.current in
-    R.set_project_state r item state >|= t.set_current
+    R.set_project_state t.r item state >|= set_current t
 
   let set_starred t item s =
-    let r = React.S.value t.current in
-    R.set_starred r item s >|= t.set_current
+    R.set_starred t.r item s >|= set_current t
 
   let make_full_tree r =
     let rec aux items =
@@ -153,35 +161,29 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     scan (R.root r);
     !results
 
-  let work_tree t = WidgetTree.widgets t.work_tree
-  let process_tree t = WidgetTree.widgets t.process_tree
-
-  type details = {
-    details_item : Item.generic option React.S.t;
-    details_children : Widget.t ReactiveData.RList.t;
-    details_stop : stop;
-  }
-
   let details t uuid =
-    let initial_node = R.get_exn (React.S.value t.current) uuid in
-    let child_nodes node = Node.child_nodes node |> M.map TreeNode.leaf_of_node in
-    let children = WidgetTree.make (child_nodes initial_node) in
-    let node, set_node = React.S.create (Some initial_node) in
-    let updates : unit React.S.t =
-      t.current >|~= fun r ->
+    try fst (Ck_id.M.find uuid t.details)
+    with Not_found ->
+      let initial_node = R.get_exn t.r uuid in
+      let child_nodes node = Node.child_nodes node |> M.map TreeNode.leaf_of_node in
+      let children = WidgetTree.make (child_nodes initial_node) in
+      let node, set_node = React.S.create (Some initial_node) in
+      let update r =
         let node = R.get r uuid in
         set_node node;
         match node with
         | None -> WidgetTree.update children M.empty ~on_remove:(R.get r)
         | Some node -> WidgetTree.update children (child_nodes node) ~on_remove:(R.get r) in
-    {
-      details_item = node;
-      details_children = WidgetTree.widgets children;
-      details_stop = (fun () -> ignore updates; ignore children);
-    }
-
-  let history t =
-    t.current >|~= R.history
+      let details = {
+        details_item = node;
+        details_children = WidgetTree.widgets children;
+        details_stop = (fun () ->
+          t.details <- t.details |> Ck_id.M.remove uuid;
+          ignore children
+        );
+      } in
+      t.details <- t.details |> Ck_id.M.add uuid (details, update);
+      details
 
   let initialise t =
     let add ~uuid ?parent ~name ~description details =
@@ -189,9 +191,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
         match parent with
         | None -> Ck_id.root
         | Some p -> p in
-      let r = React.S.value t.current in
-      R.add r ~uuid:(Ck_id.of_string uuid) details ~parent ~name ~description >|= fun (uuid, r_new) ->
-      t.set_current r_new;
+      R.add t.r ~uuid:(Ck_id.of_string uuid) details ~parent ~name ~description >|= fun (uuid, r_new) ->
+      set_current t r_new;
       uuid in
     (* Add some default entries for first-time use.
      * Use fixed UUIDs for unit-testing and in case we want to merge stores later. *)
@@ -226,24 +227,39 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     >>= fun _ ->
     return ()
 
-  let make_tree current fn =
-    let rtree = WidgetTree.make (fn (React.S.value current)) in
-    let keep_me =
-      current
-      |> React.S.map ~eq:(M.equal TreeNode.equal) fn
-      |> React.S.map (fun tree ->
-          let r = React.S.value current in
-          WidgetTree.update rtree tree ~on_remove:(R.get r)
-        ) in
-    (rtree, keep_me)
+  let rtree r fn =
+    let rtree = WidgetTree.make (fn r) in
+    let update_tree r =
+      WidgetTree.update rtree (fn r) ~on_remove:(R.get r) in
+    let widgets = WidgetTree.widgets rtree in
+    (widgets, update_tree)
+
+  let make_history r =
+    let history, set_history = React.S.create (R.history r) in
+    let update_tree r = set_history (R.history r) in
+    history, update_tree
+
+  let make_tree r = function
+    | `Process -> let t, u = rtree r make_process_tree in `Process t, u
+    | `Work -> let t, u = rtree r collect_next_actions in `Work t, u
+    | `Review -> `Review (), ignore
+    | `Contact -> `Contact (), ignore
+    | `Schedule -> `Schedule (), ignore
+    | `Sync -> let t, u = make_history r in `Sync t, u
+
+  let set_mode t mode =
+    let tree_view, update_tree = make_tree t.r mode in
+    t.update_tree <- update_tree;
+    t.set_tree tree_view
+
+  let tree t = t.tree
 
   let make store =
     R.make store >>= fun r ->
-    let current, set_current = React.S.create ~eq:R.equal r in
-    let process_tree, update_process_tree = make_tree current make_process_tree in
-    let work_tree, update_work_tree = make_tree current collect_next_actions in
-    let keep_me = [update_work_tree; update_process_tree] in
-    let t = { current; set_current; work_tree; process_tree; keep_me } in
+    let rtree, update_tree = make_tree r `Work in
+    let tree, set_tree = React.S.create ~eq:assume_changed rtree in
+
+    let t = { r; tree; set_tree; update_tree; details = Ck_id.M.empty } in
     if M.is_empty (Node.child_nodes (R.root r)) then (
       initialise t >>= fun () -> return t
     ) else return t

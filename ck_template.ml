@@ -172,22 +172,28 @@ module Make (M : Ck_model_s.MODEL) = struct
     ]
 
   let make_tree ~show_node m = function
-    | `Process ->
-        let process_tree = M.process_tree m in
+    | `Process process_tree ->
         [R.Html5.ul (
           ReactiveData.RList.map (make_tree_node_view m ~show_node) process_tree
         )]
-    | `Work ->
-        M.work_tree m |> make_work_view m ~show_node
-    | `Sync -> make_sync (M.history m)
-    | `Contact | `Review | `Schedule -> [p [pcdata "Not implemented yet"]]
+    | `Work work_tree -> make_work_view m ~show_node work_tree
+    | `Sync history -> make_sync history
+    | `Contact () | `Review () | `Schedule () -> [p [pcdata "Not implemented yet"]]
 
-  let make_mode_switcher current_mode set_current_mode =
+  let mode_of = function
+    | `Process _ -> `Process
+    | `Work _ -> `Work
+    | `Review _ -> `Review
+    | `Contact _ -> `Contact
+    | `Schedule _ -> `Schedule
+    | `Sync _ -> `Sync
+
+  let make_mode_switcher m current_tree =
     let item name mode =
-      let cl = current_mode |> React.S.map (fun m ->
-        if m = mode then ["active"] else []
+      let cl = current_tree |> React.S.map (fun t ->
+        if (mode_of t) = mode then ["active"] else []
       ) in
-      let clicked _ev = set_current_mode mode; true in
+      let clicked _ev = M.set_mode m mode; true in
       let button = a ~a:[a_href "#"; a_onclick clicked] [pcdata name] in
       dd ~a:[R.Html5.a_class cl] [button] in
 
@@ -393,13 +399,13 @@ module Make (M : Ck_model_s.MODEL) = struct
     (ReactiveData.RList.map snd details_pane, show_node)
 
   let make_top m =
-    let current_mode, set_current_mode = React.S.create `Work in
+    let current_tree = M.tree m in
     let details_area, show_node = make_details_area m in
     let left_panel =
-      let live = current_mode >|~= make_tree ~show_node m in
+      let live = current_tree >|~= make_tree ~show_node m in
       rlist_of ~init:(React.S.value live) live in
     [
-      make_mode_switcher current_mode set_current_mode;
+      make_mode_switcher m current_tree;
       div ~a:[a_class ["row"]] [
         R.Html5.div ~a:[a_class ["medium-6"; "columns"; "ck-tree"]] (
           left_panel;
