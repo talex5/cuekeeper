@@ -200,7 +200,7 @@ let suite =
         let task s =
           let date = Test_clock.now () |> Int64.of_float in
           Irmin.Task.create ~date ~owner:"User" s in
-        Store.create config task >>= M.make >>= fun m ->
+        M.make config task >>= fun m ->
         let work = Ck_id.of_string "1c6a6964-e6c8-499a-8841-8cb437e2930f" in
 
         M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun units ->

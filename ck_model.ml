@@ -8,6 +8,8 @@ open Ck_sigs
 module Node = Ck_node
 module M = Ck_node.M
 
+let async : (unit -> unit Lwt.t) -> unit = Lwt.async
+
 module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and type value = string) = struct
   module R = Ck_rev.Make(I)
 
@@ -68,6 +70,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     set_tree : tree_view -> unit;
     mutable details : (details * (R.t -> unit)) Ck_id.M.t;
     mutable update_tree : R.t -> unit;
+    updated : unit Lwt_condition.t;
   }
 
   type 'a full_node = 'a Node.t
@@ -75,11 +78,6 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let assume_changed _ _ = false
 
   let is_root = (=) Ck_id.root
-
-  let set_current t r =
-    t.r <- r;
-    t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
-    t.update_tree r
 
 (*
   let all_areas_and_projects t =
@@ -97,35 +95,33 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 *)
 
   let add details t ~parent ~name ~description =
-    R.add t.r details ~parent ~name ~description >|= fun (new_id, r_new) ->
-    set_current t r_new;
-    new_id
+    R.add t.r details ~parent ~name ~description
 
   let add_action = add (`Action {Ck_sigs.astate = `Next; astarred = false})
   let add_project = add (`Project {Ck_sigs.pstate = `Active; pstarred = false})
   let add_area = add `Area
 
   let delete t node =
-    R.delete t.r node >|= set_current t
+    R.delete t.r node
 
   let set_name t uuid name =
     let r = t.r in
     let node = R.get_exn r uuid in
-    R.set_name r node name >|= set_current t
+    R.set_name r node name
 
   let set_details t uuid new_details =
     let r = t.r in
     let node = R.get_exn r uuid in
-    R.set_details r node new_details >|= set_current t
+    R.set_details r node new_details
 
   let set_action_state t item state =
-    R.set_action_state t.r item state >|= set_current t
+    R.set_action_state t.r item state
 
   let set_project_state t item state =
-    R.set_project_state t.r item state >|= set_current t
+    R.set_project_state t.r item state
 
   let set_starred t item s =
-    R.set_starred t.r item s >|= set_current t
+    R.set_starred t.r item s
 
   let make_full_tree r =
     let rec aux items =
@@ -191,9 +187,9 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
         match parent with
         | None -> Ck_id.root
         | Some p -> p in
-      R.add t.r ~uuid:(Ck_id.of_string uuid) details ~parent ~name ~description >|= fun (uuid, r_new) ->
-      set_current t r_new;
-      uuid in
+      let updated = Lwt_condition.wait t.updated in
+      R.add t.r ~uuid:(Ck_id.of_string uuid) details ~parent ~name ~description >>= fun uuid ->
+      updated >|= fun () -> uuid in
     (* Add some default entries for first-time use.
      * Use fixed UUIDs for unit-testing and in case we want to merge stores later. *)
     add
@@ -254,12 +250,35 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let tree t = t.tree
 
-  let make store =
-    R.make store >>= fun r ->
+  let get_head_commit store =
+    I.head (store "Get latest commit") >>= function
+    | Some commit -> return commit
+    | None ->
+        I.update (store "Init") ["ck-version"] "0.1" >>= fun () ->
+        I.head_exn (store "Get initial commit")
+
+  let make repo task_maker =
+    I.create repo task_maker >>= fun master ->
+    get_head_commit master >>= fun commit ->
+    I.of_head repo task_maker commit >>= R.make ~master >>= fun r ->
     let rtree, update_tree = make_tree r `Work in
     let tree, set_tree = React.S.create ~eq:assume_changed rtree in
-
-    let t = { r; tree; set_tree; update_tree; details = Ck_id.M.empty } in
+    let updated = Lwt_condition.create () in
+    let t = { r; tree; set_tree; update_tree; updated; details = Ck_id.M.empty } in
+    async (fun () ->
+      I.watch_tags (master "Watch master")
+      |> Lwt_stream.iter_s (function
+        | ("master", None) -> failwith "master branch has been deleted!"
+        | ("master", Some commit) ->
+            I.of_head repo task_maker commit >>= R.make ~master >>= fun r ->
+            t.r <- r;
+            t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
+            t.update_tree r;
+            Lwt_condition.signal updated ();
+            return ()
+        | _ -> return ()
+      )
+    );
     if M.is_empty (Node.child_nodes (R.root r)) then (
       initialise t >>= fun () -> return t
     ) else return t

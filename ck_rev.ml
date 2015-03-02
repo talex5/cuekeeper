@@ -10,11 +10,13 @@ module Node = Ck_node
 module M = Ck_node.M
 
 module Make(I : Irmin.BASIC with type key = string list and type value = string) = struct
+  module V = Irmin.View(I)
   module Top = Graph.Topological.Make(I.History)
 
   type commit = float * string
 
   type t = {
+    master : string -> I.t;
     store : string -> I.t;
     commit : I.head;
     root : 'a. ([> area] as 'a) Node.t;
@@ -29,16 +31,10 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     fn node;
     Node.child_nodes node |> M.iter (fun _k v -> walk fn v)
 
-  let get_current store =
-    I.head (store "Get latest commit") >>= function
-    | Some commit -> return commit
-    | None ->
-        I.update (store "Init") ["ck-version"] "0.1" >>= fun () ->
-        I.head_exn (store "Get initial commit")
-
-  let make store =
-    get_current store >>= fun commit ->
-    (* TODO: do all reads using this commit *)
+  let make ~master store =
+    match I.branch (store "Get commit ID") with
+    | `Tag _ -> failwith "Error: store is not fixed (use of_head)!"
+    | `Head commit ->
     let disk_nodes = Hashtbl.create 100 in
     let children = Hashtbl.create 100 in
     Hashtbl.add disk_nodes Ck_id.root Ck_disk_node.root;
@@ -91,7 +87,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       let date = Irmin.Task.date task |> Int64.to_float in
       (date, summary)
     ) >|= fun history ->
-    { store; commit; root; index; history}
+    { master; store; commit; root; index; history}
 
   let get t uuid =
     try Some (Hashtbl.find t.index uuid)
@@ -100,6 +96,14 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   let get_exn t uuid =
     try Hashtbl.find t.index uuid
     with Not_found -> error "UUID '%a' not found in database!" Ck_id.fmt uuid
+
+  let merge_to_master t ~msg fn =
+    let path = I.Key.empty in
+    V.of_path (t.store msg) path >>= fun view ->
+    fn view >>= fun result ->
+    (* TODO: check if we can FF, and merge if not *)
+    V.update_path (t.master msg) path view >|= fun () ->
+    result
 
   let create t ?uuid (node:_ Ck_disk_node.t) =
     let uuid =
@@ -112,26 +116,27 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
       error "Parent '%a' does not exist!" Ck_id.fmt parent;
     let s = Ck_disk_node.to_string node in
     let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name node) in
-    I.update (t.store msg) ["db"; Ck_id.to_string uuid] s >>= fun () ->
-    make t.store >|= fun t_new ->
-    (uuid, t_new)
+    merge_to_master t ~msg (fun view ->
+      V.update view ["db"; Ck_id.to_string uuid] s
+    ) >|= fun () -> uuid
 
   let update t ~msg node =
     let node = (node :> Node.generic) in
     assert (Hashtbl.mem t.index (Node.uuid node));
     if not (Hashtbl.mem t.index (Node.parent node)) then
       error "Parent '%a' does not exist!" Ck_id.fmt (Node.parent node);
-      let s = Ck_disk_node.to_string (Node.disk_node node) in
-    I.update (t.store msg) ["db"; Ck_id.to_string (Node.uuid node)] s >>= fun () ->
-    make t.store
+    let s = Ck_disk_node.to_string (Node.disk_node node) in
+    merge_to_master t ~msg (fun view ->
+      V.update view ["db"; Ck_id.to_string (Node.uuid node)] s
+    )
 
   let delete t node =
     let uuid = Node.uuid node in
     assert (uuid <> Ck_id.root);
-    let node = get_exn t uuid in
     let msg = Printf.sprintf "Delete '%s'" (Node.name node) in
-    I.remove (t.store msg) ["db"; Ck_id.to_string uuid] >>= fun () ->
-    make t.store
+    merge_to_master ~msg t (fun view ->
+      V.remove view ["db"; Ck_id.to_string uuid]
+    )
 
   let add t ?uuid details ~parent ~name ~description =
     let disk_node =

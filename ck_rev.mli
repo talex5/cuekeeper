@@ -10,7 +10,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
 
   type commit = float * string
 
-  val make : (string -> I.t) -> t Lwt.t
+  val make : master:(string -> I.t) -> (string -> I.t) -> t Lwt.t
   val equal : t -> t -> bool
 
   val root : t -> [> area] Ck_node.t
@@ -20,12 +20,12 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   val get_exn : t -> Ck_id.t -> Ck_node.generic (* XXX *)
 
   (*XXX: uuid *)
-  val add : t -> ?uuid:Ck_id.t -> [< action | project | area] -> parent:Ck_id.t -> name:string -> description:string -> (Ck_id.t * t) Lwt.t
-  val delete : t -> [< action | project | area] Ck_node.t -> t Lwt.t
+  val add : t -> ?uuid:Ck_id.t -> [< action | project | area] -> parent:Ck_id.t -> name:string -> description:string -> Ck_id.t Lwt.t
+  val delete : t -> [< action | project | area] Ck_node.t -> unit Lwt.t
 
-  val set_name : t -> [< action | project | area] Ck_node.t -> string -> t Lwt.t
-  val set_details : t -> [< action | project | area] Ck_node.t -> [< action | project | area] -> t Lwt.t
-  val set_starred : t -> [< action | project] Ck_node.t -> bool -> t Lwt.t
-  val set_action_state : t -> [action] Ck_node.t -> [ `Next | `Waiting | `Future | `Done ] -> t Lwt.t
-  val set_project_state : t -> [project] Ck_node.t -> [ `Active | `SomedayMaybe | `Done ] -> t Lwt.t
+  val set_name : t -> [< action | project | area] Ck_node.t -> string -> unit Lwt.t
+  val set_details : t -> [< action | project | area] Ck_node.t -> [< action | project | area] -> unit Lwt.t
+  val set_starred : t -> [< action | project] Ck_node.t -> bool -> unit Lwt.t
+  val set_action_state : t -> [action] Ck_node.t -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
+  val set_project_state : t -> [project] Ck_node.t -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
 end
