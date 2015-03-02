@@ -79,8 +79,10 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let task t = t.task
 
-  let make s prefix task =
-    return (fun a -> { w = W.create (); task = task a; s; prefix })
+  let make s prefix =
+    let w = W.create () in
+    fun task ->
+      return (fun a -> { w; task = task a; s; prefix })
 
   let js_key t k =
     t.prefix ^ K.to_hum k
@@ -144,8 +146,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let watch t key =
     (* TODO: watch changes made by other pages? *)
     Irmin.Private.Watch.lwt_stream_lift (
-      read t key >>= fun value ->
-      return (W.watch t.w key value)
+      read t key >|= W.watch t.w key
     )
 
   let watch_all t = W.watch_all t.w
