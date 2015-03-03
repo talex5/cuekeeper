@@ -3,11 +3,8 @@
 
 open Lwt
 
-open Ck_utils
 open Ck_sigs
-
-module Node = Ck_node
-module M = Ck_node.M
+open Ck_utils
 
 module Make(I : Irmin.BASIC with type key = string list and type value = string) = struct
   module V = Irmin.View(I)
@@ -16,22 +13,79 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   type commit = float * string
 
   type t = {
-    master : string -> I.t;
     store : string -> I.t;
     commit : I.head;
-    root : 'a. ([> area] as 'a) Node.t;
-    index : (Ck_id.t, Node.generic) Hashtbl.t;
+    mutable roots : generic_node M.t;
+    index : (Ck_id.t, generic_node) Hashtbl.t;
     history : commit list;
   }
+  and 'a node = {
+    rev : t;
+    uuid : Ck_id.t;
+    disk_node : 'a Ck_disk_node.t;
+    child_nodes : generic_node M.t;
+  }
+  and generic_node = [action | project | area] node
+
+  module Node = struct
+    type 'a t = 'a node
+    type generic = generic_node
+
+    let rev t = t.rev
+    let parent t = Ck_disk_node.parent t.disk_node
+    let name t = Ck_disk_node.name t.disk_node
+    let description t = Ck_disk_node.description t.disk_node
+    let ctime t = Ck_disk_node.ctime t.disk_node
+    let details t = Ck_disk_node.details t.disk_node
+    let action_state t = Ck_disk_node.action_state t.disk_node
+    let project_state t = Ck_disk_node.project_state t.disk_node
+    let starred t = Ck_disk_node.starred t.disk_node
+
+    let uuid t = t.uuid
+    let child_nodes t = t.child_nodes
+
+    let key node = (name node, uuid node)
+
+    let equal_excl_children a b =
+      a.uuid = b.uuid &&
+      a.disk_node = b.disk_node
+
+    let rec equal a b =
+      equal_excl_children a b &&
+      M.equal equal a.child_nodes b.child_nodes
+
+    let ty = function
+      | { disk_node = { Ck_disk_node.details = `Action _; _ }; _ } as x -> `Action x
+      | { disk_node = { Ck_disk_node.details = `Project _; _ }; _ } as x -> `Project x
+      | { disk_node = { Ck_disk_node.details = `Area; _ }; _ } as x -> `Area x
+  end
 
   let equal a b =
     a.commit = b.commit
 
-  let rec walk fn node =
-    fn node;
-    Node.child_nodes node |> M.iter (fun _k v -> walk fn v)
+  let rec walk fn =
+    M.iter (fun _k v ->
+      fn v;
+      walk fn (Node.child_nodes v)
+    )
 
-  let make ~master store =
+  let get_history store =
+    I.history ~depth:10 (store "Read history") >>= fun history ->
+    let h = ref [] in
+    history |> Top.iter (fun head ->
+      h := head :: !h
+    );
+    !h |> Lwt_list.map_s (fun hash ->
+      I.task_of_head (store "Read commit") hash >|= fun task ->
+      let summary =
+        match Irmin.Task.messages task with
+        | [] -> "(no commit message)"
+        | x::_ -> x in
+      let date = Irmin.Task.date task |> Int64.to_float in
+      (date, summary)
+    )
+
+  let make store =
     match I.branch (store "Get commit ID") with
     | `Tag _ -> failwith "Error: store is not fixed (use of_head)!"
     | `Head commit ->
@@ -58,114 +112,36 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
         error "Parent UUID '%a' of child nodes %s missing!" Ck_id.fmt parent (String.concat ", " (List.map Ck_id.to_string children))
       )
     );
-
+    let index = Hashtbl.create 100 in
+    get_history store >>= fun history ->
+    let t = { store; commit; roots = M.empty; index; history} in
     (* todo: reject cycles *)
     let rec make_node uuid =
       let disk_node = Hashtbl.find disk_nodes uuid in
-      Node.make ~uuid ~disk_node ~child_nodes:(make_child_nodes uuid)
+      {
+        rev = t;
+        uuid;
+        disk_node;
+        child_nodes = make_child_nodes uuid;
+      }
     and make_child_nodes uuid =
       begin try Hashtbl.find children uuid with Not_found -> [] end
       |> List.map make_node
       |> List.fold_left (fun set node ->
           M.add (Node.key node) node set
         ) M.empty in
-
-    let root = Node.make_root ~child_nodes:(make_child_nodes Ck_id.root) in
-    let index = Hashtbl.create 100 in
-    root |> walk (fun node -> Hashtbl.add index (Node.uuid node) node);
-    I.history ~depth:10 (store "Read history") >>= fun history ->
-    let h = ref [] in
-    history |> Top.iter (fun head ->
-      h := head :: !h
-    );
-    !h |> Lwt_list.map_s (fun hash ->
-      I.task_of_head (store "Read commit") hash >|= fun task ->
-      let summary =
-        match Irmin.Task.messages task with
-        | [] -> "(no commit message)"
-        | x::_ -> x in
-      let date = Irmin.Task.date task |> Int64.to_float in
-      (date, summary)
-    ) >|= fun history ->
-    { master; store; commit; root; index; history}
+    let roots = make_child_nodes Ck_id.root in
+    roots |> walk (fun node -> Hashtbl.add index (Node.uuid node) node);
+    t.roots <- roots;
+    return t
 
   let get t uuid =
     try Some (Hashtbl.find t.index uuid)
     with Not_found -> None
 
-  let merge_to_master t ~msg fn =
-    let path = I.Key.empty in
-    V.of_path (t.store msg) path >>= fun view ->
-    fn view >>= fun result ->
-    (* TODO: check if we can FF, and merge if not *)
-    V.update_path (t.master msg) path view >|= fun () ->
-    result
-
-  let create t ?uuid (node:_ Ck_disk_node.t) =
-    let uuid =
-      match uuid with
-      | Some uuid -> uuid
-      | None -> Ck_id.mint () in
-    assert (not (Hashtbl.mem t.index uuid));
-    let parent = Ck_disk_node.parent node in
-    if not (Hashtbl.mem t.index parent) then
-      error "Parent '%a' does not exist!" Ck_id.fmt parent;
-    let s = Ck_disk_node.to_string node in
-    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name node) in
-    merge_to_master t ~msg (fun view ->
-      V.update view ["db"; Ck_id.to_string uuid] s
-    ) >|= fun () -> uuid
-
-  let update t ~msg node =
-    let node = (node :> Node.generic) in
-    assert (Hashtbl.mem t.index (Node.uuid node));
-    if not (Hashtbl.mem t.index (Node.parent node)) then
-      error "Parent '%a' does not exist!" Ck_id.fmt (Node.parent node);
-    let s = Ck_disk_node.to_string (Node.disk_node node) in
-    merge_to_master t ~msg (fun view ->
-      V.update view ["db"; Ck_id.to_string (Node.uuid node)] s
-    )
-
-  let delete t node =
-    let uuid = Node.uuid node in
-    assert (uuid <> Ck_id.root);
-    let msg = Printf.sprintf "Delete '%s'" (Node.name node) in
-    merge_to_master ~msg t (fun view ->
-      V.remove view ["db"; Ck_id.to_string uuid]
-    )
-
-  let add t ?uuid details ~parent ~name ~description =
-    let disk_node =
-      Ck_disk_node.make ~name ~description ~parent ~ctime:(Unix.gettimeofday ()) ~details in
-    create ?uuid t disk_node
-
-  let set_name t node name =
-    let new_node = Node.with_name node name in
-    let msg = Printf.sprintf "Rename '%s' to '%s'" (Node.name node) (Node.name new_node) in
-    update t ~msg new_node
-
-  let set_details t node new_details =
-    let new_node = Node.with_details node new_details in
-    let msg = Printf.sprintf "Change state of '%s'" (Node.name node) in
-    update t ~msg new_node
-
-  let set_action_state t node astate =
-    match Node.disk_node node with
-    | { Ck_disk_node.details = `Action old; _ } -> set_details t node (`Action {old with astate})
-
-  let set_project_state t node pstate =
-    match Node.disk_node node with
-    | { Ck_disk_node.details = `Project old; _ } -> set_details t node (`Project {old with pstate})
-
-  let set_starred t node s =
-    let new_node =
-      match Node.disk_node node with
-      | {Ck_disk_node.details = `Action d; _} -> Node.with_details node (`Action {d with astarred = s})
-      | {Ck_disk_node.details = `Project d; _} -> Node.with_details node (`Project {d with pstarred = s}) in
-    let action = if s then "Add" else "Remove" in
-    let msg = Printf.sprintf "%s star for '%s'" action (Node.name node) in
-    update t ~msg new_node
-
-  let root t = t.root
+  let roots t = t.roots
   let history t = t.history
+  let make_view t = V.of_path (t.store "Make view") I.Key.empty
+
+  let disk_node n = n.disk_node
 end

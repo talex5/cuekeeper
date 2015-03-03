@@ -69,7 +69,14 @@ let rec get_tree rl =
     let item = W.item widget |> React.S.value in
     let name = M.Item.name item in
     let children = get_tree (W.children widget) in
-    N (name, children)
+    let str =
+      match W.state widget |> React.S.value with
+      | `New -> "+" ^ name
+      | `Removed _ -> "-" ^ name
+      |`Moved _ -> ">" ^ name
+      |`Current -> name
+    in
+    N (str, children)
   )
 
 let expect_tree s =
@@ -77,11 +84,33 @@ let expect_tree s =
   | `Process rl | `Work rl -> rl
   | _ -> assert false
 
+let expect_some = function
+  | None -> assert false
+  | Some x -> x
+
 let assert_tree expected actual =
   let rec printer items = items
     |> List.map (fun (N (name, children)) -> name ^ "(" ^ printer children ^ ")")
     |> String.concat ", " in
+  debug "Expecting: %s\n" (printer expected);
   assert_equal ~printer expected (get_tree actual)
+
+let rec lookup path widgets =
+  match path with
+  | [] -> assert false
+  | (p::ps) ->
+      let step =
+        try
+          ReactiveData.RList.value widgets
+          |> List.find (fun widget ->
+            let item = W.item widget |> React.S.value in
+            let name = M.Item.name item in
+            name = p
+          )
+        with Not_found -> Ck_utils.error "Node '%s' not found" p in
+      match ps with
+      | [] -> W.item step |> React.S.value
+      | ps -> lookup ps (W.children step)
 
 let run_with_exn fn =
   try
@@ -112,6 +141,7 @@ let suite =
         |> set_src in
 
       let eqd rl expected =
+        (* Printf.printf "Expecting: %s\n" (String.concat ", " expected); *)
         let actual =
           ItemMap.fold (fun _k item acc ->
             let (_id, b) = Slow_set.data item in
@@ -208,39 +238,36 @@ let suite =
           let date = Test_clock.now () |> Int64.of_float in
           Irmin.Task.create ~date ~owner:"User" s in
         M.make config task >>= fun m ->
-        let work = Ck_id.of_string "1c6a6964-e6c8-499a-8841-8cb437e2930f" in
+        M.set_mode m `Process;
+        let process_tree = M.tree m |> expect_tree in
+        let work = lookup ["Work"] process_tree in
+
+        M.set_mode m `Work;
+        let next_actions = M.tree m |> expect_tree in
 
         M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun () ->
-        let next_actions = M.tree m |> expect_tree in
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree [
           n "Start using CueKeeper" [
             n "Read wikipedia page on GTD" []
           ];
-          n "Work" [
+          n "+Work" [
             n "Write unit tests" []
           ]
         ];
 
-        let read, units =
-          match ReactiveData.RList.value next_actions with
-          | [start; work] ->
-              begin match ReactiveData.RList.value (W.children start), ReactiveData.RList.value (W.children work) with
-              | [read], [units] -> (React.S.value (W.item read), React.S.value (W.item units))
-              | _ -> assert false end
-          | _ -> assert false in
-
-        let units = expect_action units in
+        let read = lookup ["Start using CueKeeper"; "Read wikipedia page on GTD"] next_actions in
+        let units = lookup ["Work"; "Write unit tests"] next_actions |> expect_action in
 
         (* After changing it to Waiting, it disappears from the list. *)
         M.set_action_state m units `Waiting >>= fun () ->
         M.delete m read >>= fun () ->
         next_actions |> assert_tree [
-          n "Start using CueKeeper" [
+          n "-Start using CueKeeper" [
             n "Read wikipedia page on GTD" []
           ];
-          n "Work" [
+          n "-Work" [
             n "Write unit tests" []
           ]
         ];
@@ -249,20 +276,25 @@ let suite =
 
         M.add_action ~parent:work ~name:"GC unused signals" ~description:"" m >>= fun _ ->
         next_actions |> assert_tree [
-          n "Work" [
+          n "+Work" [
             n "GC unused signals" [];
           ]
         ];
 
+        (* Get the updated units. *)
+        let live_units = M.details m units in
+        let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
+        assert (M.Item.action_state units <> `Next);
         (* Changing back to Next makes it reappear *)
         M.set_action_state m units `Next >>= fun () ->
         next_actions |> assert_tree [
-          n "Work" [
+          n "+Work" [
             n "GC unused signals" [];
-            n "Write unit tests" []
+            n "+Write unit tests" []
           ]
         ];
 
+        let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         M.set_action_state m units `Waiting >>= fun () ->
         Test_clock.run_to 4.0;
         next_actions |> assert_tree [
@@ -270,6 +302,14 @@ let suite =
             n "GC unused signals" [];
           ]
         ];
+
+(*
+        (* Rename conflict (e.g. two edits in different tabs *)
+        let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
+        M.set_name m units "Test conflicts" >>= fun () ->
+        M.set_name m units "Fix merging" >>= fun () ->
+*)
+
         return ()
       end
     )

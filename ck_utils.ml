@@ -18,6 +18,17 @@ end
 
 module StringSet = Set.Make(String)
 
+module Sort_key = struct
+  type t = string * Ck_id.t
+  let compare (a_name, a_id) (b_name, b_id) =
+    match String.compare a_name b_name with
+    | 0 -> compare a_id b_id
+    | r -> r
+  let id = snd
+  let show = fst
+end
+module M = Map.Make(Sort_key)
+
 let rec filter_map fn = function
   | [] -> []
   | (x::xs) ->

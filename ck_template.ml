@@ -229,22 +229,25 @@ module Make (M : Ck_model_s.MODEL) = struct
       item "Sync" `Sync;
     ]
 
-  let make_child_adder m uuid item =
+  let make_child_adder m item =
     let editing, set_editing = React.S.create None in
     let add_button ntype label =
       let start_editing (ev:#Dom_html.event Js.t) =
-        (* Find the parent <li> before we remove the button element. *)
-        let parent =
-          ev##target >>?= fun button ->
-          button##parentNode >>?= Dom_html.CoerceTo.element in
-        (* Replace the buttons with a form. *)
-        set_editing (Some ntype);
-        (* Now find the new form input and focus it. *)
-        let input =
-          parent >>?= fun parent ->
-          parent##querySelector (Js.string "input") >>?= Dom_html.CoerceTo.input in
-        Js.Opt.iter input (fun i -> i##focus ());
-        true in
+        match React.S.value item with
+        | None -> true    (* Item is deleted; ignore *)
+        | Some item ->
+            (* Find the parent <li> before we remove the button element. *)
+            let parent =
+              ev##target >>?= fun button ->
+              button##parentNode >>?= Dom_html.CoerceTo.element in
+            (* Replace the buttons with a form. *)
+            set_editing (Some (item, ntype));
+            (* Now find the new form input and focus it. *)
+            let input =
+              parent >>?= fun parent ->
+              parent##querySelector (Js.string "input") >>?= Dom_html.CoerceTo.input in
+            Js.Opt.iter input (fun i -> i##focus ());
+            true in
       a ~a:[a_onclick start_editing] [pcdata label] in
     let widgets =
       editing >>~= (function
@@ -266,7 +269,7 @@ module Make (M : Ck_model_s.MODEL) = struct
                     ]
             )
         (* When we are editing, display the form. *)
-        | Some node_type ->
+        | Some (item, node_type) ->
             let do_add ev =
               let form =
                 ev##target >>?= fun target ->
@@ -283,7 +286,7 @@ module Make (M : Ck_model_s.MODEL) = struct
                     | `Action -> M.add_action
                     | `Project -> M.add_project
                     | `Area -> M.add_area in
-                  async ~name:"add" (fun () -> adder m ~parent:uuid ~name ~description:"")
+                  async ~name:"add" (fun () -> adder m ~parent:item ~name ~description:"")
                 );
                 set_editing None;
               );
@@ -386,7 +389,7 @@ module Make (M : Ck_model_s.MODEL) = struct
           R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
         ];
         R.Html5.ul children;
-        make_child_adder m uuid item;
+        make_child_adder m item;
         div ~a:[a_class ["description"]] [
           p [R.Html5.pcdata (item >|~= function
             | Some item -> M.Item.description item

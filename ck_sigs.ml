@@ -2,6 +2,7 @@
  * See the README file for details. *)
 
 open Sexplib.Std
+open Ck_utils
 
 type stop = unit -> unit
 
@@ -63,4 +64,46 @@ module type TREE_MODEL = sig
   val item : t -> Item.generic
   val id : t -> Ck_id.t
   val children : t -> t Child_map.t
+end
+
+module type REV = sig
+  type t
+  type +'a node
+  module V : Irmin.VIEW with
+    type key = string list and
+    type value = string
+
+  module Node : sig
+    val rev : 'a node -> t
+
+    include DISK_NODE
+      with type 'a t = 'a node
+
+    val uuid : [< area | project | action] t -> Ck_id.t
+    val child_nodes : 'a t  -> generic M.t
+
+    val key : _ t -> Sort_key.t
+    (** A key for sorting by name. *)
+
+    val equal : generic -> generic -> bool
+    (** Note that the rev field is ignored, so nodes from different commits can
+     * be equal. *)
+
+    val equal_excl_children : generic -> generic -> bool
+
+    val ty : [< action | project | area] t ->
+      [ `Action of [> action] t
+      | `Project of [> project] t
+      | `Area of [> area] t ]
+  end
+
+  type commit = float * string
+
+  val equal : t -> t -> bool
+
+  val roots : t -> Node.generic M.t
+  val history : t -> commit list  (* XXX: recent *)
+  val make_view : t -> V.t Lwt.t
+
+  val get : t -> Ck_id.t -> Node.generic option
 end

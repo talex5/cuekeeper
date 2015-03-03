@@ -9,7 +9,6 @@ module type MODEL = sig
 
   module Item : sig
     include DISK_NODE
-    val disk_node : 'a t -> 'a Ck_disk_node.t   (* XXX *)
     val uuid : [< area | project | action] t -> Ck_id.t
     val ty : [< action | project | area] t ->
       [ `Action of [> action] t
@@ -31,9 +30,9 @@ module type MODEL = sig
     details_stop : stop;
   }
 
-  val add_action : t -> parent:Ck_id.t -> name:string -> description:string -> unit Lwt.t
-  val add_project : t -> parent:Ck_id.t -> name:string -> description:string -> unit Lwt.t
-  val add_area : t -> parent:Ck_id.t -> name:string -> description:string -> unit Lwt.t
+  val add_action : t -> ?parent:Item.generic -> name:string -> description:string -> unit Lwt.t
+  val add_project : t -> ?parent:Item.generic -> name:string -> description:string -> unit Lwt.t
+  val add_area : t -> ?parent:Item.generic -> name:string -> description:string -> unit Lwt.t
 
   val delete : t -> [< action | project | area] Item.t -> unit Lwt.t
 
