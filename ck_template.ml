@@ -5,8 +5,31 @@ open Tyxml_js
 open Html5
 open Ck_utils
 
-(* (forces return type to be unit) *)
-let async : (unit -> unit Lwt.t) -> unit = Lwt_js_events.async
+let async ~name (fn:unit -> unit Lwt.t) =
+  Lwt_js_events.async (fun () ->
+    Lwt.catch fn (fun ex ->
+      Printf.printf "Async error in '%s'" name;
+      Lwt.fail ex
+    )
+  )
+
+let current_error, set_current_error = React.S.create None
+
+let make_error_box error =
+  error
+  |> React.S.map (function
+    | None -> pcdata ""
+    | Some err -> div ~a:[a_class ["alert-box"; "alert"; "round"]] [pcdata err]
+  )
+  |> ReactiveData.RList.singleton_s
+
+let () =
+  let old_hook = !Lwt.async_exception_hook in
+  Lwt.async_exception_hook := (fun ex ->
+    old_hook ex;
+    let msg = Printexc.to_string ex in
+    set_current_error (Some msg)
+  )
 
 (* Get the index of an item in an assoc list. *)
 let index_of key items =
@@ -59,7 +82,7 @@ module Make (M : Ck_model_s.MODEL) = struct
     let state_toggles = options |> List.map (toggle_label ~set_details ~current) in
     let cl = if starred then "star-active" else "star-inactive" in
     let set_star _ev =
-      async (fun () -> M.set_starred m item (not starred));
+      async ~name:"set_starred" (fun () -> M.set_starred m item (not starred));
       true in
     let star = a ~a:[a_class [cl]; a_onclick set_star] [pcdata "★"] in
     state_toggles @ [star]
@@ -68,11 +91,11 @@ module Make (M : Ck_model_s.MODEL) = struct
     match M.Item.ty item with
     | `Action item ->
         let set_details n =
-          Lwt_js_events.async (fun () -> M.set_action_state m item n) in
+          async ~name:"set_action_state" (fun () -> M.set_action_state m item n) in
         make_toggles ~m ~set_details ~item (M.Item.action_state item) [`Done; `Next; `Waiting; `Future]
     | `Project item ->
         let set_details n =
-          Lwt_js_events.async (fun () -> M.set_project_state m item n) in
+          async ~name:"set_project_state" (fun () -> M.set_project_state m item n) in
         make_toggles ~m ~set_details ~item (M.Item.project_state item) [`Done; `Active; `SomedayMaybe]
     | `Area _ -> []
 
@@ -112,7 +135,7 @@ module Make (M : Ck_model_s.MODEL) = struct
 
   let render_item m ~show_node item =
     let clicked _ev = show_node item; true in
-    let delete _ev = async (fun () -> M.delete m item); true in
+    let delete _ev = async ~name:"delete" (fun () -> M.delete m item); true in
     let details = M.Item.details item in
     let item_cl = class_of_time_and_type (M.Item.ctime item) details in
     span ~a:[a_class item_cl] [
@@ -260,7 +283,7 @@ module Make (M : Ck_model_s.MODEL) = struct
                     | `Action -> M.add_action
                     | `Project -> M.add_project
                     | `Area -> M.add_area in
-                  Lwt_js_events.async (fun () -> adder m ~parent:uuid ~name ~description:"")
+                  async ~name:"add" (fun () -> adder m ~parent:uuid ~name ~description:"")
                 );
                 set_editing None;
               );
@@ -305,7 +328,7 @@ module Make (M : Ck_model_s.MODEL) = struct
                 let f = Form.get_form_contents form in
                 let name = List.assoc "name" f |> String.trim in
                 if name <> "" then (
-                  async (fun () -> M.set_name m item name)
+                  async ~name:"set_name" (fun () -> M.set_name m item name)
                 )
               );
               set_editing None;
@@ -322,10 +345,9 @@ module Make (M : Ck_model_s.MODEL) = struct
   let make_details_panel m ~show_node ~remove ~uuid details =
     let closed, set_closed = React.S.create false in
     let close () =
-      let open Lwt in
       set_closed true;                          (* Start fade-out animation *)
       details.M.details_stop ();
-      Lwt.async (fun () -> Lwt_js.sleep 0.5 >|= remove)  (* Actually remove *)
+      async ~name:"close panel" Lwt.(fun () -> Lwt_js.sleep 0.5 >|= remove)  (* Actually remove *)
     in
     let elem = ref None in
     let cl =
@@ -394,9 +416,8 @@ module Make (M : Ck_model_s.MODEL) = struct
           let details = M.details m item in
           ReactiveData.RList.insert (uuid, make_details_panel m ~show_node ~remove ~uuid details) (List.length current_items) details_handle;
       | Some _ ->
-          let open Lwt in
           set_highlight (Some uuid);
-          Lwt.async (fun () ->
+          async ~name:"highlight" Lwt.(fun () ->
             Lwt_js.sleep 1.0 >|= fun () ->
             if React.S.value current_highlight = Some uuid then set_highlight None
           )
@@ -410,7 +431,16 @@ module Make (M : Ck_model_s.MODEL) = struct
       let live = current_tree >|~= make_tree ~show_node m in
       rlist_of ~init:(React.S.value live) live in
     [
-      make_mode_switcher m current_tree;
+      div ~a:[a_class ["row"]] [
+        div ~a:[a_class ["medium-12"; "columns"; "ck-tree"]] [
+          make_mode_switcher m current_tree;
+        ];
+      ];
+      div ~a:[a_class ["row"]] [
+        R.Html5.div ~a:[a_class ["medium-12"; "columns"; "ck-tree"]] (
+          make_error_box current_error;
+        )
+      ];
       div ~a:[a_class ["row"]] [
         R.Html5.div ~a:[a_class ["medium-6"; "columns"; "ck-tree"]] (
           left_panel;
