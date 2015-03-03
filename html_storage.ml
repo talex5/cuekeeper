@@ -11,6 +11,16 @@ let err_not_found n =
 let prefix_key =
   Irmin.Private.Conf.(key "html5storage.prefix" string "CueKeeper")
 
+class type storageEvent =
+  object
+    inherit Dom_html.event
+    method key : Js.js_string Js.t Js.readonly_prop
+    method oldValue : Js.js_string Js.t Js.opt Js.readonly_prop
+    method newValue : Js.js_string Js.t Js.opt Js.readonly_prop
+    method url : Js.js_string Js.t Js.readonly_prop
+    method storageArea : Dom_html.storage Js.t Js.opt Js.readonly_prop
+  end
+
 module Storage : sig
   type t
   type key = string
@@ -20,6 +30,10 @@ module Storage : sig
   val set : t -> key -> string -> unit
   val remove : t -> key -> unit
   val keys : t -> prefix:string -> key list
+
+  val event : storageEvent Js.t Dom.Event.typ
+  val key : #storageEvent Js.t -> Js.js_string Js.t
+  val new_value : #storageEvent Js.t -> string option
 end = struct
   type t = Dom_html.storage Js.t
   type key = string
@@ -60,6 +74,15 @@ end = struct
             else acc in
           aux acc (i - 1)  in
     aux [] t##length
+
+  let event = Dom.Event.make "storage"
+
+  let key (ev:#storageEvent Js.t) = ev##key
+  let new_value ev =
+    Js.Opt.case (ev##newValue)
+      (fun () -> None)
+      (fun v ->
+        Some (Js.to_string v |> B64.decode))
 end
 
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
@@ -75,13 +98,33 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     w : W.t;
     task : Irmin.task;
     s: Storage.t;
+    listener : Dom.event_listener_id Lazy.t;
   }
 
   let task t = t.task
 
   let make s prefix task =
     let w = W.create () in
-    return (fun a -> { w; task = task a; s; prefix })
+    (* Listens for changes made by other tabs.
+     * Ideally there should be a way to stop listening, but for now we just make it lazy and only
+     * use it in one place. *)
+    let listener = lazy (
+      let on_change ev =
+        let key = Storage.key ev in
+        if key##lastIndexOf_from (Js.string prefix, 0) = 0 then (
+          let key = Js.to_string key in
+          let subkey = String.sub key (String.length prefix) (String.length key - String.length prefix) in
+          let ir_key = K.of_hum subkey in
+          let value =
+            match Storage.new_value ev with
+            | None -> None
+            | Some v -> Some (Tc.read_string (module V) v) in
+          W.notify w ir_key value;
+        );
+        Js._true in
+      Dom.addEventListener Dom_html.window Storage.event (Dom.handler on_change) Js._true
+    ) in
+    return (fun a -> { w; task = task a; s; prefix; listener })
 
   let js_key t k =
     t.prefix ^ K.to_hum k
@@ -143,12 +186,14 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
     return_unit
 
   let watch t key =
-    (* TODO: watch changes made by other pages? *)
+    ignore (Lazy.force (t.listener));
     Irmin.Private.Watch.lwt_stream_lift (
       read t key >|= W.watch t.w key
     )
 
-  let watch_all t = W.watch_all t.w
+  let watch_all t =
+    ignore (Lazy.force (t.listener));
+    W.watch_all t.w
 end
 
 let config prefix = Irmin.Private.Conf.singleton prefix_key prefix
