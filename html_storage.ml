@@ -79,10 +79,9 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let task t = t.task
 
-  let make s prefix =
+  let make s prefix task =
     let w = W.create () in
-    fun task ->
-      return (fun a -> { w; task = task a; s; prefix })
+    return (fun a -> { w; task = task a; s; prefix })
 
   let js_key t k =
     t.prefix ^ K.to_hum k
