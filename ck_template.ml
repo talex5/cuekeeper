@@ -39,6 +39,13 @@ let index_of key items =
     | _ :: xs -> aux (i + 1) xs in
   aux 0 items
 
+let auto_focus input =
+  async ~name:"focus" (fun () ->
+    let elem = Tyxml_js.To_dom.of_input input in
+    elem##select ();
+    Lwt.return ()
+  )
+
 let (>>?=) = Js.Opt.bind
 
 module Make (M : Ck_model_s.MODEL) = struct
@@ -232,21 +239,11 @@ module Make (M : Ck_model_s.MODEL) = struct
   let make_child_adder m item =
     let editing, set_editing = React.S.create None in
     let add_button ntype label =
-      let start_editing (ev:#Dom_html.event Js.t) =
+      let start_editing (_:#Dom_html.event Js.t) =
         match React.S.value item with
         | None -> true    (* Item is deleted; ignore *)
         | Some item ->
-            (* Find the parent <li> before we remove the button element. *)
-            let parent =
-              ev##target >>?= fun button ->
-              button##parentNode >>?= Dom_html.CoerceTo.element in
-            (* Replace the buttons with a form. *)
             set_editing (Some (item, ntype));
-            (* Now find the new form input and focus it. *)
-            let input =
-              parent >>?= fun parent ->
-              parent##querySelector (Js.string "input") >>?= Dom_html.CoerceTo.input in
-            Js.Opt.iter input (fun i -> i##focus ());
             true in
       a ~a:[a_onclick start_editing] [pcdata label] in
     let widgets =
@@ -291,9 +288,11 @@ module Make (M : Ck_model_s.MODEL) = struct
                 set_editing None;
               );
               true in
+            let name_input = input ~a:[a_name "name"; a_placeholder "Name"] () in
+            auto_focus name_input;
             React.S.const [
               form ~a:[a_onsubmit do_add] [
-                input ~a:[a_name "name"; a_placeholder "Name"] ();
+                name_input;
                 input ~a:[a_input_type `Submit; a_value "Add"; a_onclick do_add] ();
                 a ~a:[a_onclick (fun _ev -> set_editing None; true)] [pcdata " (cancel)"];
               ]
@@ -336,9 +335,12 @@ module Make (M : Ck_model_s.MODEL) = struct
               );
               set_editing None;
               true in
-            let old_name = React.S.value name in [
+            let old_name = React.S.value name in
+            let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 25; a_value old_name] () in
+            auto_focus name_input;
+            [
               form ~a:[a_class ["rename"]; a_onsubmit submit] [
-                input ~a:[a_name "name"; a_placeholder "Name"; a_size 25; a_value old_name] ();
+                name_input;
                 input ~a:[a_input_type `Submit; a_value "OK"] ();
               ]
             ]
