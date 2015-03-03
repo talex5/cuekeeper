@@ -3,6 +3,6 @@
 
 module type S = sig
   val now : unit -> float
-  val async : (unit -> unit Lwt.t) -> unit
+  val async : name:string -> (unit -> unit Lwt.t) -> unit
   val sleep : float -> unit Lwt.t
 end

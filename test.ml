@@ -20,10 +20,12 @@ module Test_clock = struct
     schedule := !schedule |> Queue.add (!time +. delay, waker);
     result
 
-  let async f =
+  let async ~name f =
     let (_ : unit Lwt.t) =
       catch (fun () -> sleep 0.0 >>= f)
-        (fun ex -> raise ex) in
+        (fun ex ->
+          Printf.printf "Async error from '%s': %s\n" name (Printexc.to_string ex);
+          exit 1) in
     ()
 
   let rec run_to t =

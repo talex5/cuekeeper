@@ -103,12 +103,24 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
      * Update their status if appropriate. *)
     let check start delayed =
       let m = ref (React.S.value output) in
-      delayed |> M.iter (fun k _v ->
-        let item = M.find k !m in
-        match React.S.value item.state with
-        | `New | `Moved _ -> item.set_state `Current
-        | `Removed (_, t) when t = start -> m := !m |> M.remove k
-        | `Current | `Removed _ -> ()
+      delayed |> M.iter (fun k -> function
+        | `Drop | `Renamed _ | `Updated _ -> ()
+        | `New _ | `Moved _ ->
+            begin try
+              let item = M.find k !m in
+              begin match React.S.value item.state with
+                | `New | `Moved _ -> item.set_state `Current
+                | `Current | `Removed _ -> () end
+            with Not_found ->
+              (* Can happen if we add and remove quickly and the remove callback
+               * arrives first. *)
+              ()
+            end
+        | `Removed _ ->
+            let item = M.find k !m in
+            begin match React.S.value item.state with
+            | `Removed (_, t) when t = start -> m := !m |> M.remove k
+            | `New | `Current | `Moved _ | `Removed _ -> () end
       );
       set_output !m in
 
@@ -123,7 +135,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
         if not (M.is_empty diff) then (
           M.merge merge_diff (React.S.value output) diff
           |> set_output;
-          C.async (fun () ->
+          C.async ~name:"slow_set" (fun () ->
             C.sleep delay >|= fun () ->
             check time diff
           )

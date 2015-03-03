@@ -4,7 +4,13 @@ open Lwt
 
 module Clock = struct
   let now = Unix.gettimeofday
-  let async = async
+  let async ~name fn =
+    Lwt_js_events.async (fun () ->
+      Lwt.catch fn (fun ex ->
+        Printf.printf "Async error in '%s'" name;
+        Lwt.fail ex
+      )
+    )
   let sleep = Lwt_js.sleep
 end
 
