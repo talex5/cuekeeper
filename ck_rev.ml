@@ -44,7 +44,7 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let uuid t = t.uuid
     let child_nodes t = t.child_nodes
 
-    let key node = (name node, uuid node)
+    let key node = (String.lowercase (name node), uuid node)
 
     let equal_excl_children a b =
       a.uuid = b.uuid &&

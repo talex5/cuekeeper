@@ -20,6 +20,7 @@ module StringSet = Set.Make(String)
 
 module Sort_key = struct
   type t = string * Ck_id.t
+  (* TODO: this is not UTF-8 aware; it will only sort ASCII strings correctly. *)
   let compare (a_name, a_id) (b_name, b_id) =
     match String.compare a_name b_name with
     | 0 -> compare a_id b_id
