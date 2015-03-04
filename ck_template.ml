@@ -155,6 +155,9 @@ module Make (M : Ck_model_s.MODEL) = struct
       a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
     ]
 
+  let group_label s =
+    span ~a:[a_class ["ck-group-label"]] [pcdata s]
+
   (* A <li>[toggles] name x [children]</li> element *)
   let rec make_tree_node_view m ~show_node widget : _ Html5.elt =
     let item = W.item widget in
@@ -166,8 +169,7 @@ module Make (M : Ck_model_s.MODEL) = struct
           ReactiveData.RList.singleton_s item
           |> ReactiveData.RList.map (render_item m ~show_node)
           |> R.Html5.span
-      | `Group label ->
-          pcdata label in
+      | `Group label -> group_label label in
     animated widget [
       item_html;
       R.Html5.ul children;
@@ -183,8 +185,7 @@ module Make (M : Ck_model_s.MODEL) = struct
               true in
             let name = item >|~= M.Item.name in
             a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.pcdata name];
-        | `Group label ->
-            pcdata label in
+        | `Group label -> group_label label in
       animated group [
         item_html;
         R.Html5.ul (

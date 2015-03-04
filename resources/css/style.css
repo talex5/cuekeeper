@@ -243,3 +243,7 @@ a.delete:hover {
 	color: #f00;
 	padding-left: 0.5em;
 }
+
+span.ck-group-label {
+	color: #888;
+}
