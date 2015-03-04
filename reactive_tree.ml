@@ -29,7 +29,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
   type id =
     | Root_id
     | Item_id of Ck_id.t
-    | Group_id of string * id     (* Path of group relative to ancestor with UUID *)
+    | Group_id of M.group_id * id     (* Path of group relative to ancestor with UUID *)
 
   module Id_map = Map.Make(struct
     type t = id
@@ -39,7 +39,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
   module W = struct
     type item =
       [ `Item of M.Item.generic React.S.t * (?step:React.step -> M.Item.generic -> unit)
-      | `Group of string ]
+      | `Group of M.group_id ]
 
     type t = {
       item : item;
@@ -50,7 +50,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
     let item t =
       match t.item with
       | `Item (item, _) -> `Item item
-      | `Group _ as g -> g
+      | `Group gid -> `Group (M.group_label gid)
 
     let children t = t.children
 

@@ -12,15 +12,18 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   module Up = Ck_update.Make(I)(R)
 
   module TreeNode = struct
+    type group_id = int * string    (* int is the sort order *)
+    let group_label (_, s) = s
+
     module Id_map = Ck_id.M
     module Sort_key = struct
       type t =
         | Item of Sort_key.t
-        | Group of string
+        | Group of group_id
       module Id = struct
         type t =
           | Item of Ck_id.t
-          | Group of string
+          | Group of group_id
         let compare = compare
       end
       let compare a b =
@@ -28,10 +31,10 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
         | Item _, Group _ -> 1
         | Group _, Item _ -> -1
         | Item a, Item b -> Sort_key.compare a b
-        | Group a, Group b -> String.compare a b
+        | Group a, Group b -> compare a b
       let show = function
         | Item a -> Sort_key.show a
-        | Group s -> s
+        | Group (_, s) -> s
       let id = function
         | Item a -> Id.Item (Sort_key.id a)
         | Group s -> Id.Group s
@@ -47,7 +50,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     end
 
     type t = {
-      item : [`Item of Node.generic | `Group of string];
+      item : [`Item of Node.generic | `Group of group_id];
       children : t Child_map.t;
     }
 
@@ -170,7 +173,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     in
     let root_actions = scan (R.roots r) in
     if not (TreeNode.Child_map.is_empty root_actions) then (
-      let no_project = { TreeNode.item = `Group "(no project)"; children = root_actions } in
+      let no_project = { TreeNode.item = `Group (0, "(no project)"); children = root_actions } in
       results := !results |> TreeNode.add no_project;
     );
     !results
@@ -182,12 +185,32 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     | _ -> false
 
   (* todo *)
-  let group_by_type child_nodes =
+  let group_by_type ~parent child_nodes =
+    let parent_type = Node.ty parent in
     let tree_nodes = ref TreeNode.Child_map.empty in
-    child_nodes |> M.iter (fun _k v ->
-      let item = TreeNode.leaf_of_node v in
-      tree_nodes := !tree_nodes |> TreeNode.add item
-    );
+    let group_for node =
+      match parent_type, Node.ty node with
+      | _, `Area _ -> (0, "Sub-areas")
+      | `Area _, `Project _ -> (1, "Projects")
+      | _, `Project _ -> (1, "Sub-projects")
+      | _, (`Action a) ->
+          match Node.action_state a with
+          | `Next -> (2, "Next actions")
+          | `Waiting -> (3, "Waiting actions")
+          | `Future -> (4, "Future actions")
+          | `Done -> (5, "Completed actions") in
+    let add node =
+      let group_name = group_for node in
+      let key = TreeNode.Sort_key.Group group_name in
+      let parent =
+        try TreeNode.Child_map.find key !tree_nodes
+        with Not_found ->
+          let p = {TreeNode.item = `Group group_name; children = TreeNode.Child_map.empty} in
+          tree_nodes := !tree_nodes |> TreeNode.add p;
+          p in
+      let children = parent.TreeNode.children |> TreeNode.add (TreeNode.leaf_of_node node) in
+      tree_nodes := !tree_nodes |> TreeNode.add {parent with TreeNode.children} in
+    child_nodes |> M.iter (fun _k v -> add v);
     !tree_nodes
 
   let details t initial_node =
@@ -199,7 +222,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       match R.get t.r (Node.uuid initial_node) with
       | None -> { details_item = React.S.const None; details_children = ReactiveData.RList.empty; details_stop = ignore }
       | Some initial_node ->
-      let child_nodes node = Node.child_nodes node |> group_by_type in
+      let child_nodes node = Node.child_nodes node |> group_by_type ~parent:node in
       let children = WidgetTree.make (child_nodes initial_node) in
       let node, set_node = React.S.create ~eq:opt_node_equal (Some initial_node) in
       let update r =

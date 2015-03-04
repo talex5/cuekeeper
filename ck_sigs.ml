@@ -58,7 +58,9 @@ module type TREE_MODEL = sig
    * for moves. *)
 
   type t
-  val item : t -> [ `Item of Ck_id.t * Item.generic | `Group of string ]
+  type group_id
+  val group_label : group_id -> string
+  val item : t -> [ `Item of Ck_id.t * Item.generic | `Group of group_id ]
   val children : t -> t Child_map.t
 end
 
