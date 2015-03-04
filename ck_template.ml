@@ -352,7 +352,6 @@ module Make (M : Ck_model_s.MODEL) = struct
     let close () =
       set_closed true;                          (* Start fade-out animation *)
       details.M.details_stop ();
-      async ~name:"close panel" (fun () -> Lwt_js.sleep 0.5 >|= remove)  (* Actually remove *)
     in
     let elem = ref None in
     let cl =
@@ -362,7 +361,12 @@ module Make (M : Ck_model_s.MODEL) = struct
         begin match closed, !elem with
         | true, Some elem ->
             let elem = Tyxml_js.To_dom.of_element elem in
-            cancel_close := Ck_animate.fade_out elem
+            let cancel_anim = Ck_animate.fade_out elem in
+            let delete_panel = Lwt_js.sleep 0.5 >|= remove in
+            cancel_close := (fun () ->
+              Lwt.cancel delete_panel;
+              cancel_anim ()
+            )
         | _ -> () end;
         current_highlight |> React.S.map (fun highlight ->
           "ck-details" :: List.concat [
