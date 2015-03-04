@@ -19,7 +19,10 @@ module type MODEL = sig
   module Widget : sig
     (** An object visible on the screen. *)
     type t
-    val item : t -> [ area | project | action] Item.t React.S.t
+    val item : t -> [
+      | `Item of [ area | project | action] Item.t React.S.t
+      | `Group of string
+    ]
     val children : t -> t ReactiveData.RList.t
     val state : t -> int Slow_set.state React.S.t
   end

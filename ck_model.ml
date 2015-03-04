@@ -13,8 +13,30 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   module TreeNode = struct
     module Id_map = Ck_id.M
-    module Child_map = M
-    module Sort_key = Sort_key
+    module Sort_key = struct
+      type t =
+        | Item of Sort_key.t
+        | Group of string
+      module Id = struct
+        type t =
+          | Item of Ck_id.t
+          | Group of string
+        let compare = compare
+      end
+      let compare a b =
+        match a, b with
+        | Item _, Group _ -> 1
+        | Group _, Item _ -> -1
+        | Item a, Item b -> Sort_key.compare a b
+        | Group a, Group b -> String.compare a b
+      let show = function
+        | Item a -> Sort_key.show a
+        | Group s -> s
+      let id = function
+        | Item a -> Id.Item (Sort_key.id a)
+        | Group s -> Id.Group s
+    end
+    module Child_map = Map.Make(Sort_key)
 
     module Item = struct
       include Node    (* We reuse Node.t, but ignore its children *)
@@ -25,19 +47,26 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     end
 
     type t = {
-      item : Node.generic;
-      children : t M.t;
+      item : [`Item of Node.generic | `Group of string];
+      children : t Child_map.t;
     }
 
-    let item t = t.item
+    let sort_key t =
+      match t.item with
+      | `Item i -> Sort_key.Item (R.Node.key i)
+      | `Group g -> Sort_key.Group g
+
+    let item t =
+      match t.item with
+      | `Item node -> `Item (Item.id node, node)
+      | `Group _ as g -> g
+
     let children t = t.children
 
     let leaf_of_node n = {
-      item = n;
-      children = M.empty;
+      item = `Item n;
+      children = Child_map.empty;
     }
-
-    let id t = Item.id t.item
 
     type move_data = int
   end
@@ -103,38 +132,44 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   let make_full_tree r =
     let rec aux items =
-      items |> M.map (fun item ->
-        { TreeNode.item;
-          children = aux (Node.child_nodes item) }
-      ) in
+      M.fold (fun key item acc ->
+        let value =
+          { TreeNode.item = `Item item;
+            children = aux (Node.child_nodes item) } in
+        acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
+      ) items TreeNode.Child_map.empty in
     aux (R.roots r)
 
   let make_process_tree = make_full_tree
 
-  let is_next_action _k node =
-    match Node.ty node with
-    | `Action a -> Node.action_state a = `Next
-    | _ -> false
-
   let collect_next_actions r =
     let results = ref TreeNode.Child_map.empty in
     let rec scan nodes =
+      let child_actions = ref TreeNode.Child_map.empty in
       nodes |> M.iter (fun _k node ->
         match Node.ty node with
         | `Area parent | `Project parent ->
-            let actions = Node.child_nodes parent |> M.filter is_next_action in
-            if not (M.is_empty actions) then (
+            let actions = Node.child_nodes parent |> scan in
+            if not (TreeNode.Child_map.is_empty actions) then (
               let tree_node = { TreeNode.
-                item = parent;
-                children = actions |> M.map TreeNode.leaf_of_node
+                item = `Item parent;
+                children = actions;
               } in
-              results := !results |> M.add (Node.key parent) tree_node;
-            );
-            Node.child_nodes parent |> scan
-        | `Action _ -> ()
-      )
+              results := !results |> TreeNode.Child_map.add (TreeNode.sort_key tree_node) tree_node;
+            )
+        | `Action action ->
+            if Node.action_state action = `Next then (
+              let item = TreeNode.leaf_of_node action in
+              child_actions := !child_actions |> TreeNode.Child_map.add (TreeNode.sort_key item) item
+            )
+      );
+      !child_actions
     in
-    scan (R.roots r);
+    let root_actions = scan (R.roots r) in
+    if not (TreeNode.Child_map.is_empty root_actions) then (
+      let no_project = { TreeNode.item = `Group "(no project)"; children = root_actions } in
+      results := !results |> TreeNode.Child_map.add (TreeNode.sort_key no_project) no_project;
+    );
     !results
 
   let opt_node_equal a b =
@@ -142,6 +177,14 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     | None, None -> true
     | Some a, Some b -> R.Node.equal a b
     | _ -> false
+
+  (* todo *)
+  let group_by_type child_nodes =
+    let tree_nodes = ref TreeNode.Child_map.empty in
+    child_nodes |> M.iter (fun k v ->
+      tree_nodes := !tree_nodes |> TreeNode.Child_map.add (TreeNode.Sort_key.Item k) (TreeNode.leaf_of_node v)
+    );
+    !tree_nodes
 
   let details t initial_node =
     let initial_node = (initial_node :> Node.generic) in
@@ -152,15 +195,15 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       match R.get t.r (Node.uuid initial_node) with
       | None -> { details_item = React.S.const None; details_children = ReactiveData.RList.empty; details_stop = ignore }
       | Some initial_node ->
-      let child_nodes node = Node.child_nodes node |> M.map TreeNode.leaf_of_node in
+      let child_nodes node = Node.child_nodes node |> group_by_type in
       let children = WidgetTree.make (child_nodes initial_node) in
       let node, set_node = React.S.create ~eq:opt_node_equal (Some initial_node) in
       let update r =
         let node = R.get r uuid in
         set_node node;
         match node with
-        | None -> WidgetTree.update children M.empty ~on_remove:(R.get r)
-        | Some node -> WidgetTree.update children (child_nodes node) ~on_remove:(R.get r) in
+        | None -> WidgetTree.update children TreeNode.Child_map.empty ~on_remove:(fun node -> R.get r (Node.uuid node))
+        | Some node -> WidgetTree.update children (child_nodes node) ~on_remove:(fun node -> R.get r (Node.uuid node)) in
       let details = {
         details_item = node;
         details_children = WidgetTree.widgets children;
@@ -219,7 +262,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   let rtree r fn =
     let rtree = WidgetTree.make (fn r) in
     let update_tree r =
-      WidgetTree.update rtree (fn r) ~on_remove:(R.get r) in
+      WidgetTree.update rtree (fn r) ~on_remove:(fun node -> R.get r (Node.uuid node)) in
     let widgets = WidgetTree.widgets rtree in
     (widgets, update_tree)
 

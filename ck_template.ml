@@ -161,22 +161,32 @@ module Make (M : Ck_model_s.MODEL) = struct
     let children = W.children widget
       |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
     let item_html =
-      ReactiveData.RList.singleton_s item
-      |> ReactiveData.RList.map (render_item m ~show_node) in
+      match item with
+      | `Item item ->
+          ReactiveData.RList.singleton_s item
+          |> ReactiveData.RList.map (render_item m ~show_node)
+          |> R.Html5.span
+      | `Group label ->
+          pcdata label in
     animated widget [
-      R.Html5.span item_html;
+      item_html;
       R.Html5.ul children;
     ]
 
   let make_work_view m ~show_node groups =
     let make_work_actions group =
-      let show_group _ev =
-        let item = React.S.value (W.item group) in
-        show_node item;
-        true in
-      let name = W.item group >|~= M.Item.name in
+      let item_html =
+        match W.item group with
+        | `Item item ->
+            let show_group _ev =
+              React.S.value item |> show_node;
+              true in
+            let name = item >|~= M.Item.name in
+            a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.pcdata name];
+        | `Group label ->
+            pcdata label in
       animated group [
-        a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.pcdata name];
+        item_html;
         R.Html5.ul (
           ReactiveData.RList.map (make_tree_node_view m ~show_node) (W.children group)
         )

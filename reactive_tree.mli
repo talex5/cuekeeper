@@ -21,8 +21,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) : sig
   module Widget : sig
     (** An object visible on the screen. *)
     type t
-    val id : t -> Ck_id.t
-    val item : t -> M.Item.generic React.S.t
+    val item : t -> [`Item of M.Item.generic React.S.t | `Group of string]
     val children : t -> t ReactiveData.RList.t
     val state : t -> M.move_data Slow_set.state React.S.t
   end
@@ -34,7 +33,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) : sig
    * is called on each one. This is useful to provide one last update showing why the
    * item was removed as it fades out.
    *)
-  val update : t -> on_remove:(Ck_id.t -> M.Item.generic option) -> M.t M.Child_map.t -> unit
+  val update : t -> on_remove:(M.Item.generic -> M.Item.generic option) -> M.t M.Child_map.t -> unit
 
   val widgets : t -> Widget.t ReactiveData.RList.t
 end

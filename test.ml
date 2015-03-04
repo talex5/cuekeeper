@@ -43,6 +43,7 @@ module Test_clock = struct
 end
 
 module Key = struct
+  module Id = Ck_id
   type t = Ck_id.t * string
   let id = fst
   let show = snd
@@ -63,11 +64,17 @@ let format_list l = "[" ^ (String.concat "; " l) ^ "]"
 type node = N of string * node list
 let n name children = N (name, children)
 
+let name_of widget =
+  match W.item widget with
+  | `Item item ->
+      let item = React.S.value item in
+      M.Item.name item
+  | `Group name -> name
+
 let rec get_tree rl =
   ReactiveData.RList.value rl
   |> List.map (fun widget ->
-    let item = W.item widget |> React.S.value in
-    let name = M.Item.name item in
+    let name = name_of widget in
     let children = get_tree (W.children widget) in
     let str =
       match W.state widget |> React.S.value with
@@ -103,13 +110,14 @@ let rec lookup path widgets =
         try
           ReactiveData.RList.value widgets
           |> List.find (fun widget ->
-            let item = W.item widget |> React.S.value in
-            let name = M.Item.name item in
-            name = p
+            name_of widget = p
           )
         with Not_found -> Ck_utils.error "Node '%s' not found" p in
       match ps with
-      | [] -> W.item step |> React.S.value
+      | [] ->
+          begin match W.item step with
+          | `Item s -> React.S.value s
+          | `Group label -> Ck_utils.error "Not an item '%s'" label end;
       | ps -> lookup ps (W.children step)
 
 let run_with_exn fn =

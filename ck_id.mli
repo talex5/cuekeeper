@@ -8,5 +8,6 @@ val mint : unit -> t
 val to_string : t -> string
 val of_string : string -> t
 val fmt : unit -> t -> string
+val compare : t -> t -> int
 
 module M : Map.S with type key = t

@@ -40,9 +40,6 @@ module type EQ = sig
 end
 
 module type TREE_MODEL = sig
-  module Id_map : Map.S with type key = Ck_id.t
-  (** Used to correlate nodes as the input updates. *)
-
   module Sort_key : Slow_set.SORT_KEY
 
   module Item : sig
@@ -54,15 +51,14 @@ module type TREE_MODEL = sig
   end
 
   module Child_map : Map.S with type key = Sort_key.t
-  (** Ordered list of child nodes (probably not in the same order as Id_map). *)
+  (** Ordered list of child nodes. *)
 
   type move_data
   (** This is a hack to allow animations to correlate source and target widgets
    * for moves. *)
 
   type t
-  val item : t -> Item.generic
-  val id : t -> Ck_id.t
+  val item : t -> [ `Item of Ck_id.t * Item.generic | `Group of string ]
   val children : t -> t Child_map.t
 end
 

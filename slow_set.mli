@@ -14,7 +14,8 @@ val state : ('a, 'b) item -> 'b state React.S.t
 
 module type SORT_KEY = sig
   include Map.OrderedType
-  val id : t -> Ck_id.t
+  module Id : Map.OrderedType
+  val id : t -> Id.t
   val show : t -> string (* For debugging *)
 end
 

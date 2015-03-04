@@ -11,7 +11,8 @@ type 'a state =
 
 module type SORT_KEY = sig
   include Map.OrderedType
-  val id : t -> Ck_id.t
+  module Id : Map.OrderedType
+  val id : t -> Id.t
   val show : t -> string
 end
 
@@ -29,12 +30,14 @@ let make_item initial_state data =
   {data; state; set_state}
 
 module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = struct
+  module Id_map = Map.Make(K.Id)
+
   let diff_old_new ~eq ~removed_by_id ~time key i_old i_new =
     match i_old, i_new with
     | None, None -> None
     | Some _, None ->
         let cell = ref None in
-        removed_by_id := !removed_by_id |> Ck_id.M.add (K.id key) (key, cell);
+        removed_by_id := !removed_by_id |> Id_map.add (K.id key) (key, cell);
         Some (`Removed (cell, time))
     | None, Some n -> Some (`New n)
     | Some o, Some n when not (eq o n) -> Some (`Updated n)
@@ -73,7 +76,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
         match v with
         | (`New data) as p ->
             begin try
-              let (src_key, cell) = Ck_id.M.find (K.id k) removed_by_id in
+              let (src_key, cell) = Id_map.find (K.id k) removed_by_id in
               if adjacent input k src_key then (
                 renamed_src := src_key :: !renamed_src; `Renamed data
               ) else `Moved (data, cell)
@@ -127,7 +130,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
     let keep_me =
       input |> React.S.diff (fun s_new s_old ->
         let time = C.now () in
-        let removed_by_id = ref Ck_id.M.empty in
+        let removed_by_id = ref Id_map.empty in
         let diff =
           M.merge (diff_old_new ~eq ~removed_by_id ~time) s_old s_new
           |> detect_moves ~input:s_new ~removed_by_id:!removed_by_id in

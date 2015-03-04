@@ -10,5 +10,6 @@ let mint () = Uuidm.(create `V4 |> to_string)
 let to_string t = t
 let of_string t = t
 let fmt () t = t
+let compare = String.compare
 
 module M = Map.Make(String)
