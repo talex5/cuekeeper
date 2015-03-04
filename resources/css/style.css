@@ -156,10 +156,10 @@ div.ck-details.closed {
 	max-height: 0;
 }
 
-div.ck-details.ck-highlight h4 {
+div.ck-details.ck-highlight .ck-heading {
 	animation-name: flash;
 	animation-duration: 1.0s;
-	color: yellow;
+	background: yellow;
 }
 
 div.ck-details a.close {
@@ -223,11 +223,11 @@ li {
 */
 
 @keyframes flash {
-	0% { color: yellow; }
-	24% { color: black; }
-	25% { color: yellow; }
-	50% { color: black; }
-	100% { color: black; }
+	0% { background: yellow; }
+	24% { background: white; }
+	25% { background: yellow; }
+	50% { background: white; }
+	100% { background: white; }
 }
 
 @keyframes fade-in {
