@@ -311,9 +311,7 @@ module Make (M : Ck_model_s.MODEL) = struct
       )
     in
     let rlist = ReactiveData.RList.singleton_s widgets in
-    ul [li [
-      R.Html5.div ~a:[a_class ["add"]] rlist
-    ]]
+    R.Html5.div ~a:[a_class ["add"]] rlist
 
   let make_editable_title m item =
     let name = item >|~= (function
@@ -357,6 +355,32 @@ module Make (M : Ck_model_s.MODEL) = struct
             ]
       ) in
     rlist_of ~init:(React.S.value widgets) widgets
+
+  let make_parent_details ~show_node details =
+    let descr =
+      details.M.details_item >|~= function
+        | None -> "(deleted)"
+        | Some item ->
+            match M.Item.ty item with
+            | `Action _ -> "An action in "
+            | `Project _ -> "A project in "
+            | `Area _ -> "An area in " in
+    let title =
+      details.M.details_parent >|~= function
+        | None -> pcdata "(no parent)"
+        | Some parent ->
+            let cl = ["ck-item"; class_of_node_type (M.Item.details parent)] in
+            let clicked _ev = show_node parent; true in
+            span ~a:[a_class cl] [
+              a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name parent)]
+            ]
+    in
+    span [
+      span ~a:[a_class ["ck-label"]] [R.Html5.pcdata descr];
+      R.Html5.span (
+        ReactiveData.RList.singleton_s title;
+      );
+    ]
 
   let make_details_panel m ~show_node ~remove ~uuid details =
     let closed, set_closed = React.S.create false in
@@ -405,7 +429,8 @@ module Make (M : Ck_model_s.MODEL) = struct
           R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
           R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
         ];
-        R.Html5.ul children;
+        make_parent_details ~show_node details;
+        R.Html5.ul ~a:[a_class ["ck-groups"]] children;
         make_child_adder m ~show_node item;
         div ~a:[a_class ["description"]] [
           p [R.Html5.pcdata (item >|~= function

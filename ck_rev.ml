@@ -139,6 +139,8 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     try Some (Hashtbl.find t.index uuid)
     with Not_found -> None
 
+  let parent t node = get t (Node.parent node)
+
   let roots t = t.roots
   let history t = t.history
   let make_view t = V.of_path (t.store "Make view") I.Key.empty

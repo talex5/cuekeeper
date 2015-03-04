@@ -104,4 +104,5 @@ module type REV = sig
   val make_view : t -> V.t Lwt.t
 
   val get : t -> Ck_id.t -> Node.generic option
+  val parent : t -> Node.generic -> Node.generic option
 end

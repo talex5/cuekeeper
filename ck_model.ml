@@ -91,6 +91,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
 
   type details = {
     details_item : Item.generic option React.S.t;
+    details_parent : Item.generic option React.S.t;
     details_children : Widget.t ReactiveData.RList.t;
     details_stop : stop;
   }
@@ -220,19 +221,32 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     with Not_found ->
       (* Note: initial_node may already be out-of-date *)
       match R.get t.r (Node.uuid initial_node) with
-      | None -> { details_item = React.S.const None; details_children = ReactiveData.RList.empty; details_stop = ignore }
+      | None ->
+          {
+            details_item = React.S.const None;
+            details_parent = React.S.const None;
+            details_children = ReactiveData.RList.empty;
+            details_stop = ignore
+          }
       | Some initial_node ->
+      let initial_parent = R.parent t.r initial_node in
       let child_nodes node = Node.child_nodes node |> group_by_type ~parent:node in
       let children = WidgetTree.make (child_nodes initial_node) in
+      let parent, set_parent = React.S.create ~eq:opt_node_equal initial_parent in
       let node, set_node = React.S.create ~eq:opt_node_equal (Some initial_node) in
       let update r =
         let node = R.get r uuid in
         set_node node;
         match node with
-        | None -> WidgetTree.update children TreeNode.Child_map.empty ~on_remove:(fun node -> R.get r (Node.uuid node))
-        | Some node -> WidgetTree.update children (child_nodes node) ~on_remove:(fun node -> R.get r (Node.uuid node)) in
+        | None ->
+            set_parent None;
+            WidgetTree.update children TreeNode.Child_map.empty ~on_remove:(fun node -> R.get r (Node.uuid node))
+        | Some node ->
+            set_parent (R.parent r node);
+            WidgetTree.update children (child_nodes node) ~on_remove:(fun node -> R.get r (Node.uuid node)) in
       let details = {
         details_item = node;
+        details_parent = parent;
         details_children = WidgetTree.widgets children;
         details_stop = (fun () ->
           t.details <- t.details |> Ck_id.M.remove uuid;

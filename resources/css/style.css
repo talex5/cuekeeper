@@ -37,6 +37,10 @@ a.ck-title {
 	color: black;
 }
 
+ul.ck-groups {
+	margin-left: 0;
+}
+
 div.ck-details div.ck-area a.ck-title,
 span.ck-item.ck-area a.ck-title {
 	font-weight: bold;
@@ -244,6 +248,7 @@ a.delete:hover {
 	padding-left: 0.5em;
 }
 
+span.ck-label,
 span.ck-group-label {
 	color: #888;
 }

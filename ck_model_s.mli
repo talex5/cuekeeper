@@ -29,6 +29,7 @@ module type MODEL = sig
 
   type details = {
     details_item : [ area | project | action ] Item.t option React.S.t;
+    details_parent : Item.generic option React.S.t;
     details_children : Widget.t ReactiveData.RList.t;
     details_stop : stop;
   }
