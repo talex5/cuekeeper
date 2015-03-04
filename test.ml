@@ -245,7 +245,7 @@ let suite =
         M.set_mode m `Work;
         let next_actions = M.tree m |> expect_tree in
 
-        M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun () ->
+        M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun _ ->
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree [

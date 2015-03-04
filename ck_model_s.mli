@@ -30,9 +30,9 @@ module type MODEL = sig
     details_stop : stop;
   }
 
-  val add_action : t -> ?parent:Item.generic -> name:string -> description:string -> unit Lwt.t
-  val add_project : t -> ?parent:Item.generic -> name:string -> description:string -> unit Lwt.t
-  val add_area : t -> ?parent:Item.generic -> name:string -> description:string -> unit Lwt.t
+  val add_action : t -> ?parent:Item.generic -> name:string -> description:string -> Item.generic option Lwt.t
+  val add_project : t -> ?parent:Item.generic -> name:string -> description:string -> Item.generic option Lwt.t
+  val add_area : t -> ?parent:Item.generic -> name:string -> description:string -> Item.generic option Lwt.t
 
   val delete : t -> [< action | project | area] Item.t -> unit Lwt.t
 

@@ -5,6 +5,8 @@ open Tyxml_js
 open Html5
 open Ck_utils
 
+let (>|=) = Lwt.(>|=)
+
 let async ~name (fn:unit -> unit Lwt.t) =
   Lwt_js_events.async (fun () ->
     Lwt.catch fn (fun ex ->
@@ -236,73 +238,71 @@ module Make (M : Ck_model_s.MODEL) = struct
       item "Sync" `Sync;
     ]
 
-  let make_child_adder m item =
-    let editing, set_editing = React.S.create None in
-    let add_button ntype label =
+  let assume_changed _ _ = false
+
+  let add_form ~close ~show_node ?parent adder =
+    let do_add ev =
+      let form = ev##target >>?= Dom_html.CoerceTo.form in
+      Js.Opt.iter form (fun form ->
+        let f = Form.get_form_contents form in
+        let name = List.assoc "name" f |> String.trim in
+        if name <> "" then (
+          async ~name:"add" (fun () ->
+            adder ?parent ~name ~description:"" >|= function
+            | None -> print_endline "Added item no longer exists!"
+            | Some item -> show_node item
+          )
+        );
+        close ()
+      );
+      true in
+    let name_input = input ~a:[a_name "name"; a_placeholder "Name"] () in
+    auto_focus name_input;
+    form ~a:[a_onsubmit do_add] [
+      name_input;
+      input ~a:[a_input_type `Submit; a_value "Add"] ();
+      a ~a:[a_onclick (fun _ev -> close (); true)] [pcdata " (cancel)"];
+    ]
+
+  let make_child_adder m ~show_node item =
+    let editing, set_editing = React.S.create ~eq:assume_changed None in
+    let add_button adder label =
       let start_editing (_:#Dom_html.event Js.t) =
         match React.S.value item with
         | None -> true    (* Item is deleted; ignore *)
         | Some item ->
-            set_editing (Some (item, ntype));
+            set_editing (Some (item, adder));
             true in
-      a ~a:[a_onclick start_editing] [pcdata label] in
+      li [a ~a:[a_onclick start_editing] [pcdata label]] in
     let widgets =
       editing >>~= (function
         (* When we're not editing, display the add buttons. *)
         | None ->
             item >|~= (function
-              | None -> []
+              | None -> pcdata ""
               | Some item ->
                   match M.Item.details item with
-                  | `Action _ -> []
-                  | `Project _ -> [
-                      add_button `Action "+action";
-                      add_button `Project "+sub-project";
+                  | `Action _ -> pcdata ""
+                  | `Project _ -> ul ~a:[a_class ["add"]] [
+                      add_button (M.add_project m) "+sub-project";
+                      add_button (M.add_action m) "+action";
                     ]
-                  | `Area -> [
-                      add_button `Project "+project";
-                      add_button `Action "+action";
-                      add_button `Area "+sub-area";
+                  | `Area -> ul ~a:[a_class ["add"]] [
+                      add_button (M.add_area m) "+sub-area";
+                      add_button (M.add_project m) "+project";
+                      add_button (M.add_action m) "+action";
                     ]
             )
         (* When we are editing, display the form. *)
-        | Some (item, node_type) ->
-            let do_add ev =
-              let form =
-                ev##target >>?= fun target ->
-                target##parentNode >>?= fun parent ->
-                Dom_html.CoerceTo.element parent >>?= fun parent ->
-                parent##querySelector (Js.string "form") >>?=
-                Dom_html.CoerceTo.form in
-              Js.Opt.iter form (fun form ->
-                let f = Form.get_form_contents form in
-                let name = List.assoc "name" f |> String.trim in
-                if name <> "" then (
-                  let adder =
-                    match node_type with
-                    | `Action -> M.add_action
-                    | `Project -> M.add_project
-                    | `Area -> M.add_area in
-                  async ~name:"add" (fun () -> adder m ~parent:item ~name ~description:"")
-                );
-                set_editing None;
-              );
-              true in
-            let name_input = input ~a:[a_name "name"; a_placeholder "Name"] () in
-            auto_focus name_input;
-            React.S.const [
-              form ~a:[a_onsubmit do_add] [
-                name_input;
-                input ~a:[a_input_type `Submit; a_value "Add"; a_onclick do_add] ();
-                a ~a:[a_onclick (fun _ev -> set_editing None; true)] [pcdata " (cancel)"];
-              ]
-            ]
+        | Some (item, adder) ->
+            let close () = set_editing None in
+            React.S.const (add_form ~close ~show_node ~parent:item adder)
       )
     in
-    let rlist = rlist_of ~init:(React.S.value widgets) widgets in
-    ul [
-      R.Html5.li ~a:[a_class ["add"]] rlist
-    ]
+    let rlist = ReactiveData.RList.singleton_s widgets in
+    ul [li [
+      R.Html5.div ~a:[a_class ["add"]] rlist
+    ]]
 
   let make_editable_title m item =
     let name = item >|~= (function
@@ -352,7 +352,7 @@ module Make (M : Ck_model_s.MODEL) = struct
     let close () =
       set_closed true;                          (* Start fade-out animation *)
       details.M.details_stop ();
-      async ~name:"close panel" Lwt.(fun () -> Lwt_js.sleep 0.5 >|= remove)  (* Actually remove *)
+      async ~name:"close panel" (fun () -> Lwt_js.sleep 0.5 >|= remove)  (* Actually remove *)
     in
     let elem = ref None in
     let cl =
@@ -391,7 +391,7 @@ module Make (M : Ck_model_s.MODEL) = struct
           R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
         ];
         R.Html5.ul children;
-        make_child_adder m item;
+        make_child_adder m ~show_node item;
         div ~a:[a_class ["description"]] [
           p [R.Html5.pcdata (item >|~= function
             | Some item -> M.Item.description item
@@ -401,6 +401,26 @@ module Make (M : Ck_model_s.MODEL) = struct
       ] in
     elem := Some result;
     result
+
+  let make_toplevel_adders m ~show_node =
+    let editing, set_editing = React.S.create ~eq:assume_changed None in
+    let make adder label =
+      let clicked _ev =
+        set_editing (Some adder);
+        true in
+      li [a ~a:[a_onclick clicked] [pcdata label]] in
+    let widget =
+      editing >|~= function
+      | None ->
+          ul ~a:[a_class ["ck-adders"]] [
+            make (M.add_area m) "+area";
+            make (M.add_project m) "+project";
+            make (M.add_action m) "+action";
+          ]
+      | Some adder ->
+          let close () = set_editing None in
+          add_form ~close ~show_node adder in
+    ReactiveData.RList.singleton_s widget
 
   let make_details_area m =
     let details_pane, details_handle = ReactiveData.RList.make [] in
@@ -422,7 +442,7 @@ module Make (M : Ck_model_s.MODEL) = struct
           ReactiveData.RList.insert (uuid, make_details_panel m ~show_node ~remove ~uuid details) (List.length current_items) details_handle;
       | Some _ ->
           set_highlight (Some uuid);
-          async ~name:"highlight" Lwt.(fun () ->
+          async ~name:"highlight" (fun () ->
             Lwt_js.sleep 1.0 >|= fun () ->
             if React.S.value current_highlight = Some uuid then set_highlight None
           )
@@ -437,9 +457,12 @@ module Make (M : Ck_model_s.MODEL) = struct
       rlist_of ~init:(React.S.value live) live in
     [
       div ~a:[a_class ["row"]] [
-        div ~a:[a_class ["medium-12"; "columns"; "ck-tree"]] [
+        div ~a:[a_class ["large-8"; "columns"; "ck-tree"]] [
           make_mode_switcher m current_tree;
         ];
+        R.Html5.div ~a:[a_class ["large-4"; "columns"; "ck-tree"; "add"]] (
+          make_toplevel_adders m ~show_node
+        );
       ];
       div ~a:[a_class ["row"]] [
         R.Html5.div ~a:[a_class ["medium-12"; "columns"; "ck-tree"]] (

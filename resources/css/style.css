@@ -1,14 +1,22 @@
 div.ck-tree li { list-style-type: none; }
 div.ck-details li { list-style-type: none; }
 li.add  { list-style-type: none; }
-li.add a { margin-right: 1em; }
+
+div.add ul { margin-left: 0; }
+div.add li { margin-right: 1em; }
+div.add li:last-child { margin-right: 0; }
+div.add li { display: inline; }
 
 div.inline {
 	display: inline;
 }
 
-div.ck-details form.rename,
-div.ck-details li.add form {
+ul.ck-adders {
+	padding-top: 0.1875rem;
+	float: right;
+}
+
+div.ck-details form.rename {
 	display: inline;
 }
 

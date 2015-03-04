@@ -79,7 +79,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       match parent with
       | None -> `Toplevel t.r
       | Some p -> `Node p in
-    Up.add t.master details ~parent ~name ~description >>= fun (_ : Ck_id.t) -> return ()
+    Up.add t.master details ~parent ~name ~description >|= fun id ->
+    R.get t.r id
 
   let add_action = add (`Action {Ck_sigs.astate = `Next; astarred = false})
   let add_project = add (`Project {Ck_sigs.pstate = `Active; pstarred = false})
