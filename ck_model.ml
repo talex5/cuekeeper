@@ -56,6 +56,9 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       | `Item i -> Sort_key.Item (R.Node.key i)
       | `Group g -> Sort_key.Group g
 
+    let add item map =
+      map |> Child_map.add (sort_key item) item
+
     let item t =
       match t.item with
       | `Item node -> `Item (Item.id node, node)
@@ -155,12 +158,12 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
                 item = `Item parent;
                 children = actions;
               } in
-              results := !results |> TreeNode.Child_map.add (TreeNode.sort_key tree_node) tree_node;
+              results := !results |> TreeNode.add tree_node;
             )
         | `Action action ->
             if Node.action_state action = `Next then (
               let item = TreeNode.leaf_of_node action in
-              child_actions := !child_actions |> TreeNode.Child_map.add (TreeNode.sort_key item) item
+              child_actions := !child_actions |> TreeNode.add item
             )
       );
       !child_actions
@@ -168,7 +171,7 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
     let root_actions = scan (R.roots r) in
     if not (TreeNode.Child_map.is_empty root_actions) then (
       let no_project = { TreeNode.item = `Group "(no project)"; children = root_actions } in
-      results := !results |> TreeNode.Child_map.add (TreeNode.sort_key no_project) no_project;
+      results := !results |> TreeNode.add no_project;
     );
     !results
 
@@ -181,8 +184,9 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
   (* todo *)
   let group_by_type child_nodes =
     let tree_nodes = ref TreeNode.Child_map.empty in
-    child_nodes |> M.iter (fun k v ->
-      tree_nodes := !tree_nodes |> TreeNode.Child_map.add (TreeNode.Sort_key.Item k) (TreeNode.leaf_of_node v)
+    child_nodes |> M.iter (fun _k v ->
+      let item = TreeNode.leaf_of_node v in
+      tree_nodes := !tree_nodes |> TreeNode.add item
     );
     !tree_nodes
 
