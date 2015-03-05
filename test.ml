@@ -56,7 +56,7 @@ end
 module ItemMap = Map.Make(Key)
 module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
 module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
-module M = Ck_model.Make(Test_clock)(Store)
+module M = Ck_model.Make(Test_clock)(Store)(struct type t = unit end)
 module W = M.Widget
 
 let format_list l = "[" ^ (String.concat "; " l) ^ "]"
@@ -80,8 +80,7 @@ let rec get_tree rl =
       match W.state widget |> React.S.value with
       | `New -> "+" ^ name
       | `Removed _ -> "-" ^ name
-      |`Moved _ -> ">" ^ name
-      |`Current -> name
+      | `Current -> name
     in
     N (str, children)
   )
@@ -155,7 +154,6 @@ let suite =
             let (_id, b) = Slow_set.data item in
             let s = match React.S.value (Slow_set.state item) with
               | `New -> "+" ^ b
-              | `Moved _ -> ">" ^ b
               | `Current -> b
               | `Removed _ -> "-" ^ b in
             s :: acc
@@ -231,11 +229,11 @@ let suite =
 
       let two = (fst a2, "two") in
       rename a2 two;
-      eqd dst ["0"; "1"; "-2"; "3"; ">two"];
+      eqd dst ["0"; "1"; "-2"; "3"; "+two"];
       rename a1 (fst a1, "1.5");
-      eqd dst ["0"; "1.5"; "-2"; "3"; ">two"];
+      eqd dst ["0"; "1.5"; "-2"; "3"; "+two"];
       rename a3 (fst a3, "2.5");
-      eqd dst ["0"; "1.5"; "-2"; "2.5"; ">two"];
+      eqd dst ["0"; "1.5"; "-2"; "2.5"; "+two"];
     );
 
     "model">:: (fun () ->

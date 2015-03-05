@@ -15,7 +15,7 @@ module Clock = struct
 end
 
 module Store = Irmin.Basic(Html_storage.Make)(Irmin.Contents.String)
-module M = Ck_model.Make(Clock)(Store)
+module M = Ck_model.Make(Clock)(Store)(Ck_template.Gui_tree_data)
 module T = Ck_template.Make(M)
 
 let start (main:#Dom.node Js.t) =

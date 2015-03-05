@@ -15,7 +15,7 @@
 
 open Ck_sigs
 
-module Make (C : Ck_clock.S) (M : TREE_MODEL) : sig
+module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) : sig
   type t
 
   module Widget : sig
@@ -23,7 +23,8 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) : sig
     type t
     val item : t -> [`Item of M.Item.generic React.S.t | `Group of string]
     val children : t -> t ReactiveData.RList.t
-    val state : t -> M.move_data Slow_set.state React.S.t
+    val state : t -> Slow_set.state React.S.t
+    val gui_data : t -> G.t option ref
   end
 
   val make : M.t M.Child_map.t -> t

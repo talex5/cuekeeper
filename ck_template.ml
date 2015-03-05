@@ -7,6 +7,17 @@ open Ck_utils
 
 let (>|=) = Lwt.(>|=)
 
+module Gui_tree_data = struct
+  (* If the gui_data for a widget is None then it has just appeared.
+   * We set the value to the newly-created element.
+   *
+   * If an item appears with a value already set then this is a move.
+   * We read the old data to get the old height (needed for the animation),
+   * and then update it to point at the new element.
+   *)
+  type t = Dom_html.element Js.t
+end
+
 let async ~name (fn:unit -> unit Lwt.t) =
   Lwt_js_events.async (fun () ->
     Lwt.catch fn (fun ex ->
@@ -94,7 +105,7 @@ let auto_focus input =
 
 let (>>?=) = Js.Opt.bind
 
-module Make (M : Ck_model_s.MODEL) = struct
+module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   module W = M.Widget
 
   let current_highlight, set_highlight = React.S.create None
@@ -161,30 +172,44 @@ module Make (M : Ck_model_s.MODEL) = struct
 
   (* Fade item in and out based on state. *)
   let animated widget child_nodes =
-    let cancel = ref ignore in
-    let li_ref = ref None in
     let li_state =
       W.state widget >|~= fun state ->
+        let gui_data = W.gui_data widget in
+        let old_item = !gui_data in   (* The original that is being moved, if any *)
+        let cl =
+          match state with
+          | `Current -> []
+          | `Removed _time -> ["removed"]
+          | `New ->
+              match old_item with
+              | None -> ["new"]
+              | Some _old_item -> ["moved"] in
+        (cl, state) in
+    let li_cl = li_state |> React.S.map fst in
+    let li_elem = li ~a:[R.Html5.a_class li_cl] child_nodes in
+    let cancel = ref ignore in
+    let animate =
+      li_state >|~= fun (_cl, state) ->
         !cancel ();
         cancel := ignore;
+        let gui_data = W.gui_data widget in
+        let old_item = !gui_data in   (* The original that is being moved, if any *)
+        (* Update to point at the new element *)
+        gui_data := Some (Tyxml_js.To_dom.of_li li_elem);
         match state with
-        | `New -> ["new"]
-        | `Moved full_height ->
-            cancel := Ck_animate.fade_in_move ~full_height li_ref;
-            ["moved"]
-        | `Current -> []
-        | `Removed (full_height, _time) ->
-            begin match !li_ref with
+        | `Current -> ()
+        | `Removed _time ->
+            let elem = Tyxml_js.To_dom.of_element li_elem in
+            cancel := Ck_animate.fade_out elem;
+        | `New ->
+            match old_item with
             | None -> ()
-            | Some elem ->
-                let elem = Tyxml_js.To_dom.of_element elem in
-                full_height := Some elem##offsetHeight;
-                cancel := Ck_animate.fade_out elem
-            end;
-            ["removed"] in
-    let result = li ~a:[R.Html5.a_class li_state] child_nodes in
-    li_ref := Some result;
-    result
+            | Some old_item ->
+                let full_height = old_item##offsetHeight in
+                cancel := Ck_animate.fade_in_move ~full_height li_elem
+            in
+    React.S.retain li_state (fun () -> ignore animate) |> ignore;
+    li_elem
 
   let render_item m ~show_node item =
     let clicked _ev = show_node item; true in

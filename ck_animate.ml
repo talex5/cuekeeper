@@ -40,12 +40,12 @@ let fade_out elem =
 (* Runs in parallel with fade_out.
  * Wait for fade_time (original disappears), then expand this item as the other
  * one shrinks, then fade in. *)
-let fade_in_move ~full_height item_ref =
+let fade_in_move ~full_height elem =
   let open Lwt in
   let cancelled = ref false in
   let start = Unix.gettimeofday () +. fade_time in
   let fade_start = start +. resize_time in
-  let rec aux full_height () =
+  let rec aux () =
     if not !cancelled then (
       let t = Unix.gettimeofday () in
       let fade_frac = (t -. fade_start) /. fade_time in
@@ -53,29 +53,20 @@ let fade_in_move ~full_height item_ref =
       let o = fade_frac |> clamp 0.0 1.0 in
       let h = float_of_int full_height *. grow_frac |> truncate in
       let h = h |> clamp 0 full_height in
-      begin match !item_ref with
-      | None -> ()
-      | Some elem ->
-          let elem = Tyxml_js.To_dom.of_element elem in
-          let o = Printf.sprintf "%g" o in
-          elem##style##opacity <- Js.string o |> Js.Optdef.return;
-          elem##style##maxHeight <- (Js.string (string_of_int h ^ "px")) end;
+      let () =
+        let elem = Tyxml_js.To_dom.of_element elem in
+        let o = Printf.sprintf "%g" o in
+        elem##style##opacity <- Js.string o |> Js.Optdef.return;
+        elem##style##maxHeight <- (Js.string (string_of_int h ^ "px")) in
       if o < 1.0 then
-        Dom_html._requestAnimationFrame (Js.wrap_callback (aux full_height))
+        Dom_html._requestAnimationFrame (Js.wrap_callback aux)
     ) in
   async (fun () -> Lwt_js.sleep fade_time >|= fun () ->
     (* By this time, we've had a chance to fill in the height of the removed item. *)
-    let full_height =
-      match !full_height with
-      | None -> print_endline "WARNING: missing height in fade_in_move!"; 24
-      | Some h -> h in
-    aux full_height ()
+    aux ()
   );
   fun () ->
     cancelled := true;
-    match !item_ref with
-    | None -> ()
-    | Some elem ->
-        let elem = Tyxml_js.To_dom.of_element elem in
-        elem##style##opacity <- Js.string "" |> Js.Optdef.return;
-        elem##style##maxHeight <- Js.string ""
+    let elem = Tyxml_js.To_dom.of_element elem in
+    elem##style##opacity <- Js.string "" |> Js.Optdef.return;
+    elem##style##maxHeight <- Js.string ""

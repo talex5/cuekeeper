@@ -6,6 +6,7 @@ open Ck_sigs
 module type MODEL = sig
   type t
   type 'a full_node
+  type gui_data
 
   module Item : sig
     include DISK_NODE
@@ -24,7 +25,8 @@ module type MODEL = sig
       | `Group of string
     ]
     val children : t -> t ReactiveData.RList.t
-    val state : t -> int Slow_set.state React.S.t
+    val state : t -> Slow_set.state React.S.t
+    val gui_data : t -> gui_data option ref
   end
 
   type details = {

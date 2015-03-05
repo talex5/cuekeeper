@@ -3,11 +3,10 @@
 
 open Lwt
 
-type 'a state =
+type state =
   [ `New
-  | `Moved of 'a option ref    (* Ref is shared with removed item *)
   | `Current
-  | `Removed of 'a option ref * float ] (* Time item was removed from input *)
+  | `Removed of float ] (* Time item was removed from input *)
 
 module type SORT_KEY = sig
   include Map.OrderedType
@@ -16,10 +15,10 @@ module type SORT_KEY = sig
   val show : t -> string
 end
 
-type ('a, 'b) item = {
+type 'a item = {
   data : 'a;
-  state : 'b state React.S.t;
-  set_state : 'b state -> unit;
+  state : state React.S.t;
+  set_state : state -> unit;
 }
 
 let data item = item.data
@@ -36,9 +35,8 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
     match i_old, i_new with
     | None, None -> None
     | Some _, None ->
-        let cell = ref None in
-        removed_by_id := !removed_by_id |> Id_map.add (K.id key) (key, cell);
-        Some (`Removed (cell, time))
+        removed_by_id := !removed_by_id |> Id_map.add (K.id key) key;
+        Some (`Removed time)
     | None, Some n -> Some (`New n)
     | Some o, Some n when not (eq o n) -> Some (`Updated n)
     | Some _, Some _ -> None
@@ -50,8 +48,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
     | Some old, Some (`Updated data) -> Some {old with data}
     | None, Some (`New data) -> Some (make_item `New data)
     | None, Some (`Renamed data) -> Some (make_item `Current data)
-    | None, Some (`Moved (data, cell)) -> Some (make_item (`Moved cell) data)
-    | Some old, Some (`New data | `Moved (data, _) | `Renamed data) -> old.set_state `Current; Some {old with data}
+    | Some old, Some (`New data | `Renamed data) -> old.set_state `Current; Some {old with data}
     | Some _, Some `Drop -> None
     | None, Some (`Updated _ | `Removed _ | `Drop) -> assert false
 
@@ -67,7 +64,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
   (* Modify the diff:
    * - If a New item has the same ID as a Removed one then
    *   - If it's next to the old one, turn the pair into a `Drop, `Rename pair.
-   *   - Otherwise, into a `Remove, `Moved pair.
+   *   - Otherwise, into a `Remove, `New pair.
    *)
   let detect_moves ~input ~removed_by_id diff =
     let renamed_src = ref [] in
@@ -76,10 +73,10 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
         match v with
         | (`New data) as p ->
             begin try
-              let (src_key, cell) = Id_map.find (K.id k) removed_by_id in
+              let src_key = Id_map.find (K.id k) removed_by_id in
               if adjacent input k src_key then (
                 renamed_src := src_key :: !renamed_src; `Renamed data
-              ) else `Moved (data, cell)
+              ) else p
             with Not_found -> p end
         | p -> p
       )
@@ -108,11 +105,11 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
       let m = ref (React.S.value output) in
       delayed |> M.iter (fun k -> function
         | `Drop | `Renamed _ | `Updated _ -> ()
-        | `New _ | `Moved _ ->
+        | `New _ ->
             begin try
               let item = M.find k !m in
               begin match React.S.value item.state with
-                | `New | `Moved _ -> item.set_state `Current
+                | `New -> item.set_state `Current
                 | `Current | `Removed _ -> () end
             with Not_found ->
               (* Can happen if we add and remove quickly and the remove callback
@@ -122,8 +119,8 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
         | `Removed _ ->
             let item = M.find k !m in
             begin match React.S.value item.state with
-            | `Removed (_, t) when t = start -> m := !m |> M.remove k
-            | `New | `Current | `Moved _ | `Removed _ -> () end
+            | `Removed t when t = start -> m := !m |> M.remove k
+            | `New | `Current | `Removed _ -> () end
       );
       set_output !m in
 

@@ -6,10 +6,14 @@ open Lwt
 open Ck_sigs
 open Ck_utils
 
-module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and type value = string) = struct
+module Make(Clock : Ck_clock.S)
+           (I : Irmin.BASIC with type key = string list and type value = string)
+           (G : GUI_DATA) = struct
   module R = Ck_rev.Make(I)
   module Node = R.Node
   module Up = Ck_update.Make(I)(R)
+
+  type gui_data = G.t
 
   module TreeNode = struct
     type group_id = int * string    (* int is the sort order *)
@@ -73,10 +77,8 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       item = `Item n;
       children = Child_map.empty;
     }
-
-    type move_data = int
   end
-  module WidgetTree = Reactive_tree.Make(Clock)(TreeNode)
+  module WidgetTree = Reactive_tree.Make(Clock)(TreeNode)(G)
 
   module Item = TreeNode.Item
   module Widget = WidgetTree.Widget

@@ -23,7 +23,7 @@ open Ck_sigs
  * is removed, it can therefore be GC'd (along with anything that depends on it).
  *)
 
-module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
+module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
   module Slow = Slow_set.Make(C)(M.Sort_key)(M.Child_map)
 
   type id =
@@ -43,8 +43,9 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
 
     type t = {
       item : item;
-      children : (t, M.move_data) Slow_set.item ReactiveData.RList.t;
+      children : t Slow_set.item ReactiveData.RList.t;
       set_child_widgets : ?step:React.step -> t M.Child_map.t -> unit;
+      gui_data : G.t option ref;
     }
 
     let item t =
@@ -65,11 +66,12 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
   end
 
   module Widget = struct
-    type t = (W.t, M.move_data) Slow_set.item
+    type t = W.t Slow_set.item
 
     let item t = W.item (Slow_set.data t)
     let children t = W.children (Slow_set.data t)
     let state = Slow_set.state
+    let gui_data t = (Slow_set.data t).W.gui_data
 
     let equal a b =
       W.equal (Slow_set.data a) (Slow_set.data b)
@@ -91,6 +93,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) = struct
       item;
       children;
       set_child_widgets;
+      gui_data = ref None;
     } in
     (* todo: check for duplicates? *)
     widgets := !widgets |> Id_map.add id widget;

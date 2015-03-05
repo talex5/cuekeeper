@@ -1,16 +1,15 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-type 'a state =
+type state =
   [ `New
-  | `Moved of 'a option ref    (* Ref is shared with removed item *)
   | `Current
-  | `Removed of 'a option ref * float ] (* Time item was removed from input *)
+  | `Removed of float ] (* Time item was removed from input *)
 
-type ('a, 'b) item
+type 'a item
 
-val data : ('a, 'b) item -> 'a
-val state : ('a, 'b) item -> 'b state React.S.t
+val data : 'a item -> 'a
+val state : 'a item -> state React.S.t
 
 module type SORT_KEY = sig
   include Map.OrderedType
@@ -25,5 +24,5 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) : si
     eq : ('a -> 'a -> bool) ->
     ?init : 'a M.t ->
     'a M.t React.S.t ->
-    ('a, 'b) item M.t React.S.t
+    'a item M.t React.S.t
 end

@@ -53,15 +53,16 @@ module type TREE_MODEL = sig
   module Child_map : Map.S with type key = Sort_key.t
   (** Ordered list of child nodes. *)
 
-  type move_data
-  (** This is a hack to allow animations to correlate source and target widgets
-   * for moves. *)
-
   type t
   type group_id
   val group_label : group_id -> string
   val item : t -> [ `Item of Ck_id.t * Item.generic | `Group of group_id ]
   val children : t -> t Child_map.t
+end
+
+module type GUI_DATA = sig
+  type t
+  (** For extra data the GUI wants to attach to tree nodes. *)
 end
 
 module type REV = sig
