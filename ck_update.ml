@@ -164,4 +164,16 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
     let action = if s then "Add" else "Remove" in
     let msg = Printf.sprintf "%s star for '%s'" action (R.Node.name node) in
     update t ~msg node new_node
+
+  let set_pa_parent t node new_parent =
+    assert (R.Node.rev node == R.Node.rev new_parent);
+    let new_node = Ck_disk_node.with_parent (R.disk_node node) (R.Node.uuid new_parent) in
+    let msg = Printf.sprintf "Move %s under %s" (R.Node.name node) (R.Node.name new_parent) in
+    update t ~msg node new_node
+  let set_a_parent = set_pa_parent
+
+  let remove_parent t node =
+    let new_node = Ck_disk_node.with_parent (R.disk_node node) Ck_id.root in
+    let msg = Printf.sprintf "Move %s to top level" (R.Node.name node) in
+    update t ~msg node new_node
 end

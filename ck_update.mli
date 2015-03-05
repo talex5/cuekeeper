@@ -36,4 +36,8 @@ module Make(I : Irmin.BASIC with type key = string list and type value = string)
   val set_starred : t -> [< action | project] R.Node.t -> bool -> unit Lwt.t
   val set_action_state : t -> [action] R.Node.t -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> [project] R.Node.t -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
+
+  val set_a_parent : t -> [area] R.Node.t -> [area] R.Node.t -> unit Lwt.t
+  val set_pa_parent : t -> [< project | action] R.Node.t -> [< area | project] R.Node.t -> unit Lwt.t
+  val remove_parent : t -> [< area | project | action] R.Node.t -> unit Lwt.t
 end

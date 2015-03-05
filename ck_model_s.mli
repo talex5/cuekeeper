@@ -45,6 +45,14 @@ module type MODEL = sig
   val set_action_state : t -> [action] Item.t -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> [project] Item.t -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
 
+  type candidate_parent
+
+  val candidate_parents_for : t -> [< area | project | action] Item.t -> candidate_parent list
+  (** Get the possible new parents for an item. *)
+
+  val candidate_label : candidate_parent -> string
+  val set_parent : candidate_parent -> unit Lwt.t
+
   val set_mode : t -> [ `Process | `Work | `Sync | `Contact | `Review | `Schedule ] -> unit
   val tree : t -> [ `Process of Widget.t ReactiveData.RList.t
                   | `Work of Widget.t ReactiveData.RList.t

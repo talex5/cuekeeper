@@ -15,6 +15,50 @@ let async ~name (fn:unit -> unit Lwt.t) =
     )
   )
 
+let close_current_model = ref None
+
+let rec inside elem child =
+  if elem == child then true
+  else (
+    Js.Opt.case (child##parentNode)
+      (fun () -> false)
+      (fun p -> inside elem p)
+  )
+
+let ignore_listener : Dom_html.event_listener_id -> unit = ignore
+
+(* Listen to global clicks and keypresses so we can close modals on click/escape *)
+let () =
+  let keycode_escape = 27 in
+  let click (ev:#Dom_html.mouseEvent Js.t) =
+    match !close_current_model with
+    | None -> Js._false
+    | Some (elem, close) ->
+        Js.Opt.case (ev##target)
+          (fun () -> Js._false)
+          (fun target ->
+            if (target :> Dom.node Js.t) |> inside elem then (
+              (* Click inside modal - pass it on *)
+              Js._false
+            ) else (
+              (* Click outside modal; close the modal *)
+              close_current_model := None;
+              close ();
+              Dom_html.stopPropagation ev;
+              Js._true
+            )
+          ) in
+  let keyup ev =
+    match !close_current_model with
+    | Some (_, close) when ev##keyCode = keycode_escape ->
+        close_current_model := None;
+        close ();
+        Dom_html.stopPropagation ev;
+        Js._true
+    | _ -> Js._true in
+  Dom_html.addEventListener Dom_html.document Dom_html.Event.click (Dom.handler click) Js._true |> ignore_listener;
+  Dom_html.addEventListener Dom_html.document Dom_html.Event.keypress (Dom.handler keyup) Js._true |> ignore_listener
+
 let current_error, set_current_error = React.S.create None
 
 let make_error_box error =
@@ -356,7 +400,25 @@ module Make (M : Ck_model_s.MODEL) = struct
       ) in
     rlist_of ~init:(React.S.value widgets) widgets
 
-  let make_parent_details ~show_node details =
+  let parent_candidates m ~close_menu item =
+    match React.S.value item with
+    | None -> []
+    | Some item ->
+    M.candidate_parents_for m item |> List.map (fun candidate ->
+      let clicked _ev =
+        close_menu ();
+        async ~name:"set parent" (fun () -> M.set_parent candidate);
+        true in
+      li [
+        a ~a:[a_onclick clicked] [
+          pcdata (M.candidate_label candidate)
+        ]
+      ]
+    )
+
+  let make_parent_details m ~show_node details =
+    let dropdown, set_dropdown = React.S.create [] in
+    let dropdown_style, set_dropdown_style = React.S.create "" in
     let descr =
       details.M.details_item >|~= function
         | None -> "(deleted)"
@@ -373,13 +435,31 @@ module Make (M : Ck_model_s.MODEL) = struct
             let clicked _ev = show_node parent; true in
             span ~a:[a_class cl] [
               a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name parent)]
-            ]
-    in
-    span [
+            ] in
+    let title_elem = R.Html5.span (ReactiveData.RList.singleton_s title) in
+    let close_menu () =
+      set_dropdown [];
+      set_dropdown_style "";
+      close_current_model := None in
+    let dropdown_menu =
+      R.Html5.ul ~a:[a_class ["ck-dropdown"; "f-dropdown"]; R.Html5.a_style dropdown_style] (
+        rlist_of ~init:[] dropdown;
+      ) in
+    let change_clicked _ev =
+      if React.S.value dropdown_style = "" then (
+        let elem = Tyxml_js.To_dom.of_span title_elem in
+        let left = elem##offsetLeft in
+        let top = elem##offsetTop + elem##offsetHeight in
+        set_dropdown (parent_candidates m ~close_menu details.M.details_item);
+        set_dropdown_style (Printf.sprintf "position: absolute; left: %dpx; top: %dpx;" left top);
+        close_current_model := Some (Tyxml_js.To_dom.of_node dropdown_menu, close_menu)
+      ) else close_menu ();
+      true in
+    div [
+      dropdown_menu;
       span ~a:[a_class ["ck-label"]] [R.Html5.pcdata descr];
-      R.Html5.span (
-        ReactiveData.RList.singleton_s title;
-      );
+      title_elem;
+      a ~a:[a_onclick change_clicked] [pcdata " (change)"];
     ]
 
   let make_details_panel m ~show_node ~remove ~uuid details =
@@ -429,7 +509,7 @@ module Make (M : Ck_model_s.MODEL) = struct
           R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
           R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
         ];
-        make_parent_details ~show_node details;
+        make_parent_details m ~show_node details;
         R.Html5.ul ~a:[a_class ["ck-groups"]] children;
         make_child_adder m ~show_node item;
         div ~a:[a_class ["description"]] [

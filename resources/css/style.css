@@ -252,3 +252,8 @@ span.ck-label,
 span.ck-group-label {
 	color: #888;
 }
+
+ul.ck-dropdown.f-dropdown {
+	max-width: 30em;
+	width: auto;
+}

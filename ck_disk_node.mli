@@ -31,3 +31,4 @@ val equal : 'a t -> 'a t -> bool
 
 val with_name : 'a t -> string -> 'a t
 val with_details : _ t -> 'a -> 'a t
+val with_parent : 'a t -> Ck_id.t -> 'a t

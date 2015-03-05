@@ -45,6 +45,7 @@ let make ~name ~description ~parent ~ctime ~details = {
 
 let with_name node name = {node with name}
 let with_details node details = {node with details}
+let with_parent node parent = {node with parent}
 let equal : _ t -> _ t -> bool = (=)
 
 let action_state { details = `Action { astate; _ }; _ } = astate

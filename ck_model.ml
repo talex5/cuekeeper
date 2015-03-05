@@ -256,6 +256,51 @@ module Make(Clock : Ck_clock.S)(I : Irmin.BASIC with type key = string list and 
       t.details <- t.details |> Ck_id.M.add uuid (details, update);
       details
 
+  type candidate_parent = string * (unit -> unit Lwt.t)
+  let candidate_label = fst
+  let set_parent (_, set) = set ()
+
+  let candidate_parents_for_pa t item =
+    let item_uuid = Node.uuid item in
+    let results = ref ["(no parent)", fun () -> Up.remove_parent t.master item] in
+    let rec scan ~indent nodes =
+      nodes |> M.iter (fun key node ->
+        if Sort_key.id key <> item_uuid then (
+          match Node.ty node with
+          | `Area p | `Project p ->
+              results := (indent ^ Node.name p, fun () -> Up.set_pa_parent t.master item p) :: !results;
+              Node.child_nodes p |> scan ~indent:(indent ^ "» ")
+          | `Action _ -> ()
+        )
+      ) in
+    R.roots t.r |> scan ~indent:"";
+    List.rev !results
+
+  let candidate_parents_for_a t item =
+    let item_uuid = Node.uuid item in
+    let results = ref ["(no parent)", fun () -> Up.remove_parent t.master item] in
+    let rec scan ~indent nodes =
+      nodes |> M.iter (fun key node ->
+        if Sort_key.id key <> item_uuid then (
+          match Node.ty node with
+          | `Area p ->
+              results := (indent ^ Node.name p, fun () -> Up.set_a_parent t.master item p) :: !results;
+              Node.child_nodes p |> scan ~indent:(indent ^ "» ")
+          | `Project _ | `Action _ -> ()
+        )
+      ) in
+    R.roots t.r |> scan ~indent:"";
+    List.rev !results
+
+  let candidate_parents_for t item =
+    (* Item may be from an older revision, but the want the current parents as options. *)
+    match R.get t.r (Item.uuid item) with
+    | None -> []    (* Item has been deleted *)
+    | Some item ->
+    match Item.ty item with
+    | `Project node | `Action node -> candidate_parents_for_pa t node
+    | `Area node -> candidate_parents_for_a t node
+
   let initialise t =
     let add ~uuid ?parent ~name ~description details =
       let parent =
