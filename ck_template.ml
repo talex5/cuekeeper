@@ -32,20 +32,20 @@ let () =
   let keycode_escape = 27 in
   let click (ev:#Dom_html.mouseEvent Js.t) =
     match !close_current_model with
-    | None -> Js._false
+    | None -> Js._true
     | Some (elem, close) ->
         Js.Opt.case (ev##target)
-          (fun () -> Js._false)
+          (fun () -> Js._true)
           (fun target ->
             if (target :> Dom.node Js.t) |> inside elem then (
               (* Click inside modal - pass it on *)
-              Js._false
+              Js._true
             ) else (
               (* Click outside modal; close the modal *)
               close_current_model := None;
               close ();
               Dom_html.stopPropagation ev;
-              Js._true
+              Js._false
             )
           ) in
   let keyup ev =
@@ -54,7 +54,7 @@ let () =
         close_current_model := None;
         close ();
         Dom_html.stopPropagation ev;
-        Js._true
+        Js._false
     | _ -> Js._true in
   Dom_html.addEventListener Dom_html.document Dom_html.Event.click (Dom.handler click) Js._true |> ignore_listener;
   Dom_html.addEventListener Dom_html.document Dom_html.Event.keypress (Dom.handler keyup) Js._true |> ignore_listener
