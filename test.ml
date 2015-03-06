@@ -79,6 +79,7 @@ let rec get_tree rl =
     let str =
       match W.state widget |> React.S.value with
       | `New -> "+" ^ name
+      | `Init -> "@" ^ name
       | `Removed _ -> "-" ^ name
       | `Current -> name
     in
@@ -154,6 +155,7 @@ let suite =
             let (_id, b) = Slow_set.data item in
             let s = match React.S.value (Slow_set.state item) with
               | `New -> "+" ^ b
+              | `Init -> "@" ^ b
               | `Current -> b
               | `Removed _ -> "-" ^ b in
             s :: acc
@@ -255,11 +257,11 @@ let suite =
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree [
-          n "Start using CueKeeper" [
-            n "Read wikipedia page on GTD" []
+          n "@Start using CueKeeper" [
+            n "@Read wikipedia page on GTD" []
           ];
           n "+Work" [
-            n "Write unit tests" []
+            n "@Write unit tests" []
           ]
         ];
 
@@ -271,10 +273,10 @@ let suite =
         M.delete m read >>= fun () ->
         next_actions |> assert_tree [
           n "-Start using CueKeeper" [
-            n "Read wikipedia page on GTD" []
+            n "@Read wikipedia page on GTD" []
           ];
           n "-Work" [
-            n "Write unit tests" []
+            n "@Write unit tests" []
           ]
         ];
         Test_clock.run_to 2.0;
@@ -283,7 +285,7 @@ let suite =
         M.add_action ~parent:work ~name:"GC unused signals" ~description:"" m >>= fun _ ->
         next_actions |> assert_tree [
           n "+Work" [
-            n "GC unused signals" [];
+            n "@GC unused signals" [];
           ]
         ];
 
@@ -295,7 +297,7 @@ let suite =
         M.set_action_state m units `Next >>= fun () ->
         next_actions |> assert_tree [
           n "+Work" [
-            n "GC unused signals" [];
+            n "@GC unused signals" [];
             n "+Write unit tests" []
           ]
         ];

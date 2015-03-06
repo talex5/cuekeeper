@@ -4,8 +4,9 @@
 open Lwt
 
 type state =
-  [ `New
-  | `Current
+  [ `New                (* Recently added to the list *)
+  | `Init               (* New, but already present when the list was created *)
+  | `Current            (* Has been in the list for a while (fade-in done) *)
   | `Removed of float ] (* Time item was removed from input *)
 
 module type SORT_KEY = sig
@@ -96,7 +97,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
 
     let output, set_output =
       init
-      |> M.map (make_item `Current)
+      |> M.map (make_item `Init)
       |> React.S.create ~eq:(M.equal out_item_eq) in
 
     (* Called [delay] after some items have been added or removed.
@@ -109,7 +110,7 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
             begin try
               let item = M.find k !m in
               begin match React.S.value item.state with
-                | `New -> item.set_state `Current
+                | `New | `Init -> item.set_state `Current
                 | `Current | `Removed _ -> () end
             with Not_found ->
               (* Can happen if we add and remove quickly and the remove callback
@@ -120,9 +121,18 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
             let item = M.find k !m in
             begin match React.S.value item.state with
             | `Removed t when t = start -> m := !m |> M.remove k
-            | `New | `Current | `Removed _ -> () end
+            | `New | `Init | `Current | `Removed _ -> () end
       );
       set_output !m in
+
+    let () =
+      (* Change everything to `Current after a bit *)
+      let time = C.now () in
+      let diff = init |> M.map (fun item -> `New item) in
+      C.async ~name:"set_state init" (fun () ->
+        C.sleep delay >|= fun () ->
+        check time diff
+      ) in
 
     let keep_me =
       input |> React.S.diff (fun s_new s_old ->

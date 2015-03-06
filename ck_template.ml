@@ -176,38 +176,37 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       W.state widget >|~= fun state ->
         let gui_data = W.gui_data widget in
         let old_item = !gui_data in   (* The original that is being moved, if any *)
-        let cl =
-          match state with
-          | `Current -> []
-          | `Removed _time -> ["removed"]
-          | `New ->
-              match old_item with
-              | None -> ["new"]
-              | Some _old_item -> ["moved"] in
-        (cl, state) in
-    let li_cl = li_state |> React.S.map fst in
+        match state, old_item with
+        | `Removed _time, _ -> `Fade_out
+        | (`New | `Init), Some old_item -> `Fade_in_from old_item
+        | `Current, _ -> `No_animation
+        | `Init, None -> `No_animation
+        | `New, None -> `Fade_in
+        in
+    let li_cl = li_state |> React.S.map (function
+        | `Fade_in -> ["new"]
+        | `Fade_out -> ["removed"]
+        | `Fade_in_from _ -> ["moved"]
+        | `No_animation -> []
+    ) in
     let li_elem = li ~a:[R.Html5.a_class li_cl] child_nodes in
     let cancel = ref ignore in
     let animate =
-      li_state >|~= fun (_cl, state) ->
+      li_state >|~= fun animation ->
         !cancel ();
         cancel := ignore;
         let gui_data = W.gui_data widget in
-        let old_item = !gui_data in   (* The original that is being moved, if any *)
         (* Update to point at the new element *)
         gui_data := Some (Tyxml_js.To_dom.of_li li_elem);
-        match state with
-        | `Current -> ()
-        | `Removed _time ->
+        match animation with
+        | `Fade_out ->
             let elem = Tyxml_js.To_dom.of_element li_elem in
             cancel := Ck_animate.fade_out elem;
-        | `New ->
-            match old_item with
-            | None -> ()
-            | Some old_item ->
-                let full_height = old_item##offsetHeight in
-                cancel := Ck_animate.fade_in_move ~full_height li_elem
-            in
+        | `Fade_in_from old_item ->
+            let full_height = old_item##offsetHeight in
+            cancel := Ck_animate.fade_in_move ~full_height li_elem
+        | `Fade_in -> ()    (* Handled by the CSS alone *)
+        | `No_animation -> () in
     React.S.retain li_state (fun () -> ignore animate) |> ignore;
     li_elem
 

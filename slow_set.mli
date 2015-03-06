@@ -2,8 +2,9 @@
  * See the README file for details. *)
 
 type state =
-  [ `New
-  | `Current
+  [ `New                (* Recently added to the list *)
+  | `Init               (* New, but already present when the list was created *)
+  | `Current            (* Has been in the list for a while (fade-in done) *)
   | `Removed of float ] (* Time item was removed from input *)
 
 type 'a item

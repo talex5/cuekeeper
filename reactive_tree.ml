@@ -79,7 +79,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
 
   module Delta = Delta_RList.Make(M.Sort_key)(Widget)(M.Child_map)
 
-  let rec make_widget ~widgets ~parent_id node : W.t =
+  let rec make_widget ~widgets ~get_child ~parent_id node : W.t =
     (* Printf.printf "make_widget(%s)\n" (M.Item.show (M.item node)); *)
     let item, id =
       match M.item node with
@@ -88,7 +88,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
           `Item (item, set_item), Item_id id
       | `Group label as g -> g, (Group_id (label, parent_id)) in
     let children, set_child_widgets =
-      make_widgets ~widgets ~parent_id:id (M.children node) in
+      make_widgets ~get_child ~parent_id:id (M.children node) in
     let widget = { W.
       item;
       children;
@@ -98,8 +98,8 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
     (* todo: check for duplicates? *)
     widgets := !widgets |> Id_map.add id widget;
     widget
-  and make_widgets ~widgets ~parent_id nodes =
-    let init_children = nodes |> M.Child_map.map (make_widget ~widgets ~parent_id) in
+  and make_widgets ~get_child ~parent_id nodes =
+    let init_children = nodes |> M.Child_map.map (get_child ~parent_id) in
     let child_widgets, set_child_widgets =
       React.S.create ~eq:(M.Child_map.equal W.equal) init_children in
     let children = child_widgets
@@ -116,30 +116,31 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
     set_root_widgets : ?step:React.step -> W.t M.Child_map.t -> unit;
   }
 
-  let add_widget t node =
-    make_widget ~widgets:t.widgets node
-
-  let rec update t ~old_widgets ~parent_id =
-    M.Child_map.map (fun node ->
+  let update t ~old_widgets ~parent_id =
+    let rec make_or_update ~parent_id node =
       let id, new_item =
         match M.item node with
         | `Item (id, new_item) -> (Item_id id, Some new_item)
         | `Group s -> (Group_id (s, parent_id), None) in
       try
         let existing = Id_map.find id old_widgets in
-        M.children node |> update t ~old_widgets ~parent_id:id |> existing.W.set_child_widgets;
+        M.children node |> M.Child_map.map (make_or_update ~parent_id:id) |> existing.W.set_child_widgets;
         t.widgets := !(t.widgets) |> Id_map.add id existing;
         begin match existing.W.item, new_item with
         | `Item (_, set_item), Some new_item -> set_item new_item
         | `Group _, None -> ()
         | _ -> assert false end;
         existing
-      with Not_found -> add_widget ~parent_id t node
-    )
+      with Not_found ->
+        make_widget ~get_child:make_or_update ~widgets:t.widgets ~parent_id node
+    in
+    M.Child_map.map (make_or_update ~parent_id)
 
   let make nodes =
     let widgets = ref Id_map.empty in
-    let root_widgets, set_root_widgets = make_widgets ~parent_id:Root_id ~widgets nodes in
+    let rec get_child ~parent_id node =
+      make_widget ~widgets ~get_child ~parent_id node in
+    let root_widgets, set_root_widgets = make_widgets ~get_child ~parent_id:Root_id nodes in
     {
       widgets;
       root_widgets;
