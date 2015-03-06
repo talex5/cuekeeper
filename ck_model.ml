@@ -88,7 +88,7 @@ module Make(Clock : Ck_clock.S)
     | `Work of Widget.t ReactiveData.RList.t
     | `Sync of (float * string) list React.S.t
     | `Contact of unit
-    | `Review of unit
+    | `Review of Widget.t ReactiveData.RList.t
     | `Schedule of unit ]
 
   type details = {
@@ -149,7 +149,20 @@ module Make(Clock : Ck_clock.S)
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
 
-  let make_process_tree = make_full_tree
+  let make_process_tree r =
+    let rec aux items =
+      M.fold (fun key item acc ->
+        match Node.ty item with
+        | `Action _ -> acc
+        | `Area _ | `Project _ ->
+            let value =
+              { TreeNode.item = `Item item;
+                children = aux (Node.child_nodes item) } in
+            acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
+      ) items TreeNode.Child_map.empty in
+    aux (R.roots r)
+
+  let make_review_tree = make_full_tree
 
   let is_someday_project p =
     match Node.ty p with
@@ -375,7 +388,7 @@ module Make(Clock : Ck_clock.S)
   let make_tree r = function
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u
     | `Work -> let t, u = rtree r make_work_tree in `Work t, u
-    | `Review -> `Review (), ignore
+    | `Review -> let t, u = rtree r make_review_tree in `Review t, u
     | `Contact -> `Contact (), ignore
     | `Schedule -> `Schedule (), ignore
     | `Sync -> let t, u = make_history r in `Sync t, u

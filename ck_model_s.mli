@@ -60,7 +60,7 @@ module type MODEL = sig
                   | `Work of Widget.t ReactiveData.RList.t
                   | `Sync of (float * string) list React.S.t
                   | `Contact of unit
-                  | `Review of unit
+                  | `Review of Widget.t ReactiveData.RList.t
                   | `Schedule of unit ] React.S.t
 
   val details : t -> [< action | project | area] Item.t -> details

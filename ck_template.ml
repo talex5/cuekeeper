@@ -297,13 +297,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ]
 
   let make_tree ~show_node m = function
-    | `Process process_tree ->
+    | `Process tree | `Review tree ->
         [R.Html5.ul (
-          ReactiveData.RList.map (make_tree_node_view m ~show_node) process_tree
+          ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
         )]
     | `Work work_tree -> make_work_view m ~show_node work_tree
     | `Sync history -> make_sync history
-    | `Contact () | `Review () | `Schedule () -> [p [pcdata "Not implemented yet"]]
+    | `Contact () | `Schedule () -> [p [pcdata "Not implemented yet"]]
 
   let mode_of = function
     | `Process _ -> `Process
@@ -325,9 +325,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     dl ~a:[a_class ["sub-nav"]] [
       item "Process" `Process;
       item "Work" `Work;
-      item "Review" `Review;
       item "Contact" `Contact;
       item "Schedule" `Schedule;
+      item "Review" `Review;
       item "Sync" `Sync;
     ]
 
