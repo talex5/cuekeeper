@@ -151,15 +151,21 @@ module Make(Clock : Ck_clock.S)
 
   let make_process_tree = make_full_tree
 
+  let is_someday_project p =
+    match Node.ty p with
+    | `Project p -> Node.project_state p = `SomedayMaybe
+    | _ -> false
+
   let make_work_tree r =
     let next_actions = ref TreeNode.Child_map.empty in
     let done_actions = ref TreeNode.Child_map.empty in
-    let rec scan nodes =
+    let rec scan ~in_someday nodes =
       let child_actions = ref TreeNode.Child_map.empty in
       nodes |> M.iter (fun _k node ->
         match Node.ty node with
         | `Area parent | `Project parent ->
-            let actions = Node.child_nodes parent |> scan in
+            let in_someday = in_someday || is_someday_project parent in
+            let actions = Node.child_nodes parent |> scan ~in_someday in
             if not (TreeNode.Child_map.is_empty actions) then (
               let tree_node = { TreeNode.
                 item = `Item parent;
@@ -169,7 +175,7 @@ module Make(Clock : Ck_clock.S)
             )
         | `Action action ->
             match Node.action_state action with
-            | `Next ->
+            | `Next when not in_someday ->
                 let item = TreeNode.leaf_of_node action in
                 child_actions := !child_actions |> TreeNode.add item
             | `Done ->
@@ -179,7 +185,7 @@ module Make(Clock : Ck_clock.S)
       );
       !child_actions
     in
-    let root_actions = scan (R.roots r) in
+    let root_actions = scan ~in_someday:false (R.roots r) in
     if not (TreeNode.Child_map.is_empty root_actions) then (
       let no_project = { TreeNode.item = `Group (0, "(no project)"); children = root_actions } in
       next_actions := !next_actions |> TreeNode.add no_project;
