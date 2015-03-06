@@ -245,6 +245,9 @@ a.delete {
 }
 a.delete:hover {
 	color: #f00;
+}
+
+a.ck-add-child {
 	padding-left: 0.5em;
 }
 
@@ -258,10 +261,25 @@ ul.ck-dropdown.f-dropdown {
 	width: auto;
 }
 
+div.ck-modal.f-dropdown {
+	padding: 2px;
+	max-width: 30em;
+	width: auto;
+}
+
+div.ck-modal input[type="submit"] {
+	float: right;
+}
+
 div.ck-done-actions {
 	margin-top: 2rem;
 }
 
 div.ck-done-actions {
 	opacity: 0.5;
+}
+
+a.ck-delete {
+	margin-left: 1rem;
+	float: right;
 }

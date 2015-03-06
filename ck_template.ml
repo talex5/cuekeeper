@@ -38,13 +38,20 @@ let rec inside elem child =
 
 let ignore_listener : Dom_html.event_listener_id -> unit = ignore
 
+let close_modal () =
+  match !close_current_model with
+  | None -> ()
+  | Some (_, close) ->
+      close_current_model := None;
+      close ()
+
 (* Listen to global clicks and keypresses so we can close modals on click/escape *)
 let () =
   let keycode_escape = 27 in
   let click (ev:#Dom_html.mouseEvent Js.t) =
     match !close_current_model with
     | None -> Js._true
-    | Some (elem, close) ->
+    | Some (elem, _close) ->
         Js.Opt.case (ev##target)
           (fun () -> Js._true)
           (fun target ->
@@ -53,17 +60,15 @@ let () =
               Js._true
             ) else (
               (* Click outside modal; close the modal *)
-              close_current_model := None;
-              close ();
+              close_modal ();
               Dom_html.stopPropagation ev;
               Js._false
             )
           ) in
   let keyup ev =
     match !close_current_model with
-    | Some (_, close) when ev##keyCode = keycode_escape ->
-        close_current_model := None;
-        close ();
+    | Some _ when ev##keyCode = keycode_escape ->
+        close_modal ();
         Dom_html.stopPropagation ev;
         Js._false
     | _ -> Js._true in
@@ -210,6 +215,55 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     React.S.retain li_state (fun () -> ignore animate) |> ignore;
     li_elem
 
+  let pos_from_root (elem : #Dom_html.element Js.t) =
+    let rec aux x y elem =
+      let x = x + elem##offsetLeft in
+      let y = y + elem##offsetTop in
+      Js.Opt.case (elem##offsetParent)
+        (fun () -> (x, y))
+        (fun parent -> aux x y parent) in
+    aux 0 0 elem
+
+  let show_modal, modal_div =
+    let dropdown, set_dropdown = ReactiveData.RList.make [] in
+    let dropdown_style, set_dropdown_style = React.S.create "" in
+    let modal_div =
+      R.Html5.div ~a:[a_class ["f-dropdown"; "ck-modal"]; R.Html5.a_style dropdown_style] dropdown in
+    let close () =
+      ReactiveData.RList.set set_dropdown [];
+      set_dropdown_style "";
+      close_current_model := None in
+    let show ~parent content =
+      let elem = Tyxml_js.To_dom.of_span parent in
+      let left, top = pos_from_root elem in
+      let height = elem##offsetHeight in
+      ReactiveData.RList.set set_dropdown content;
+      set_dropdown_style (Printf.sprintf "position: absolute; left: %dpx; top: %dpx;" left (top + height));
+      close_current_model := Some (Tyxml_js.To_dom.of_node modal_div, close) in
+    (show, modal_div)
+
+  let show_add_modal m ~show_node ~button item =
+    let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 25] () in
+    auto_focus name_input;
+    let submit_clicked _ev =
+      let input_elem = Tyxml_js.To_dom.of_input name_input in
+      let name = input_elem##value |> Js.to_string |> String.trim in
+      if name <> "" then (
+        async ~name:"add child" (fun () ->
+          M.add_child m item name >|= function
+          | None -> ()
+          | Some node -> show_node node
+        );
+      );
+      close_modal ();
+      false in
+    let content =
+      form ~a:[a_onsubmit submit_clicked; a_action "#"] [
+        name_input;
+        input ~a:[a_input_type `Submit; a_value "Add"] ();
+      ] in
+    show_modal ~parent:button [content]
+
   let render_item m ~show_node item =
     let clicked _ev = show_node item; true in
     let delete _ev = async ~name:"delete" (fun () -> M.delete m item); true in
@@ -220,7 +274,20 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
         a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [pcdata (M.Item.name item)];
       ];
-      a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"];
+      begin match M.Item.ty item with
+      | `Action _ -> a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"]
+      | `Area item | `Project item ->
+          let a_elem = ref None in
+          let add_child _ev =
+            match !a_elem with
+            | None -> assert false
+            | Some elem ->
+            show_add_modal m ~show_node ~button:elem item;
+            true in
+          let elem = a ~a:[a_class ["ck-add-child"]; a_onclick add_child] [pcdata "+"] in
+          a_elem := Some elem;
+          elem
+      end;
     ]
 
   let group_label s =
@@ -348,7 +415,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         );
         close ()
       );
-      true in
+      false in
     let name_input = input ~a:[a_name "name"; a_placeholder "Name"] () in
     auto_focus name_input;
     form ~a:[a_onsubmit do_add] [
@@ -493,11 +560,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         close_current_model := Some (Tyxml_js.To_dom.of_node dropdown_menu, close_menu)
       ) else close_menu ();
       true in
+    let delete_clicked _ev =
+      begin match React.S.value details.M.details_item with
+      | None -> ()
+      | Some item -> async ~name:"delete" (fun () -> M.delete m item) end;
+      false in
     div [
       dropdown_menu;
       span ~a:[a_class ["ck-label"]] [R.Html5.pcdata descr];
       title_elem;
       a ~a:[a_onclick change_clicked] [pcdata " (change)"];
+      a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata "(delete)"];
     ]
 
   let make_details_panel m ~show_node ~remove ~uuid details =
@@ -614,6 +687,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let live = current_tree >|~= make_tree ~show_node m in
       rlist_of ~init:(React.S.value live) live in
     [
+      modal_div;
       div ~a:[a_class ["row"]] [
         div ~a:[a_class ["large-8"; "columns"; "ck-tree"]] [
           make_mode_switcher m current_tree;
@@ -634,6 +708,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         R.Html5.div ~a:[a_class ["medium-6"; "columns"]] (
           details_area;
         );
-      ]
+      ];
     ]
 end

@@ -124,6 +124,12 @@ module Make(Clock : Ck_clock.S)
   let add_project = add (`Project {Ck_sigs.pstate = `Active; pstarred = false})
   let add_area = add `Area
 
+  let add_child t parent name =
+    match Node.ty parent with
+    | `Area a -> add_project t ~parent:a ~name ~description:""
+    | `Project p -> add_action t ~parent:p ~name ~description:""
+    | `Action _ -> assert false
+
   let delete t node =
     Up.delete t.master node
 
