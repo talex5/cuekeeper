@@ -243,7 +243,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       R.Html5.ul children;
     ]
 
-  let make_work_view m ~show_node groups =
+  let make_work_view m ~show_node top =
     let make_work_actions group =
       let item_html =
         match W.item group with
@@ -260,10 +260,24 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ReactiveData.RList.map (make_tree_node_view m ~show_node) (W.children group)
         )
       ] in
-    let children = groups |> ReactiveData.RList.map make_work_actions in
+    match ReactiveData.RList.value top with
+    | [] | [_] | _::_::_::_ -> assert false
+    | [groups; done_actions] ->
+    let heading widget =
+      match W.item widget with
+      | `Item _ -> pcdata "ERROR: not a heading!"
+      | `Group label -> h4 [pcdata label] in
+    let next_children = W.children groups |> ReactiveData.RList.map make_work_actions in
+    let done_children = W.children done_actions |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
     [
-      h4 [pcdata "Next actions"];
-      R.Html5.ul children;
+      div ~a:[a_class ["ck-next-actions"]] [
+        heading groups;
+        R.Html5.ul next_children;
+      ];
+      div ~a:[a_class ["ck-done-actions"]] [
+        heading done_actions;
+        R.Html5.ul done_children;
+      ];
     ]
 
   let make_sync history =

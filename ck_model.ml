@@ -151,8 +151,9 @@ module Make(Clock : Ck_clock.S)
 
   let make_process_tree = make_full_tree
 
-  let collect_next_actions r =
-    let results = ref TreeNode.Child_map.empty in
+  let make_work_tree r =
+    let next_actions = ref TreeNode.Child_map.empty in
+    let done_actions = ref TreeNode.Child_map.empty in
     let rec scan nodes =
       let child_actions = ref TreeNode.Child_map.empty in
       nodes |> M.iter (fun _k node ->
@@ -164,22 +165,28 @@ module Make(Clock : Ck_clock.S)
                 item = `Item parent;
                 children = actions;
               } in
-              results := !results |> TreeNode.add tree_node;
+              next_actions := !next_actions |> TreeNode.add tree_node;
             )
         | `Action action ->
-            if Node.action_state action = `Next then (
-              let item = TreeNode.leaf_of_node action in
-              child_actions := !child_actions |> TreeNode.add item
-            )
+            match Node.action_state action with
+            | `Next ->
+                let item = TreeNode.leaf_of_node action in
+                child_actions := !child_actions |> TreeNode.add item
+            | `Done ->
+                let item = TreeNode.leaf_of_node action in
+                done_actions := !done_actions |> TreeNode.add item
+            | _ -> ()
       );
       !child_actions
     in
     let root_actions = scan (R.roots r) in
     if not (TreeNode.Child_map.is_empty root_actions) then (
       let no_project = { TreeNode.item = `Group (0, "(no project)"); children = root_actions } in
-      results := !results |> TreeNode.add no_project;
+      next_actions := !next_actions |> TreeNode.add no_project;
     );
-    !results
+    TreeNode.Child_map.empty
+    |> TreeNode.add {TreeNode.item = `Group (0, "Next actions"); children = !next_actions}
+    |> TreeNode.add {TreeNode.item = `Group (0, "Recently completed"); children = !done_actions}
 
   let opt_node_equal a b =
     match a, b with
@@ -361,7 +368,7 @@ module Make(Clock : Ck_clock.S)
 
   let make_tree r = function
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u
-    | `Work -> let t, u = rtree r collect_next_actions in `Work t, u
+    | `Work -> let t, u = rtree r make_work_tree in `Work t, u
     | `Review -> `Review (), ignore
     | `Contact -> `Contact (), ignore
     | `Schedule -> `Schedule (), ignore

@@ -129,7 +129,7 @@ span.ck-toggles a.ck-active-w {
 span.ck-toggles a.ck-active-✓ {
 	border-color: black;
 	color: black;
-	background-color: yellow;
+	background-color: #ff8;
 }
 
 div.ck-done span.allow-strikethrough,
@@ -256,4 +256,12 @@ span.ck-group-label {
 ul.ck-dropdown.f-dropdown {
 	max-width: 30em;
 	width: auto;
+}
+
+div.ck-done-actions {
+	margin-top: 2rem;
+}
+
+div.ck-done-actions {
+	opacity: 0.5;
 }

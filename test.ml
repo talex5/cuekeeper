@@ -257,36 +257,48 @@ let suite =
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree [
-          n "@Start using CueKeeper" [
-            n "@Read wikipedia page on GTD" []
+          n "@Next actions" [
+            n "@Start using CueKeeper" [
+              n "@Read wikipedia page on GTD" []
+            ];
+            n "+Work" [
+              n "@Write unit tests" []
+            ]
           ];
-          n "+Work" [
-            n "@Write unit tests" []
-          ]
+          n "@Recently completed" []
         ];
 
-        let read = lookup ["Start using CueKeeper"; "Read wikipedia page on GTD"] next_actions in
-        let units = lookup ["Work"; "Write unit tests"] next_actions |> expect_action in
+        let read = lookup ["Next actions"; "Start using CueKeeper"; "Read wikipedia page on GTD"] next_actions in
+        let units = lookup ["Next actions"; "Work"; "Write unit tests"] next_actions |> expect_action in
 
         (* After changing it to Waiting, it disappears from the list. *)
         M.set_action_state m units `Waiting >>= fun () ->
         M.delete m read >>= fun () ->
         next_actions |> assert_tree [
-          n "-Start using CueKeeper" [
-            n "@Read wikipedia page on GTD" []
+          n "@Next actions" [
+            n "-Start using CueKeeper" [
+              n "@Read wikipedia page on GTD" []
+            ];
+            n "-Work" [
+              n "@Write unit tests" []
+            ]
           ];
-          n "-Work" [
-            n "@Write unit tests" []
-          ]
+          n "@Recently completed" [];
         ];
         Test_clock.run_to 2.0;
-        next_actions |> assert_tree [];
+        next_actions |> assert_tree [
+          n "Next actions" [];
+          n "Recently completed" [];
+        ];
 
         M.add_action ~parent:work ~name:"GC unused signals" ~description:"" m >>= fun _ ->
         next_actions |> assert_tree [
-          n "+Work" [
-            n "@GC unused signals" [];
-          ]
+          n "Next actions" [
+            n "+Work" [
+              n "@GC unused signals" [];
+            ]
+          ];
+          n "Recently completed" [];
         ];
 
         (* Get the updated units. *)
@@ -296,19 +308,25 @@ let suite =
         (* Changing back to Next makes it reappear *)
         M.set_action_state m units `Next >>= fun () ->
         next_actions |> assert_tree [
-          n "+Work" [
-            n "@GC unused signals" [];
-            n "+Write unit tests" []
-          ]
+          n "Next actions" [
+            n "+Work" [
+              n "@GC unused signals" [];
+              n "+Write unit tests" []
+            ];
+          ];
+          n "Recently completed" [];
         ];
 
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         M.set_action_state m units `Waiting >>= fun () ->
         Test_clock.run_to 4.0;
         next_actions |> assert_tree [
-          n "Work" [
-            n "GC unused signals" [];
-          ]
+          n "Next actions" [
+            n "Work" [
+              n "GC unused signals" [];
+            ]
+          ];
+          n "Recently completed" [];
         ];
 
 (*
