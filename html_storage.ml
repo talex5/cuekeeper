@@ -21,6 +21,34 @@ class type storageEvent =
     method storageArea : Dom_html.storage Js.t Js.opt Js.readonly_prop
   end
 
+let tail s i =
+  String.sub s i (String.length s - i)
+
+(* From https://github.com/mirage/ezjsonm.
+ * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org> *)
+let is_valid_utf8 str =
+  try
+    Uutf.String.fold_utf_8 (fun () _ -> function
+      | `Malformed _ -> raise Exit
+      | _ -> ()
+    ) () str;
+    true
+  with Exit -> false
+
+module Codec = struct
+  (* If the data is valid UTF-8 then store it directly (prefixed with '"').
+   * Otherwise, encode with Base64 (and prefix with "%"). *)
+  let encode s =
+    if is_valid_utf8 s then "\"" ^ s
+    else "%" ^ B64.encode s
+
+  let decode s =
+    match s.[0] with
+    | '%' -> B64.decode (tail s 1)
+    | '"' -> tail s 1
+    | _ -> B64.decode s            (* Old format, base64 *)
+end
+
 module Storage : sig
   type t
   type key = string
@@ -45,17 +73,14 @@ end = struct
   let get t key =
     Js.Opt.case (t##getItem (Js.string key))
       (fun () -> None)
-      (fun v -> Some (Js.to_string v |> B64.decode))
+      (fun v -> Some (Js.to_string v |> Codec.decode))
 
   let set t key value =
-    let encoded = B64.encode value |> Js.string in
+    let encoded = Codec.encode value |> Js.string in
     t##setItem (Js.string key, encoded)
 
   let remove t key =
     t##removeItem (Js.string key)
-
-  let tail s i =
-    String.sub s i (String.length s - i)
 
   let keys t ~prefix =
     let prefix_len = String.length prefix in
@@ -82,7 +107,7 @@ end = struct
     Js.Opt.case (ev##newValue)
       (fun () -> None)
       (fun v ->
-        Some (Js.to_string v |> B64.decode))
+        Some (Js.to_string v |> Codec.decode))
 end
 
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
