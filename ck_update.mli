@@ -5,20 +5,20 @@
 
 open Ck_sigs
 
-module Make(I : Irmin.BASIC with type key = string list and type value = string)
+module Make(Git : Git_storage_s.S)
            (R : sig
-             include REV with type V.db = I.t
+             include REV with type commit = Git.Commit.t
              val disk_node : 'a Node.t -> 'a Ck_disk_node.t
            end) : sig
   type t
-  type update_cb = Irmin.Hash.SHA1.t -> unit Lwt.t
+  type update_cb = Git.Commit.t -> unit Lwt.t
 
-  val make : on_update:update_cb Lwt.t -> (string -> I.t) -> t Lwt.t
+  val make : on_update:update_cb Lwt.t -> Git.Branch.t -> t Lwt.t
   (** Manage updates to this branch.
    * Calls [on_update] after the branch has changed (either due to the methods below or because
    * the store has been modified by another process. *)
 
-  val head : t -> Irmin.Hash.SHA1.t
+  val head : t -> Git.Commit.t
   (** The current tip of the branch. *)
 
   (** Functions for making updates all work in the same way.

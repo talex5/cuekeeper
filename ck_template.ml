@@ -350,9 +350,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let make_sync history =
     let items =
       rlist_of ~init:(React.S.value history) history
-      |> ReactiveData.RList.map (fun (date, summary) ->
+      |> ReactiveData.RList.map (fun log_entry ->
           let open Unix in
-          let tm = gmtime date in
+          let open Git_storage_s in
+          let tm = gmtime log_entry.date in
+          let summary =
+            match log_entry.msg with
+            | [] -> "(no log message)"
+            | x::_ -> x in
           let msg = Printf.sprintf "%04d-%02d-%02d: %s"
             (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
             summary in

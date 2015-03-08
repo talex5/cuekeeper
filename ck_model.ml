@@ -7,11 +7,11 @@ open Ck_sigs
 open Ck_utils
 
 module Make(Clock : Ck_clock.S)
-           (I : Irmin.BASIC with type key = string list and type value = string)
+           (Git : Git_storage_s.S)
            (G : GUI_DATA) = struct
-  module R = Ck_rev.Make(I)
+  module R = Ck_rev.Make(Git)
   module Node = R.Node
-  module Up = Ck_update.Make(I)(R)
+  module Up = Ck_update.Make(Git)(R)
 
   type gui_data = G.t
 
@@ -86,7 +86,7 @@ module Make(Clock : Ck_clock.S)
   type tree_view =
     [ `Process of Widget.t ReactiveData.RList.t
     | `Work of Widget.t ReactiveData.RList.t
-    | `Sync of (float * string) list React.S.t
+    | `Sync of Git_storage_s.log_entry list React.S.t
     | `Contact of unit
     | `Review of Widget.t ReactiveData.RList.t
     | `Schedule of unit ]
@@ -99,6 +99,7 @@ module Make(Clock : Ck_clock.S)
   }
 
   type t = {
+    repo : Git.Repository.t;
     master : Up.t;
     mutable r : R.t;
     tree : tree_view React.S.t;
@@ -410,16 +411,19 @@ module Make(Clock : Ck_clock.S)
 
   let tree t = t.tree
 
-  let make repo task_maker =
+  let init_repo staging =
+    Git.Staging.update staging ["ck-version"] "0.1"
+
+  let make repo =
     let on_update, set_on_update = Lwt.wait () in
-    I.create repo task_maker >>= Up.make ~on_update >>= fun master ->
+    Git.Repository.branch ~if_new:init_repo repo "master" >>= Up.make ~on_update >>= fun master ->
     let head = Up.head master in
-    I.of_head repo task_maker head >>= R.make >>= fun r ->
+    R.make head >>= fun r ->
     let rtree, update_tree = make_tree r `Work in
     let tree, set_tree = React.S.create ~eq:assume_changed rtree in
-    let t = { master; r; tree; set_tree; update_tree; details = Ck_id.M.empty; keep_me = [] } in
+    let t = { repo; master; r; tree; set_tree; update_tree; details = Ck_id.M.empty; keep_me = [] } in
     Lwt.wakeup set_on_update (fun head ->
-      I.of_head repo task_maker head >>= R.make >>= fun r ->
+      R.make head >>= fun r ->
       t.r <- r;
       t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
       t.update_tree r;

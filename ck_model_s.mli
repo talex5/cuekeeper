@@ -60,7 +60,7 @@ module type MODEL = sig
   val set_mode : t -> [ `Process | `Work | `Sync | `Contact | `Review | `Schedule ] -> unit
   val tree : t -> [ `Process of Widget.t ReactiveData.RList.t
                   | `Work of Widget.t ReactiveData.RList.t
-                  | `Sync of (float * string) list React.S.t
+                  | `Sync of Git_storage_s.log_entry list React.S.t
                   | `Contact of unit
                   | `Review of Widget.t ReactiveData.RList.t
                   | `Schedule of unit ] React.S.t

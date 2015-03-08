@@ -68,9 +68,6 @@ end
 module type REV = sig
   type t
   type +'a node
-  module V : Irmin.VIEW with
-    type key = string list and
-    type value = string
 
   module Node : sig
     val rev : 'a node -> t
@@ -96,13 +93,13 @@ module type REV = sig
       | `Area of [> area] t ]
   end
 
-  type commit = float * string
+  type commit
 
   val equal : t -> t -> bool
 
   val roots : t -> Node.generic M.t
-  val history : t -> commit list  (* XXX: recent *)
-  val make_view : t -> V.t Lwt.t
+  val history : t -> Git_storage_s.log_entry list   (* XXX: only recent entries *)
+  val commit : t -> commit
 
   val get : t -> Ck_id.t -> Node.generic option
   val parent : t -> Node.generic -> Node.generic option

@@ -1,6 +1,8 @@
 open OUnit
 open Lwt
 
+(* let () = Log.(set_log_level INFO) *)
+
 module Queue = Lwt_pqueue.Make(struct
   type t = (float * unit Lwt.u)
   let compare a b =
@@ -55,8 +57,8 @@ end
 
 module ItemMap = Map.Make(Key)
 module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
-module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
-module M = Ck_model.Make(Test_clock)(Store)(struct type t = unit end)
+module Git = Git_storage.Make(Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String))
+module M = Ck_model.Make(Test_clock)(Git)(struct type t = unit end)
 module W = M.Widget
 
 let format_list l = "[" ^ (String.concat "; " l) ^ "]"
@@ -245,7 +247,8 @@ let suite =
         let task s =
           let date = Test_clock.now () |> Int64.of_float in
           Irmin.Task.create ~date ~owner:"User" s in
-        M.make config task >>= fun m ->
+        let repo = Git.make config task in
+        M.make repo >>= fun m ->
         M.set_mode m `Process;
         let process_tree = M.tree m |> expect_tree in
         let work = lookup ["Work"] process_tree in
