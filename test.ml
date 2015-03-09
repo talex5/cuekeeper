@@ -130,7 +130,7 @@ let run_with_exn fn =
     raise ex
 
 let expect_action item =
-  match M.Item.ty item with
+  match item with
   | `Action x -> x
   | _ -> assert_failure "Not an action!"
 
@@ -307,7 +307,7 @@ let suite =
         ];
 
         (* Get the updated units. *)
-        let live_units = M.details m units in
+        let live_units = M.details m (`Action units) in
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         assert (M.Item.action_state units <> `Next);
         (* Changing back to Next makes it reappear *)

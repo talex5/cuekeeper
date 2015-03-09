@@ -5,23 +5,22 @@ open Ck_sigs
 
 module type MODEL = sig
   type t
-  type 'a full_node
   type gui_data
 
   module Item : sig
     include DISK_NODE
-    val uuid : [< area | project | action] t -> Ck_id.t
-    val ty : [< action | project | area] t ->
-      [ `Action of [> action] t
-      | `Project of [> project] t
-      | `Area of [> area] t ]
+    open Types
+    val uuid : [< area | project | action] -> Ck_id.t
   end
+
+  open Item.Types
 
   module Widget : sig
     (** An object visible on the screen. *)
     type t
+
     val item : t -> [
-      | `Item of [ area | project | action] Item.t React.S.t
+      | `Item of [ area | project | action] React.S.t
       | `Group of string
     ]
     val children : t -> t ReactiveData.RList.t
@@ -30,7 +29,7 @@ module type MODEL = sig
   end
 
   type details = {
-    details_item : [ area | project | action ] Item.t option React.S.t;
+    details_item : [ area | project | action ] option React.S.t;
     details_parent : Item.generic option React.S.t;
     details_children : Widget.t ReactiveData.RList.t;
     details_stop : stop;
@@ -40,22 +39,22 @@ module type MODEL = sig
   val add_project : t -> ?parent:Item.generic -> name:string -> description:string -> Item.generic option Lwt.t
   val add_area : t -> ?parent:Item.generic -> name:string -> description:string -> Item.generic option Lwt.t
 
-  val add_child : t -> [< area | project] Item.t -> string -> Item.generic option Lwt.t
+  val add_child : t -> [< area | project] -> string -> Item.generic option Lwt.t
 
-  val delete : t -> [< action | project | area] Item.t -> unit or_error Lwt.t
+  val delete : t -> [< action | project | area] -> unit or_error Lwt.t
 
-  val set_name : t ->  [< action | project | area] Item.t -> string -> unit Lwt.t
-  val set_starred : t -> [< project | action] Item.t -> bool -> unit Lwt.t
-  val set_action_state : t -> [action] Item.t -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
-  val set_project_state : t -> [project] Item.t -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
+  val set_name : t ->  [< action | project | area] -> string -> unit Lwt.t
+  val set_starred : t -> [< project | action] -> bool -> unit Lwt.t
+  val set_action_state : t -> action_node -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
+  val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
 
-  val convert_to_area : t -> [project] Item.t -> unit or_error Lwt.t
-  val convert_to_project : t -> [< action | area] Item.t -> unit or_error Lwt.t
-  val convert_to_action : t -> [project] Item.t -> unit or_error Lwt.t
+  val convert_to_area : t -> project_node -> unit or_error Lwt.t
+  val convert_to_project : t -> [< action | area] -> unit or_error Lwt.t
+  val convert_to_action : t -> project_node -> unit or_error Lwt.t
 
   type candidate_parent
 
-  val candidate_parents_for : t -> [< area | project | action] Item.t -> candidate_parent list
+  val candidate_parents_for : t -> [< area | project | action] -> candidate_parent list
   (** Get the possible new parents for an item. *)
 
   val candidate_label : candidate_parent -> string
@@ -69,5 +68,5 @@ module type MODEL = sig
                   | `Review of Widget.t ReactiveData.RList.t
                   | `Schedule of unit ] React.S.t
 
-  val details : t -> [< action | project | area] Item.t -> details
+  val details : t -> [< action | project | area] -> details
 end

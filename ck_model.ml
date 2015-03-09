@@ -109,27 +109,25 @@ module Make(Clock : Ck_clock.S)
     mutable keep_me : unit React.S.t list;
   }
 
-  type 'a full_node = 'a Node.t
-
   let assume_changed _ _ = false
 
-  let add details t ?parent ~name ~description =
+  let add maker t ?parent ~name ~description =
     let parent =
       match parent with
       | None -> `Toplevel t.r
       | Some p -> `Node p in
-    Up.add t.master details ~parent ~name ~description >|= fun id ->
+    let disk_node = maker ~name ~description in
+    Up.add t.master ~parent disk_node >|= fun id ->
     R.get t.r id
 
-  let add_action = add (`Action {Ck_sigs.astate = `Next; astarred = false})
-  let add_project = add (`Project {Ck_sigs.pstate = `Active; pstarred = false})
-  let add_area = add `Area
+  let add_action = add Ck_disk_node.make_action
+  let add_project = add Ck_disk_node.make_project
+  let add_area = add Ck_disk_node.make_area
 
   let add_child t parent name =
-    match Node.ty parent with
-    | `Area a -> add_project t ~parent:a ~name ~description:""
-    | `Project p -> add_action t ~parent:p ~name ~description:""
-    | `Action _ -> assert false
+    match parent with
+    | `Area _ as a -> add_project t ~parent:a ~name ~description:""
+    | `Project _ as p -> add_action t ~parent:p ~name ~description:""
 
   let delete t node =
     Up.delete t.master node
@@ -168,7 +166,7 @@ module Make(Clock : Ck_clock.S)
   let make_process_tree r =
     let rec aux items =
       M.fold (fun key item acc ->
-        match Node.ty item with
+        match item with
         | `Action _ -> acc
         | `Area _ | `Project _ ->
             let value =
@@ -189,21 +187,21 @@ module Make(Clock : Ck_clock.S)
     let rec scan ~in_someday nodes =
       let child_actions = ref TreeNode.Child_map.empty in
       nodes |> M.iter (fun _k node ->
-        match Node.ty node with
+        match node with
         | `Project project when Node.project_state project = `Done ->
-            let item = TreeNode.leaf_of_node (project :> Node.generic) in
+            let item = TreeNode.leaf_of_node node in
             done_items := !done_items |> TreeNode.add item
         | `Project parent ->
             let in_someday = in_someday || is_someday_project parent in
-            scan_container ~in_someday parent
-        | `Area parent -> scan_container ~in_someday parent
+            scan_container ~in_someday node
+        | `Area _ -> scan_container ~in_someday node
         | `Action action ->
             match Node.action_state action with
             | `Next when not in_someday ->
-                let item = TreeNode.leaf_of_node action in
+                let item = TreeNode.leaf_of_node node in
                 child_actions := !child_actions |> TreeNode.add item
             | `Done ->
-                let item = TreeNode.leaf_of_node action in
+                let item = TreeNode.leaf_of_node node in
                 done_items := !done_items |> TreeNode.add item
             | _ -> ()
       );
@@ -233,12 +231,10 @@ module Make(Clock : Ck_clock.S)
     | Some a, Some b -> R.Node.equal a b
     | _ -> false
 
-  (* todo *)
   let group_by_type ~parent child_nodes =
-    let parent_type = Node.ty parent in
     let tree_nodes = ref TreeNode.Child_map.empty in
     let group_for node =
-      match parent_type, Node.ty node with
+      match parent, node with
       | _, `Area _ -> (0, "Sub-areas")
       | `Area _, `Project _ -> (1, "Projects")
       | _, `Project _ -> (1, "Sub-projects")
@@ -314,10 +310,10 @@ module Make(Clock : Ck_clock.S)
     let rec scan ~indent nodes =
       nodes |> M.iter (fun key node ->
         if Sort_key.id key <> item_uuid then (
-          match Node.ty node with
-          | `Area p | `Project p ->
-              results := (indent ^ Node.name p, fun () -> Up.set_pa_parent t.master item p) :: !results;
-              Node.child_nodes p |> scan ~indent:(indent ^ "» ")
+          match node with
+          | `Area _ | `Project _ as node ->
+              results := (indent ^ Node.name node, fun () -> Up.set_pa_parent t.master item node) :: !results;
+              Node.child_nodes node |> scan ~indent:(indent ^ "» ")
           | `Action _ -> ()
         )
       ) in
@@ -330,10 +326,10 @@ module Make(Clock : Ck_clock.S)
     let rec scan ~indent nodes =
       nodes |> M.iter (fun key node ->
         if Sort_key.id key <> item_uuid then (
-          match Node.ty node with
-          | `Area p ->
-              results := (indent ^ Node.name p, fun () -> Up.set_a_parent t.master item p) :: !results;
-              Node.child_nodes p |> scan ~indent:(indent ^ "» ")
+          match node with
+          | `Area _ as node ->
+              results := (indent ^ Node.name node, fun () -> Up.set_a_parent t.master item node) :: !results;
+              Node.child_nodes node |> scan ~indent:(indent ^ "» ")
           | `Project _ | `Action _ -> ()
         )
       ) in
@@ -345,17 +341,17 @@ module Make(Clock : Ck_clock.S)
     match R.get t.r (Item.uuid item) with
     | None -> []    (* Item has been deleted *)
     | Some item ->
-    match Item.ty item with
-    | `Project node | `Action node -> candidate_parents_for_pa t node
-    | `Area node -> candidate_parents_for_a t node
+    match item with
+    | `Project _ | `Action _ as node -> candidate_parents_for_pa t node
+    | `Area _ as node -> candidate_parents_for_a t node
 
   let initialise t =
-    let add ~uuid ?parent ~name ~description details =
+    let add ~uuid ?parent disk_node =
       let parent =
         match parent with
         | None -> `Toplevel t.r
         | Some p -> `Node p in
-      Up.add t.master ~uuid:(Ck_id.of_string uuid) details ~parent ~name ~description >>= fun uuid ->
+      Up.add t.master ~uuid:(Ck_id.of_string uuid) ~parent disk_node >>= fun uuid ->
       match R.get t.r uuid with
       | None -> failwith "Created node does not exist!"
       | Some node -> return node
@@ -364,32 +360,32 @@ module Make(Clock : Ck_clock.S)
      * Use fixed UUIDs for unit-testing and in case we want to merge stores later. *)
     add
       ~uuid:"ad8c5bb1-f6b7-4a57-b090-d6ef2e3326c1"
-      ~name:"Personal"
-      ~description:"Add personal sub-areas here (Family, Car, Home, Exercise, etc)."
-      `Area
+      (Ck_disk_node.make_area
+        ~name:"Personal"
+        ~description:"Add personal sub-areas here (Family, Car, Home, Exercise, etc).")
     >>= fun personal ->
 
     add
       ~uuid:"1a7c8ea2-18ac-41cb-8f79-3566e49445f4"
       ~parent:personal
-      ~name:"Start using CueKeeper"
-      ~description:""
-      (`Project {pstate = `Active; pstarred = false})
+      (Ck_disk_node.make_project
+        ~name:"Start using CueKeeper"
+        ~description:"")
     >>= fun switch_to_ck ->
 
     add
       ~uuid:"6002ea71-6f1c-4ba9-8728-720f4b4c9845"
       ~parent:switch_to_ck
-      ~name:"Read wikipedia page on GTD"
-      ~description:"http://en.wikipedia.org/wiki/Getting_Things_Done"
-      (`Action {astate = `Next; astarred = false})
+      (Ck_disk_node.make_action
+        ~name:"Read wikipedia page on GTD"
+        ~description:"http://en.wikipedia.org/wiki/Getting_Things_Done")
     >>= fun _ ->
 
     add
       ~uuid:"1c6a6964-e6c8-499a-8841-8cb437e2930f"
-      ~name:"Work"
-      ~description:"Add work-related sub-areas here."
-      `Area
+      (Ck_disk_node.make_area
+        ~name:"Work"
+        ~description:"Add work-related sub-areas here.")
     >>= fun _ ->
     return ()
 

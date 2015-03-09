@@ -6,29 +6,24 @@
 
 open Ck_sigs
 
-type +'a t = {
-  parent : Ck_id.t;
-  name : string;
-  description : string;
-  ctime : float with default(0.0);
-  details : 'a;
-}
-(** A generic node, with a field for type-specific details. *)
-
 include DISK_NODE
-  with type 'a t := 'a t
+open Types
 
-val of_string : string -> [action | project | area] t
-val to_string : [< action | project | area] t -> string
+val of_string : string -> [action | project | area]
+val to_string : [< action | project | area] -> string
 
-val root : [> area] t
-(** It's convenient to give every node a parent of type [t].
- * This can be used for the root to avoid needing options everywhere. *)
+val equal : ([< generic] as 'a) -> 'a -> bool
 
-val make : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> details:'a -> 'a t
+val make_action : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> action]
+val make_project : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> project]
+val make_area : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> area]
 
-val equal : 'a t -> 'a t -> bool
+val with_name : generic -> string -> generic
+val with_parent : generic -> Ck_id.t -> generic
+val with_astate : action_node -> [ `Next | `Waiting | `Future | `Done ] -> action_node
+val with_pstate : project_node -> [ `Active | `SomedayMaybe | `Done ] -> project_node
+val with_starred : [< project | action] -> bool -> [project | action]
 
-val with_name : 'a t -> string -> 'a t
-val with_details : _ t -> 'a -> 'a t
-val with_parent : 'a t -> Ck_id.t -> 'a t
+val as_area : project_node -> area_node
+val as_project : [< area | action] -> project_node
+val as_action : project_node -> action_node

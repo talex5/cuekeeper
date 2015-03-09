@@ -10,7 +10,10 @@ module Make(Git : Git_storage_s.S)
            (R : sig
              include REV with type commit = Git.Commit.t
              val make : Git.Commit.t -> t Lwt.t
-             val disk_node : 'a Node.t -> 'a Ck_disk_node.t
+             val disk_node : [< Node.generic] -> Ck_disk_node.generic
+             val action_node : Node.Types.action_node -> Ck_disk_node.Types.action_node
+             val project_node : Node.Types.project_node -> Ck_disk_node.Types.project_node
+             val area_node : Node.Types.area_node -> Ck_disk_node.Types.area_node
            end) = struct
   type t = {
     branch : Git.Branch.t;
@@ -107,7 +110,7 @@ module Make(Git : Git_storage_s.S)
     updated >>= fun () ->         (* [on_update] has been called. *)
     return result
 
-  let create t ~base ?uuid (node:_ Ck_disk_node.t) =
+  let create t ~base ?uuid (node:[< Ck_disk_node.generic]) =
     let uuid =
       match uuid with
       | Some uuid -> uuid
@@ -146,37 +149,36 @@ module Make(Git : Git_storage_s.S)
     ) >|= fun () ->
     `Ok ()
 
-  let add t ?uuid details ~parent ~name ~description =
+  let add t ?uuid ~parent maker =
     let base, parent =
       match parent with
       | `Toplevel rev -> (rev, Ck_id.root)
       | `Node p -> (R.Node.rev p, R.Node.uuid p) in
     let disk_node =
-      Ck_disk_node.make ~name ~description ~parent ~ctime:(Unix.gettimeofday ()) ~details in
+      maker ~parent ~ctime:(Unix.gettimeofday ()) in
     create t ?uuid ~base disk_node
 
   let set_name t node name =
     let msg = Printf.sprintf "Rename '%s' to '%s'" (R.Node.name node) name in
     update t ~msg node (Ck_disk_node.with_name (R.disk_node node) name)
 
-  let set_details t node new_details =
-    let new_node = Ck_disk_node.with_details (R.disk_node node) new_details in
-    let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
-    update t ~msg node new_node
-
   let set_action_state t node astate =
-    match R.disk_node node with
-    | { Ck_disk_node.details = `Action old; _ } -> set_details t node (`Action {old with astate})
+    let new_node = Ck_disk_node.with_astate (R.action_node node) astate in
+    let node = `Action node in
+    let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
+    update t ~msg node (`Action new_node)
 
   let set_project_state t node pstate =
-    match R.disk_node node with
-    | { Ck_disk_node.details = `Project old; _ } -> set_details t node (`Project {old with pstate})
+    let new_node = Ck_disk_node.with_pstate (R.project_node node) pstate in
+    let node = `Project node in
+    let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
+    update t ~msg node (`Project new_node)
 
   let set_starred t node s =
     let new_node =
-      match R.disk_node node with
-      | {Ck_disk_node.details = `Action d; _} as n -> Ck_disk_node.with_details n (`Action {d with astarred = s})
-      | {Ck_disk_node.details = `Project d; _} as n -> Ck_disk_node.with_details n (`Project {d with pstarred = s}) in
+      match node with
+      | `Action a -> Ck_disk_node.with_starred (`Action (R.action_node a)) s
+      | `Project p -> Ck_disk_node.with_starred (`Project (R.project_node p)) s in
     let action = if s then "Add" else "Remove" in
     let msg = Printf.sprintf "%s star for '%s'" action (R.Node.name node) in
     update t ~msg node new_node
@@ -195,9 +197,8 @@ module Make(Git : Git_storage_s.S)
 
   exception Found of R.Node.generic
 
-  let is_area n =
-    match R.disk_node n with
-    | {Ck_disk_node.details = `Area; _} -> true
+  let is_area = function
+    | `Area _ -> true
     | _ -> false
 
   let find_example_child pred node =
@@ -208,11 +209,11 @@ module Make(Git : Git_storage_s.S)
 
   let convert_to_project t node =
     let new_details =
-      match R.disk_node node with
-      | {Ck_disk_node.details = `Action a; _} -> `Ok {pstarred = a.astarred; pstate = `Active}
-      | {Ck_disk_node.details = `Area; _} ->
+      match node with
+      | `Action a -> `Ok (Ck_disk_node.as_project (`Action (R.action_node a)))
+      | `Area a ->
           match find_example_child is_area node with
-          | None -> `Ok {pstarred = false; pstate = `Active}
+          | None -> `Ok (Ck_disk_node.as_project (`Area (R.area_node a)))
           | Some subarea ->
               error "Can't convert to a project because it has a sub-area (%s)" (R.Node.name subarea)
     in
@@ -220,31 +221,28 @@ module Make(Git : Git_storage_s.S)
     | `Error _ as e -> return e
     | `Ok new_details ->
     let msg = Printf.sprintf "Convert %s to project" (R.Node.name node) in
-    update t ~msg node (Ck_disk_node.with_details (R.disk_node node) (`Project new_details)) >|= fun () ->
+    update t ~msg node (`Project new_details) >|= fun () ->
     `Ok ()
 
   let convert_to_area t node =
+    let new_details = `Area (Ck_disk_node.as_area (R.project_node node)) in
+    let node = `Project node in
     match R.parent (R.Node.rev node) node with
     | Some p when not (is_area p) ->
         return (error "Can't convert to area because parent (%s) is not an area" (R.Node.name p))
     | _ ->
     let msg = Printf.sprintf "Convert %s to area" (R.Node.name node) in
-    update t ~msg node (Ck_disk_node.with_details (R.disk_node node) `Area) >|= fun () ->
+    update t ~msg node new_details >|= fun () ->
     `Ok ()
 
   let convert_to_action t node =
-    let new_details =
-      match R.disk_node node with
-      | {Ck_disk_node.details = `Project p; _} ->
-          try
-            let (_, child) = Ck_utils.M.min_binding (R.Node.child_nodes node) in
-            error "Can't convert to an action because it has a child (%s)" (R.Node.name child)
-          with Not_found -> `Ok {astarred = p.pstarred; astate = `Next}
-    in
-    match new_details with
-    | `Error _ as e -> return e
-    | `Ok new_details ->
+    let new_details = `Action (Ck_disk_node.as_action (R.project_node node)) in
+    let node = `Project node in
+    try
+      let (_, child) = Ck_utils.M.min_binding (R.Node.child_nodes node) in
+      error "Can't convert to an action because it has a child (%s)" (R.Node.name child) |> return
+    with Not_found ->
     let msg = Printf.sprintf "Convert %s to action" (R.Node.name node) in
-    update t ~msg node (Ck_disk_node.with_details (R.disk_node node) (`Action new_details)) >|= fun () ->
+    update t ~msg node new_details >|= fun () ->
     `Ok ()
 end

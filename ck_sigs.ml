@@ -1,38 +1,33 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Sexplib.Std
 open Ck_utils
 
 type stop = unit -> unit
 type 'a or_error = [ `Ok of 'a | `Error of string ]
 
-type action_details = {
-  astarred : bool with default(false);
-  astate : [ `Next | `Waiting | `Future | `Done ]
-} with sexp
-
-type project_details = {
-  pstarred : bool with default(false);
-  pstate : [ `Active | `SomedayMaybe | `Done ]
-} with sexp
-
-type action = [`Action of action_details]
-type project = [`Project of project_details]
-type area = [`Area]
-
 module type DISK_NODE = sig
-  type +'a t
-  type generic = [ area | project | action ] t
+  module Types : sig
+    type action_node
+    type project_node
+    type area_node
 
-  val parent : 'a t -> Ck_id.t
-  val name : 'a t -> string
-  val description : 'a t -> string
-  val ctime : 'a t -> float
-  val details : 'a t -> 'a
-  val starred : [< project | action] t -> bool
-  val action_state : [action] t -> [ `Next | `Waiting | `Future | `Done ]
-  val project_state : [project] t -> [ `Active | `SomedayMaybe | `Done ]
+    type action = [`Action of action_node]
+    type project = [`Project of project_node]
+    type area = [`Area of area_node]
+  end
+  open Types
+
+  type generic = [ area | project | action ]
+
+  val parent : [< generic] -> Ck_id.t
+  val name : [< generic] -> string
+  val description : [< generic] -> string
+  val ctime : [< generic] -> float
+  val starred : [< project | action] -> bool
+  val action_state : action_node -> [ `Next | `Waiting | `Future | `Done ]
+  val project_state : project_node -> [ `Active | `SomedayMaybe | `Done ]
+  val is_done : [< project | action] -> bool
 end
 
 module type EQ = sig
@@ -68,18 +63,17 @@ end
 
 module type REV = sig
   type t
-  type +'a node
+  type rev = t
 
   module Node : sig
-    val rev : 'a node -> t
-
     include DISK_NODE
-      with type 'a t = 'a node
 
-    val uuid : [< area | project | action] t -> Ck_id.t
-    val child_nodes : 'a t  -> generic M.t
+    val rev : [< generic] -> rev
 
-    val key : _ t -> Sort_key.t
+    val uuid : [< generic] -> Ck_id.t
+    val child_nodes : [< generic ] -> generic M.t
+
+    val key : [< generic] -> Sort_key.t
     (** A key for sorting by name. *)
 
     val equal : generic -> generic -> bool
@@ -87,12 +81,8 @@ module type REV = sig
      * be equal. *)
 
     val equal_excl_children : generic -> generic -> bool
-
-    val ty : [< action | project | area] t ->
-      [ `Action of [> action] t
-      | `Project of [> project] t
-      | `Area of [> area] t ]
   end
+  open Node.Types
 
   type commit
 
@@ -103,5 +93,5 @@ module type REV = sig
   val commit : t -> commit
 
   val get : t -> Ck_id.t -> Node.generic option
-  val parent : t -> [< area | project | action] Node.t -> Node.generic option
+  val parent : t -> [< area | project | action] -> Node.generic option
 end

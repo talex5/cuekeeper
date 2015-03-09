@@ -119,18 +119,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let current_highlight, set_highlight = React.S.create None
 
   let with_done cls = function
-    | `Project {Ck_sigs.pstate = `Done; _}
-    | `Action {Ck_sigs.astate = `Done; _} -> "ck-done" :: cls
+    | `Action _ | `Project _ as node when M.Item.is_done node -> "ck-done" :: cls
     | _ -> cls
 
   let class_of_node_type = function
-    | `Area -> "ck-area"
+    | `Area _ -> "ck-area"
     | `Project _ -> "ck-project"
     | `Action _ -> "ck-action"
     | `Deleted -> "ck-deleted"
 
-  let class_of_time_and_type ctime node_type =
-    let ty = with_done ["ck-item"; class_of_node_type node_type] node_type in
+  let class_of_time_and_type ctime item =
+    let ty = with_done ["ck-item"; class_of_node_type item] item in
     let lifetime = Unix.gettimeofday () -. ctime in
     if lifetime >= 0.0 && lifetime <  1.0 then "new" :: ty
     else ty
@@ -159,16 +158,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let star = a ~a:[a_class [cl]; a_onclick set_star] [pcdata "★"] in
     state_toggles @ [star]
 
-  let toggles_for_type m item =
-    match M.Item.ty item with
-    | `Action item ->
+  let toggles_for_type m = function
+    | `Action action as item ->
         let set_details n =
-          async ~name:"set_action_state" (fun () -> M.set_action_state m item n) in
-        make_toggles ~m ~set_details ~item (M.Item.action_state item) [`Done; `Next; `Waiting; `Future]
-    | `Project item ->
+          async ~name:"set_action_state" (fun () -> M.set_action_state m action n) in
+        make_toggles ~m ~set_details ~item (M.Item.action_state action) [`Done; `Next; `Waiting; `Future]
+    | `Project project as item ->
         let set_details n =
-          async ~name:"set_project_state" (fun () -> M.set_project_state m item n) in
-        make_toggles ~m ~set_details ~item (M.Item.project_state item) [`Done; `Active; `SomedayMaybe]
+          async ~name:"set_project_state" (fun () -> M.set_project_state m project n) in
+        make_toggles ~m ~set_details ~item (M.Item.project_state project) [`Done; `Active; `SomedayMaybe]
     | `Area _ -> []
 
   let make_state_toggles m item =
@@ -285,16 +283,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let render_item m ~show_node item =
     let clicked _ev = show_node item; true in
     let delete ev = async ~name:"delete" (fun () -> M.delete m item >|= report_error ~parent:ev##target); true in
-    let details = M.Item.details item in
-    let item_cl = class_of_time_and_type (M.Item.ctime item) details in
+    let item_cl = class_of_time_and_type (M.Item.ctime item) item in
     span ~a:[a_class item_cl] [
       span ~a:[a_class ["ck-toggles"]] (toggles_for_type m item);
       span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
         a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [pcdata (M.Item.name item)];
       ];
-      begin match M.Item.ty item with
+      begin match item with
       | `Action _ -> a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"]
-      | `Area item | `Project item ->
+      | `Area _ | `Project _ as item ->
           let add_child ev =
             show_add_modal m ~show_node ~button:(ev##target) item;
             true in
@@ -458,13 +455,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             item >|~= (function
               | None -> pcdata ""
               | Some item ->
-                  match M.Item.details item with
+                  match item with
                   | `Action _ -> pcdata ""
                   | `Project _ -> ul ~a:[a_class ["add"]] [
                       add_button (M.add_project m) "+sub-project";
                       add_button (M.add_action m) "+action";
                     ]
-                  | `Area -> ul ~a:[a_class ["add"]] [
+                  | `Area _ -> ul ~a:[a_class ["add"]] [
                       add_button (M.add_area m) "+sub-area";
                       add_button (M.add_project m) "+project";
                       add_button (M.add_action m) "+action";
@@ -548,11 +545,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         false in
       li [a ~a:[a_onclick clicked] [pcdata label]] in
     let content = ul (
-      match M.Item.ty item with
-      | `Action a -> [make "Convert to project" M.convert_to_project a]
+      match item with
+      | `Action _ as item -> [make "Convert to project" M.convert_to_project item]
       | `Project p -> [make "Convert to action" M.convert_to_action p;
                        make "Convert to area" M.convert_to_area p]
-      | `Area a -> [make "Convert to project" M.convert_to_project a]
+      | `Area _ as item -> [make "Convert to project" M.convert_to_project item]
     ) in
     show_modal ~parent:button [content]
 
@@ -567,7 +564,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               let on_click ev =
                 show_type_modal m ~button:(ev##target) item; false in
               a ~a:[a_onclick on_click] [pcdata label] in
-            match M.Item.ty item with
+            match item with
             | `Action _ -> [label "An "; change_type "action"; label " in "]
             | `Project _ -> [label "A "; change_type "project"; label " in "]
             | `Area _ -> [label "An "; change_type "area"; label " in "] in
@@ -575,7 +572,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       details.M.details_parent >|~= function
         | None -> pcdata "(no parent)"
         | Some parent ->
-            let cl = ["ck-item"; class_of_node_type (M.Item.details parent)] in
+            let cl = ["ck-item"; class_of_node_type parent] in
             let clicked _ev = show_node parent; true in
             span ~a:[a_class cl] [
               a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name parent)]
@@ -647,8 +644,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             set_closed true;
             ["ck-heading"]
         | Some item ->
-            let node_type = M.Item.details item in
-            with_done ["ck-heading"; class_of_node_type node_type] node_type
+            with_done ["ck-heading"; class_of_node_type item] item
       ) in
     let children = details.M.details_children
       |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
