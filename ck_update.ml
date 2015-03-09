@@ -9,6 +9,7 @@ let async : (unit -> unit Lwt.t) -> unit = Lwt.async
 module Make(Git : Git_storage_s.S)
            (R : sig
              include REV with type commit = Git.Commit.t
+             val make : Git.Commit.t -> t Lwt.t
              val disk_node : 'a Node.t -> 'a Ck_disk_node.t
            end) = struct
   type t = {
@@ -80,6 +81,10 @@ module Make(Git : Git_storage_s.S)
           (* Our change had no effect, so there's nothing to do. *)
           return (return ())
       | `Ok merged ->
+      (* Check that the merge is readable *)
+      Lwt.catch (fun () -> R.make merged >|= ignore)
+        (fun ex -> Ck_utils.error "Change generated an invalid commit:\n%s\n\nThis is a BUG. The invalid change has been discarded."
+          (Printexc.to_string ex)) >>= fun () ->
       Lwt_mutex.with_lock t.mutex (fun () ->
         (* At this point, head cannot contain our commit because we haven't merged it yet,
          * and no updates can happen while we hold the lock. *)

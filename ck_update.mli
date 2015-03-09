@@ -8,6 +8,7 @@ open Ck_sigs
 module Make(Git : Git_storage_s.S)
            (R : sig
              include REV with type commit = Git.Commit.t
+             val make : Git.Commit.t -> t Lwt.t
              val disk_node : 'a Node.t -> 'a Ck_disk_node.t
            end) : sig
   type t
