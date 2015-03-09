@@ -262,9 +262,17 @@ ul.ck-dropdown.f-dropdown {
 }
 
 div.ck-modal.f-dropdown {
-	padding: 2px;
 	max-width: 30em;
 	width: auto;
+}
+
+div.ck-modal.f-dropdown form {
+	margin: 2px;
+}
+
+div.ck-modal.f-dropdown ul {
+	margin: 0;
+	list-style: none;
 }
 
 div.ck-modal input[type="submit"] {
@@ -282,4 +290,8 @@ div.ck-done-actions {
 a.ck-delete {
 	margin-left: 1rem;
 	float: right;
+}
+
+div.alert-box p:last-child {
+	margin-bottom: 0;
 }

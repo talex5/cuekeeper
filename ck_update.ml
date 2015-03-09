@@ -184,4 +184,62 @@ module Make(Git : Git_storage_s.S)
     let new_node = Ck_disk_node.with_parent (R.disk_node node) Ck_id.root in
     let msg = Printf.sprintf "Move %s to top level" (R.Node.name node) in
     update t ~msg node new_node
+
+  exception Found of R.Node.generic
+
+  let is_area n =
+    match R.disk_node n with
+    | {Ck_disk_node.details = `Area; _} -> true
+    | _ -> false
+
+  let find_example_child pred node =
+    try
+      R.Node.child_nodes node |> Ck_utils.M.iter (fun _ n -> if pred n then raise (Found n));
+      None
+    with Found x -> Some x
+
+  let error fmt =
+    Printf.ksprintf (fun msg -> `Error msg) fmt
+
+  let convert_to_project t node =
+    let new_details =
+      match R.disk_node node with
+      | {Ck_disk_node.details = `Action a; _} -> `Ok {pstarred = a.astarred; pstate = `Active}
+      | {Ck_disk_node.details = `Area; _} ->
+          match find_example_child is_area node with
+          | None -> `Ok {pstarred = false; pstate = `Active}
+          | Some subarea ->
+              error "Can't convert to a project because it has a sub-area (%s)" (R.Node.name subarea)
+    in
+    match new_details with
+    | `Error _ as e -> return e
+    | `Ok new_details ->
+    let msg = Printf.sprintf "Convert %s to project" (R.Node.name node) in
+    update t ~msg node (Ck_disk_node.with_details (R.disk_node node) (`Project new_details)) >|= fun () ->
+    `Ok ()
+
+  let convert_to_area t node =
+    match R.parent (R.Node.rev node) node with
+    | Some p when not (is_area p) ->
+        return (error "Can't convert to area because parent (%s) is not an area" (R.Node.name p))
+    | _ ->
+    let msg = Printf.sprintf "Convert %s to area" (R.Node.name node) in
+    update t ~msg node (Ck_disk_node.with_details (R.disk_node node) `Area) >|= fun () ->
+    `Ok ()
+
+  let convert_to_action t node =
+    let new_details =
+      match R.disk_node node with
+      | {Ck_disk_node.details = `Project p; _} ->
+          try
+            let (_, child) = Ck_utils.M.min_binding (R.Node.child_nodes node) in
+            error "Can't convert to an action because it has a child (%s)" (R.Node.name child)
+          with Not_found -> `Ok {astarred = p.pstarred; astate = `Next}
+    in
+    match new_details with
+    | `Error _ as e -> return e
+    | `Ok new_details ->
+    let msg = Printf.sprintf "Convert %s to action" (R.Node.name node) in
+    update t ~msg node (Ck_disk_node.with_details (R.disk_node node) (`Action new_details)) >|= fun () ->
+    `Ok ()
 end

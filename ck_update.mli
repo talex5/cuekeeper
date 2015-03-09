@@ -41,4 +41,8 @@ module Make(Git : Git_storage_s.S)
   val set_a_parent : t -> [area] R.Node.t -> [area] R.Node.t -> unit Lwt.t
   val set_pa_parent : t -> [< project | action] R.Node.t -> [< area | project] R.Node.t -> unit Lwt.t
   val remove_parent : t -> [< area | project | action] R.Node.t -> unit Lwt.t
+
+  val convert_to_area : t -> [project] R.Node.t -> unit or_error Lwt.t
+  val convert_to_project : t -> [< action | area] R.Node.t -> unit or_error Lwt.t
+  val convert_to_action : t -> [project] R.Node.t -> unit or_error Lwt.t
 end

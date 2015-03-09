@@ -5,6 +5,7 @@ open Sexplib.Std
 open Ck_utils
 
 type stop = unit -> unit
+type 'a or_error = [ `Ok of 'a | `Error of string ]
 
 type action_details = {
   astarred : bool with default(false);
@@ -102,5 +103,5 @@ module type REV = sig
   val commit : t -> commit
 
   val get : t -> Ck_id.t -> Node.generic option
-  val parent : t -> Node.generic -> Node.generic option
+  val parent : t -> [< area | project | action] Node.t -> Node.generic option
 end

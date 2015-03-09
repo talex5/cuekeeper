@@ -146,6 +146,15 @@ module Make(Clock : Ck_clock.S)
   let set_starred t item s =
     Up.set_starred t.master item s
 
+  let convert_to_project t item =
+    Up.convert_to_project t.master item
+
+  let convert_to_area t item =
+    Up.convert_to_area t.master item
+
+  let convert_to_action t item =
+    Up.convert_to_action t.master item
+
   let make_full_tree r =
     let rec aux items =
       M.fold (fun key item acc ->

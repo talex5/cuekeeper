@@ -81,7 +81,10 @@ let make_error_box error =
   error
   |> React.S.map (function
     | None -> pcdata ""
-    | Some err -> div ~a:[a_class ["alert-box"; "alert"; "round"]] [pcdata err]
+    | Some err ->
+        div ~a:[a_class ["alert-box"; "alert"]] [
+          p [pcdata err]; p [pcdata "Refresh this page to continue."];
+        ]
   )
   |> ReactiveData.RList.singleton_s
 
@@ -225,6 +228,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     aux 0 0 elem
 
   let show_modal, modal_div =
+    close_modal ();
     let dropdown, set_dropdown = ReactiveData.RList.make [] in
     let dropdown_style, set_dropdown_style = React.S.create "" in
     let modal_div =
@@ -263,6 +267,16 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         input ~a:[a_input_type `Submit; a_value "Add"] ();
       ] in
     show_modal ~parent:button [content]
+
+  let report_error ~parent = function
+    | `Ok () -> ()
+    | `Error msg ->
+        let close _ev = close_modal (); false in
+        let content =
+          div ~a:[a_class ["alert-box"]; a_onclick close] [
+            pcdata msg;
+          ] in
+        show_modal ~parent [content]
 
   let render_item m ~show_node item =
     let clicked _ev = show_node item; true in
@@ -526,17 +540,44 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ]
     )
 
+  let label s = span ~a:[a_class ["ck-label"]] [pcdata s]
+
+  let show_type_modal m ~button item =
+    let make label fn item =
+      let clicked _ev =
+        close_modal ();
+        async ~name:label (fun () -> fn m item >|= report_error ~parent:button);
+        false in
+      li [a ~a:[a_onclick clicked] [pcdata label]] in
+    let content = ul (
+      match M.Item.ty item with
+      | `Action a -> [make "Convert to project" M.convert_to_project a]
+      | `Project p -> [make "Convert to action" M.convert_to_action p;
+                       make "Convert to area" M.convert_to_area p]
+      | `Area a -> [make "Convert to project" M.convert_to_project a]
+    ) in
+    show_modal ~parent:button [content]
+
   let make_parent_details m ~show_node details =
     let dropdown, set_dropdown = React.S.create [] in
     let dropdown_style, set_dropdown_style = React.S.create "" in
     let descr =
       details.M.details_item >|~= function
-        | None -> "(deleted)"
+        | None -> [pcdata "(deleted)"]
         | Some item ->
+            let change_type label =
+              let elem = ref None in
+              let on_click _ev =
+                match !elem with
+                | None -> assert false
+                | Some button -> show_type_modal m ~button item; false in
+              let button = a ~a:[a_onclick on_click] [pcdata label] in
+              elem := Some button;
+              button in
             match M.Item.ty item with
-            | `Action _ -> "An action in "
-            | `Project _ -> "A project in "
-            | `Area _ -> "An area in " in
+            | `Action _ -> [label "An "; change_type "action"; label " in "]
+            | `Project _ -> [label "A "; change_type "project"; label " in "]
+            | `Area _ -> [label "An "; change_type "area"; label " in "] in
     let title =
       details.M.details_parent >|~= function
         | None -> pcdata "(no parent)"
@@ -572,7 +613,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       false in
     div [
       dropdown_menu;
-      span ~a:[a_class ["ck-label"]] [R.Html5.pcdata descr];
+      R.Html5.span ~a:[a_class ["ck-label"]] (rlist_of ~init:(React.S.value descr) descr);
       title_elem;
       a ~a:[a_onclick change_clicked] [pcdata " (change)"];
       a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata "(delete)"];

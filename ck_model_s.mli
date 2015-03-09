@@ -49,6 +49,10 @@ module type MODEL = sig
   val set_action_state : t -> [action] Item.t -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> [project] Item.t -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
 
+  val convert_to_area : t -> [project] Item.t -> unit or_error Lwt.t
+  val convert_to_project : t -> [< action | area] Item.t -> unit or_error Lwt.t
+  val convert_to_action : t -> [project] Item.t -> unit or_error Lwt.t
+
   type candidate_parent
 
   val candidate_parents_for : t -> [< area | project | action] Item.t -> candidate_parent list
