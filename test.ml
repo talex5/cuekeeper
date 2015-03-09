@@ -276,7 +276,9 @@ let suite =
 
         (* After changing it to Waiting, it disappears from the list. *)
         M.set_action_state m units `Waiting >>= fun () ->
-        M.delete m read >>= fun () ->
+        M.delete m read >>= function
+        | `Error x -> failwith x
+        | `Ok () ->
         next_actions |> assert_tree [
           n "@Next actions" [
             n "-Start using CueKeeper" [

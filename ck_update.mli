@@ -31,7 +31,7 @@ module Make(Git : Git_storage_s.S)
 
   val add : t -> ?uuid:Ck_id.t -> [< action | project | area] ->
     parent:[`Toplevel of R.t | `Node of R.Node.generic] -> name:string -> description:string -> Ck_id.t Lwt.t
-  val delete : t -> [< action | project | area] R.Node.t -> unit Lwt.t
+  val delete : t -> [< action | project | area] R.Node.t -> unit or_error Lwt.t
 
   val set_name : t -> [< action | project | area] R.Node.t -> string -> unit Lwt.t
   val set_starred : t -> [< action | project] R.Node.t -> bool -> unit Lwt.t

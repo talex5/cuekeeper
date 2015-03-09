@@ -22,6 +22,9 @@ module Make(Git : Git_storage_s.S)
 
   type update_cb = Git.Commit.t -> unit Lwt.t
 
+  let error fmt =
+    Printf.ksprintf (fun msg -> `Error msg) fmt
+
   let make ~on_update branch =
     let mutex = Lwt_mutex.create () in
     match Git.Branch.head branch |> React.S.value with
@@ -131,12 +134,17 @@ module Make(Git : Git_storage_s.S)
     )
 
   let delete t node =
+    try
+      let (_, child) = Ck_utils.M.min_binding (R.Node.child_nodes node) in
+      error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
+    with Not_found ->
     let base = R.Node.rev node in
     let uuid = R.Node.uuid node in
     let msg = Printf.sprintf "Delete '%s'" (R.Node.name node) in
     merge_to_master ~base ~msg t (fun view ->
       Git.Staging.remove view ["db"; Ck_id.to_string uuid]
-    )
+    ) >|= fun () ->
+    `Ok ()
 
   let add t ?uuid details ~parent ~name ~description =
     let base, parent =
@@ -197,9 +205,6 @@ module Make(Git : Git_storage_s.S)
       R.Node.child_nodes node |> Ck_utils.M.iter (fun _ n -> if pred n then raise (Found n));
       None
     with Found x -> Some x
-
-  let error fmt =
-    Printf.ksprintf (fun msg -> `Error msg) fmt
 
   let convert_to_project t node =
     let new_details =

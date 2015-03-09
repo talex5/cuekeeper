@@ -238,11 +238,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       set_dropdown_style "";
       close_current_model := None in
     let show ~parent content =
-      let elem = Tyxml_js.To_dom.of_span parent in
-      let left, top = pos_from_root elem in
-      let height = elem##offsetHeight in
+      let left, bottom =
+        Js.Opt.case parent
+          (fun () -> 10, 10)
+          (fun parent ->
+              let left, top = pos_from_root parent in
+              let height = parent##offsetHeight in
+              (left, top + height)) in
       ReactiveData.RList.set set_dropdown content;
-      set_dropdown_style (Printf.sprintf "position: absolute; left: %dpx; top: %dpx;" left (top + height));
+      set_dropdown_style (Printf.sprintf "position: absolute; left: %dpx; top: %dpx;" left bottom);
       close_current_model := Some (Tyxml_js.To_dom.of_node modal_div, close) in
     (show, modal_div)
 
@@ -280,7 +284,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let render_item m ~show_node item =
     let clicked _ev = show_node item; true in
-    let delete _ev = async ~name:"delete" (fun () -> M.delete m item); true in
+    let delete ev = async ~name:"delete" (fun () -> M.delete m item >|= report_error ~parent:ev##target); true in
     let details = M.Item.details item in
     let item_cl = class_of_time_and_type (M.Item.ctime item) details in
     span ~a:[a_class item_cl] [
@@ -291,16 +295,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       begin match M.Item.ty item with
       | `Action _ -> a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"]
       | `Area item | `Project item ->
-          let a_elem = ref None in
-          let add_child _ev =
-            match !a_elem with
-            | None -> assert false
-            | Some elem ->
-            show_add_modal m ~show_node ~button:elem item;
+          let add_child ev =
+            show_add_modal m ~show_node ~button:(ev##target) item;
             true in
-          let elem = a ~a:[a_class ["ck-add-child"]; a_onclick add_child] [pcdata "+"] in
-          a_elem := Some elem;
-          elem
+          a ~a:[a_class ["ck-add-child"]; a_onclick add_child] [pcdata "+"]
       end;
     ]
 
@@ -566,14 +564,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         | None -> [pcdata "(deleted)"]
         | Some item ->
             let change_type label =
-              let elem = ref None in
-              let on_click _ev =
-                match !elem with
-                | None -> assert false
-                | Some button -> show_type_modal m ~button item; false in
-              let button = a ~a:[a_onclick on_click] [pcdata label] in
-              elem := Some button;
-              button in
+              let on_click ev =
+                show_type_modal m ~button:(ev##target) item; false in
+              a ~a:[a_onclick on_click] [pcdata label] in
             match M.Item.ty item with
             | `Action _ -> [label "An "; change_type "action"; label " in "]
             | `Project _ -> [label "A "; change_type "project"; label " in "]
@@ -606,10 +599,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         close_current_model := Some (Tyxml_js.To_dom.of_node dropdown_menu, close_menu)
       ) else close_menu ();
       true in
-    let delete_clicked _ev =
+    let delete_clicked ev =
       begin match React.S.value details.M.details_item with
       | None -> ()
-      | Some item -> async ~name:"delete" (fun () -> M.delete m item) end;
+      | Some item -> async ~name:"delete" (fun () -> M.delete m item >|= report_error ~parent:(ev##target)) end;
       false in
     div [
       dropdown_menu;

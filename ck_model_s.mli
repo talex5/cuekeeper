@@ -42,7 +42,7 @@ module type MODEL = sig
 
   val add_child : t -> [< area | project] Item.t -> string -> Item.generic option Lwt.t
 
-  val delete : t -> [< action | project | area] Item.t -> unit Lwt.t
+  val delete : t -> [< action | project | area] Item.t -> unit or_error Lwt.t
 
   val set_name : t ->  [< action | project | area] Item.t -> string -> unit Lwt.t
   val set_starred : t -> [< project | action] Item.t -> bool -> unit Lwt.t
