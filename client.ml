@@ -14,7 +14,30 @@ module Clock = struct
   let sleep = Lwt_js.sleep
 end
 
-module Git = Git_storage.Make(Irmin.Basic(Html_storage.Make)(Irmin.Contents.String))
+module Contents = struct
+  include Irmin.Contents.String
+  open Irmin.Merge.OP
+
+  let merge _path ~old t1 t2 =
+    let show = function
+      | None -> "None"
+      | Some x -> x in
+    if t1 = t2 then ok t1
+    else old () >>| fun old ->
+      let old =
+        match old with
+        | None -> None
+        | Some None -> None
+        | Some x -> x in
+      if old = t1 then ok t2
+      else if old = t2 then ok t1
+      else conflict "Old: %s\n\
+                     t1: %s\n\
+                     t2: %s"
+                     (show old) (show t1) (show t2)
+end
+
+module Git = Git_storage.Make(Irmin.Basic(Html_storage.Make)(Contents))
 module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)
 module T = Ck_template.Make(M)
 
