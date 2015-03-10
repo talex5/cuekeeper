@@ -65,11 +65,10 @@ end
 
 module type REV = sig
   type t
-  type rev = t
 
   module Node : sig
     include DISK_NODE
-    val rev : [< generic] -> rev
+    val rev : [< generic] -> t
 
     val uuid : [< generic ] -> Ck_id.t
 
