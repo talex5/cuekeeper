@@ -11,19 +11,21 @@ module type DISK_NODE = sig
     type action_node
     type project_node
     type area_node
+    type contact_node
 
     type action = [`Action of action_node]
     type project = [`Project of project_node]
     type area = [`Area of area_node]
+    type contact = [`Contact of contact_node]
   end
   open Types
 
-  type generic = [ area | project | action ]
+  type generic = [ area | project | action | contact ]
 
-  val parent : [< generic] -> Ck_id.t
-  val name : [< generic] -> string
+  val parent : [< area | project | action ] -> Ck_id.t
+  val name : [< generic ] -> string
   val description : [< generic] -> string
-  val ctime : [< generic] -> float
+  val ctime : [< generic ] -> float
   val starred : [< project | action] -> bool
   val action_state : action_node -> [ `Next | `Waiting | `Future | `Done ]
   val project_state : project_node -> [ `Active | `SomedayMaybe | `Done ]
@@ -67,13 +69,14 @@ module type REV = sig
 
   module Node : sig
     include DISK_NODE
+    open Types
 
     val rev : [< generic] -> rev
 
-    val uuid : [< generic] -> Ck_id.t
-    val child_nodes : [< generic ] -> generic M.t
+    val uuid : [< generic ] -> Ck_id.t
+    val child_nodes : [< area | project | action ] -> [ area | project | action ] M.t
 
-    val key : [< generic] -> Sort_key.t
+    val key : [< generic ] -> Sort_key.t
     (** A key for sorting by name. *)
 
     val equal : generic -> generic -> bool
@@ -88,10 +91,14 @@ module type REV = sig
 
   val equal : t -> t -> bool
 
-  val roots : t -> Node.generic M.t
+  val roots : t -> [ area | project | action ] M.t
   val history : t -> Git_storage_s.log_entry list   (* XXX: only recent entries *)
   val commit : t -> commit
 
-  val get : t -> Ck_id.t -> Node.generic option
-  val parent : t -> [< area | project | action] -> Node.generic option
+  val contacts : t -> contact_node Ck_id.M.t
+
+  val get : t -> Ck_id.t -> [ area | project | action ] option
+  val get_contact : t -> Ck_id.t -> contact_node option
+
+  val parent : t -> [< area | project | action] -> [ area | project | action ] option
 end

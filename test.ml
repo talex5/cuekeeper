@@ -93,6 +93,10 @@ let expect_tree s =
   | `Process rl | `Work rl -> rl
   | _ -> assert false
 
+let expect_area = function
+  | `Area _ as x -> x
+  | _ -> assert false
+
 let expect_some = function
   | None -> assert false
   | Some x -> x
@@ -251,7 +255,7 @@ let suite =
         M.make repo >>= fun m ->
         M.set_mode m `Process;
         let process_tree = M.tree m |> expect_tree in
-        let work = lookup ["Work"] process_tree in
+        let work = lookup ["Work"] process_tree |> expect_area in
 
         M.set_mode m `Work;
         let next_actions = M.tree m |> expect_tree in

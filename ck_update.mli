@@ -35,12 +35,13 @@ module Make(Git : Git_storage_s.S)
    * When they return, on_update has completed for the new revision. *)
 
   val add : t -> ?uuid:Ck_id.t ->
-    parent:[`Toplevel of R.t | `Node of R.Node.generic] ->
-    (parent:Ck_id.t -> ctime:float -> Ck_disk_node.generic) ->
+    parent:[`Toplevel of R.t | `Node of [< area | project ]] ->
+    (parent:Ck_id.t -> ctime:float -> [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action]) ->
     Ck_id.t Lwt.t
-  val delete : t -> [< action | project | area] -> unit or_error Lwt.t
+  val add_contact : t -> base:R.t -> Ck_disk_node.Types.contact_node -> Ck_id.t Lwt.t
+  val delete : t -> [< R.Node.generic] -> unit or_error Lwt.t
 
-  val set_name : t -> [< action | project | area] -> string -> unit Lwt.t
+  val set_name : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_starred : t -> [< action | project] -> bool -> unit Lwt.t
   val set_action_state : t -> action_node -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t

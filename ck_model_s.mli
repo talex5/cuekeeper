@@ -9,8 +9,7 @@ module type MODEL = sig
 
   module Item : sig
     include DISK_NODE
-    open Types
-    val uuid : [< area | project | action] -> Ck_id.t
+    val uuid : [< generic] -> Ck_id.t
   end
 
   open Item.Types
@@ -20,7 +19,7 @@ module type MODEL = sig
     type t
 
     val item : t -> [
-      | `Item of [ area | project | action] React.S.t
+      | `Item of [ area | project | action | contact ] React.S.t
       | `Group of string
     ]
     val children : t -> t ReactiveData.RList.t
@@ -29,21 +28,22 @@ module type MODEL = sig
   end
 
   type details = {
-    details_item : [ area | project | action ] option React.S.t;
-    details_parent : Item.generic option React.S.t;
+    details_item : [ area | project | action | contact ] option React.S.t;
+    details_parent : [ area | project | action ] option React.S.t;
     details_children : Widget.t ReactiveData.RList.t;
     details_stop : stop;
   }
 
-  val add_action : t -> ?parent:Item.generic -> name:string -> description:string -> Item.generic option Lwt.t
-  val add_project : t -> ?parent:Item.generic -> name:string -> description:string -> Item.generic option Lwt.t
-  val add_area : t -> ?parent:Item.generic -> name:string -> description:string -> Item.generic option Lwt.t
+  val add_action : t -> ?parent:[< area | project] -> name:string -> description:string -> [area | project | action] option Lwt.t
+  val add_project : t -> ?parent:[< area | project] -> name:string -> description:string -> [area | project | action] option Lwt.t
+  val add_area : t -> ?parent:[< area] -> name:string -> description:string -> [area | project | action] option Lwt.t
+  val add_contact : t -> name:string -> [> contact] option Lwt.t
 
-  val add_child : t -> [< area | project] -> string -> Item.generic option Lwt.t
+  val add_child : t -> [< area | project] -> string -> [area | project | action] option Lwt.t
 
-  val delete : t -> [< action | project | area] -> unit or_error Lwt.t
+  val delete : t -> [< Item.generic] -> unit or_error Lwt.t
 
-  val set_name : t ->  [< action | project | area] -> string -> unit Lwt.t
+  val set_name : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_starred : t -> [< project | action] -> bool -> unit Lwt.t
   val set_action_state : t -> action_node -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
@@ -64,9 +64,9 @@ module type MODEL = sig
   val tree : t -> [ `Process of Widget.t ReactiveData.RList.t
                   | `Work of Widget.t ReactiveData.RList.t
                   | `Sync of Git_storage_s.log_entry list React.S.t
-                  | `Contact of unit
+                  | `Contact of Widget.t ReactiveData.RList.t
                   | `Review of Widget.t ReactiveData.RList.t
                   | `Schedule of unit ] React.S.t
 
-  val details : t -> [< action | project | area] -> details
+  val details : t -> [< Item.generic] -> details
 end

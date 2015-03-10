@@ -15,6 +15,8 @@ module Make(Git : Git_storage_s.S)
              val project_node : Node.Types.project_node -> Ck_disk_node.Types.project_node
              val area_node : Node.Types.area_node -> Ck_disk_node.Types.area_node
            end) = struct
+  open R.Node.Types
+
   type t = {
     branch : Git.Branch.t;
     head : Git.Commit.t ref;
@@ -127,27 +129,38 @@ module Make(Git : Git_storage_s.S)
 
   let update t ~msg node new_disk_node =
     let base = R.Node.rev node in
-    assert (mem (R.Node.uuid node) base);
-    let parent = R.Node.parent node in
-    if parent <> Ck_id.root && not (mem parent base) then
-      Ck_utils.error "Parent '%a' does not exist!" Ck_id.fmt (R.Node.parent node);
-    let s = Ck_disk_node.to_string new_disk_node in
+    let uuid = R.Node.uuid node in
     merge_to_master t ~base ~msg (fun view ->
-      Git.Staging.update view ["db"; Ck_id.to_string (R.Node.uuid node)] s
+      match new_disk_node with
+      | `Area _ | `Project _ | `Action _ as new_disk_node ->
+          assert (mem uuid base);
+          let parent = Ck_disk_node.parent new_disk_node in
+          if parent <> Ck_id.root && not (mem parent base) then
+            Ck_utils.error "Parent '%a' does not exist!" Ck_id.fmt parent;
+          let s = Ck_disk_node.to_string new_disk_node in
+          Git.Staging.update view ["db"; Ck_id.to_string uuid] s
+      | `Contact new_disk_node ->
+          assert (Ck_id.M.mem uuid (R.contacts base));
+          let s = Ck_disk_node.contact_to_string new_disk_node in
+          Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
     )
 
   let delete t node =
-    try
-      let (_, child) = Ck_utils.M.min_binding (R.Node.child_nodes node) in
-      error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
-    with Not_found ->
+    let uuid = R.Node.uuid node |> Ck_id.to_string in
     let base = R.Node.rev node in
-    let uuid = R.Node.uuid node in
     let msg = Printf.sprintf "Delete '%s'" (R.Node.name node) in
-    merge_to_master ~base ~msg t (fun view ->
-      Git.Staging.remove view ["db"; Ck_id.to_string uuid]
-    ) >|= fun () ->
-    `Ok ()
+    let remove path =
+      merge_to_master ~base ~msg t (fun view ->
+        Git.Staging.remove view path
+      ) >|= fun () ->
+      `Ok () in
+    match node with
+    | `Contact _ -> remove ["contact"; uuid]
+    | `Area _ | `Project _ | `Action _ as node ->
+        try
+          let (_, child) = Ck_utils.M.min_binding (R.Node.child_nodes node) in
+          error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
+        with Not_found -> remove ["db"; uuid]
 
   let add t ?uuid ~parent maker =
     let base, parent =
@@ -157,6 +170,15 @@ module Make(Git : Git_storage_s.S)
     let disk_node =
       maker ~parent ~ctime:(Unix.gettimeofday ()) in
     create t ?uuid ~base disk_node
+
+  let add_contact t ~base contact =
+    let uuid = Ck_id.mint () in
+    assert (not (Ck_id.M.mem uuid (R.contacts base)));
+    let s = Ck_disk_node.contact_to_string contact in
+    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name (`Contact contact)) in
+    merge_to_master t ~base ~msg (fun view ->
+      Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
+    ) >|= fun () -> uuid
 
   let set_name t node name =
     let msg = Printf.sprintf "Rename '%s' to '%s'" (R.Node.name node) name in
@@ -195,7 +217,7 @@ module Make(Git : Git_storage_s.S)
     let msg = Printf.sprintf "Move %s to top level" (R.Node.name node) in
     update t ~msg node new_node
 
-  exception Found of R.Node.generic
+  exception Found of [ area | project | action ]
 
   let is_area = function
     | `Area _ -> true

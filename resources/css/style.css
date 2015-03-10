@@ -287,11 +287,6 @@ div.ck-done-actions {
 	opacity: 0.5;
 }
 
-a.ck-delete {
-	margin-left: 1rem;
-	float: right;
-}
-
 div.alert-box p:last-child {
 	margin-bottom: 0;
 }

@@ -48,7 +48,7 @@ module Make(Clock : Ck_clock.S)
     module Item = struct
       include Node    (* We reuse Node.t, but ignore its children *)
 
-      let equal  = Node.equal_excl_children
+      let equal = Node.equal_excl_children
       let show = name
       let id = Node.uuid
     end
@@ -74,7 +74,7 @@ module Make(Clock : Ck_clock.S)
     let children t = t.children
 
     let leaf_of_node n = {
-      item = `Item n;
+      item = `Item (n :> Item.generic);
       children = Child_map.empty;
     }
   end
@@ -82,18 +82,19 @@ module Make(Clock : Ck_clock.S)
 
   module Item = TreeNode.Item
   module Widget = WidgetTree.Widget
+  open Item.Types
 
   type tree_view =
     [ `Process of Widget.t ReactiveData.RList.t
     | `Work of Widget.t ReactiveData.RList.t
     | `Sync of Git_storage_s.log_entry list React.S.t
-    | `Contact of unit
+    | `Contact of Widget.t ReactiveData.RList.t
     | `Review of Widget.t ReactiveData.RList.t
     | `Schedule of unit ]
 
   type details = {
     details_item : Item.generic option React.S.t;
-    details_parent : Item.generic option React.S.t;
+    details_parent : [ area | project | action ] option React.S.t;
     details_children : Widget.t ReactiveData.RList.t;
     details_stop : stop;
   }
@@ -120,9 +121,16 @@ module Make(Clock : Ck_clock.S)
     Up.add t.master ~parent disk_node >|= fun id ->
     R.get t.r id
 
-  let add_action = add Ck_disk_node.make_action
-  let add_project = add Ck_disk_node.make_project
-  let add_area = add Ck_disk_node.make_area
+  let add_action t = add Ck_disk_node.make_action t
+  let add_project t = add Ck_disk_node.make_project t
+  let add_area t = add Ck_disk_node.make_area t
+
+  let add_contact t ~name =
+    let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Unix.gettimeofday ()) in
+    Up.add_contact t.master ~base:t.r disk_node >|= fun id ->
+    match R.get_contact t.r id with
+    | None -> None
+    | Some x -> Some (`Contact x)
 
   let add_child t parent name =
     match parent with
@@ -157,7 +165,7 @@ module Make(Clock : Ck_clock.S)
     let rec aux items =
       M.fold (fun key item acc ->
         let value =
-          { TreeNode.item = `Item item;
+          { TreeNode.item = `Item (item :> Node.generic);
             children = aux (Node.child_nodes item) } in
         acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
       ) items TreeNode.Child_map.empty in
@@ -170,13 +178,22 @@ module Make(Clock : Ck_clock.S)
         | `Action _ -> acc
         | `Area _ | `Project _ ->
             let value =
-              { TreeNode.item = `Item item;
+              { TreeNode.item = `Item (item :> Item.generic);
                 children = aux (Node.child_nodes item) } in
             acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
 
   let make_review_tree = make_full_tree
+
+  let make_contact_tree r =
+    let contacts = R.contacts r in
+    Ck_id.M.fold (fun _key item acc ->
+      let value =
+        { TreeNode.item = `Item (`Contact item);
+          children = TreeNode.Child_map.empty } in
+      acc |> TreeNode.add value
+    ) contacts TreeNode.Child_map.empty
 
   let is_someday_project p =
     Node.project_state p = `SomedayMaybe
@@ -210,7 +227,7 @@ module Make(Clock : Ck_clock.S)
       let actions = Node.child_nodes parent |> scan ~in_someday in
       if not (TreeNode.Child_map.is_empty actions) then (
         let tree_node = { TreeNode.
-          item = `Item parent;
+          item = `Item (parent :> Item.generic);
           children = actions;
         } in
         next_actions := !next_actions |> TreeNode.add tree_node;
@@ -228,7 +245,7 @@ module Make(Clock : Ck_clock.S)
   let opt_node_equal a b =
     match a, b with
     | None, None -> true
-    | Some a, Some b -> R.Node.equal a b
+    | Some a, Some b -> R.Node.equal (a :> Node.generic) (b :> Node.generic)
     | _ -> false
 
   let group_by_type ~parent child_nodes =
@@ -258,47 +275,67 @@ module Make(Clock : Ck_clock.S)
     child_nodes |> M.iter (fun _k v -> add v);
     !tree_nodes
 
+  let deleted_details =
+    {
+      details_item = React.S.const None;
+      details_parent = React.S.const None;
+      details_children = ReactiveData.RList.empty;
+      details_stop = ignore
+    }
+
   let details t initial_node =
     let initial_node = (initial_node :> Node.generic) in
     let uuid = Node.uuid initial_node in
     try fst (Ck_id.M.find uuid t.details)
     with Not_found ->
+      let ok ~node ~parent ~children ~update =
+        let details = {
+          details_item = node;
+          details_parent = parent;
+          details_children = children;
+          details_stop = (fun () ->
+            t.details <- t.details |> Ck_id.M.remove uuid;
+            ignore children
+          );
+        } in
+        t.details <- t.details |> Ck_id.M.add uuid (details, update);
+        details in
       (* Note: initial_node may already be out-of-date *)
-      match R.get t.r (Node.uuid initial_node) with
-      | None ->
-          {
-            details_item = React.S.const None;
-            details_parent = React.S.const None;
-            details_children = ReactiveData.RList.empty;
-            details_stop = ignore
-          }
-      | Some initial_node ->
-      let initial_parent = R.parent t.r initial_node in
-      let child_nodes node = Node.child_nodes node |> group_by_type ~parent:node in
-      let children = WidgetTree.make (child_nodes initial_node) in
-      let parent, set_parent = React.S.create ~eq:opt_node_equal initial_parent in
-      let node, set_node = React.S.create ~eq:opt_node_equal (Some initial_node) in
-      let update r =
-        let node = R.get r uuid in
-        set_node node;
-        match node with
-        | None ->
-            set_parent None;
-            WidgetTree.update children TreeNode.Child_map.empty ~on_remove:(fun node -> R.get r (Node.uuid node))
-        | Some node ->
-            set_parent (R.parent r node);
-            WidgetTree.update children (child_nodes node) ~on_remove:(fun node -> R.get r (Node.uuid node)) in
-      let details = {
-        details_item = node;
-        details_parent = parent;
-        details_children = WidgetTree.widgets children;
-        details_stop = (fun () ->
-          t.details <- t.details |> Ck_id.M.remove uuid;
-          ignore children
-        );
-      } in
-      t.details <- t.details |> Ck_id.M.add uuid (details, update);
-      details
+      match initial_node with
+      | `Contact _ ->
+          begin match R.get_contact t.r (Node.uuid initial_node) with
+          | None -> deleted_details
+          | Some initial_node ->
+              let node, set_node = React.S.create ~eq:opt_node_equal (Some (`Contact initial_node)) in
+              let update r =
+                let node =
+                  match R.get_contact r uuid with
+                  | None -> None
+                  | Some node -> Some (`Contact node) in
+                set_node node in
+              ok ~node ~parent:(React.S.const None) ~children:ReactiveData.RList.empty ~update
+          end
+      | `Area _ | `Project _ | `Action _ as initial_node ->
+          match R.get t.r (Node.uuid initial_node) with
+          | None -> deleted_details
+          | Some initial_node ->
+              let initial_parent = R.parent t.r initial_node in
+              let child_nodes node = Node.child_nodes node |> group_by_type ~parent:node in
+              let children = WidgetTree.make (child_nodes initial_node) in
+              let parent, set_parent = React.S.create ~eq:opt_node_equal initial_parent in
+              let node, set_node = React.S.create ~eq:opt_node_equal (Some (initial_node :> Item.generic)) in
+              let update r =
+                let on_remove node = (R.get r (Node.uuid node) :> Node.generic option) in
+                let node = R.get r uuid in
+                set_node (node :> Item.generic option);
+                match node with
+                | None ->
+                    set_parent None;
+                    WidgetTree.update children TreeNode.Child_map.empty ~on_remove
+                | Some node ->
+                    set_parent (R.parent r node);
+                    WidgetTree.update children (child_nodes node) ~on_remove in
+              ok ~node ~parent ~children:(WidgetTree.widgets children) ~update
 
   type candidate_parent = string * (unit -> unit Lwt.t)
   let candidate_label = fst
@@ -350,7 +387,8 @@ module Make(Clock : Ck_clock.S)
       let parent =
         match parent with
         | None -> `Toplevel t.r
-        | Some p -> `Node p in
+        | Some (`Area _ | `Project _ as p) -> `Node p
+        | Some _ -> assert false in
       Up.add t.master ~uuid:(Ck_id.of_string uuid) ~parent disk_node >>= fun uuid ->
       match R.get t.r uuid with
       | None -> failwith "Created node does not exist!"
@@ -392,7 +430,8 @@ module Make(Clock : Ck_clock.S)
   let rtree r fn =
     let rtree = WidgetTree.make (fn r) in
     let update_tree r =
-      WidgetTree.update rtree (fn r) ~on_remove:(fun node -> R.get r (Node.uuid node)) in
+      let on_remove node = (R.get r (Node.uuid node) :> Node.generic option) in
+      WidgetTree.update rtree (fn r) ~on_remove in
     let widgets = WidgetTree.widgets rtree in
     (widgets, update_tree)
 
@@ -405,7 +444,7 @@ module Make(Clock : Ck_clock.S)
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u
     | `Work -> let t, u = rtree r make_work_tree in `Work t, u
     | `Review -> let t, u = rtree r make_review_tree in `Review t, u
-    | `Contact -> `Contact (), ignore
+    | `Contact -> let t, u = rtree r make_contact_tree in `Contact t, u
     | `Schedule -> `Schedule (), ignore
     | `Sync -> let t, u = make_history r in `Sync t, u
 
