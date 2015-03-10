@@ -46,9 +46,7 @@ module Make(Clock : Ck_clock.S)
     module Child_map = Map.Make(Sort_key)
 
     module Item = struct
-      include Node    (* We reuse Node.t, but ignore its children *)
-
-      let equal = Node.equal_excl_children
+      include Node
       let show = name
       let id = Node.uuid
     end
@@ -166,7 +164,7 @@ module Make(Clock : Ck_clock.S)
       M.fold (fun key item acc ->
         let value =
           { TreeNode.item = `Item (item :> Node.generic);
-            children = aux (Node.child_nodes item) } in
+            children = aux (R.child_nodes item) } in
         acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
@@ -179,7 +177,7 @@ module Make(Clock : Ck_clock.S)
         | `Area _ | `Project _ ->
             let value =
               { TreeNode.item = `Item (item :> Item.generic);
-                children = aux (Node.child_nodes item) } in
+                children = aux (R.child_nodes item) } in
             acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
@@ -224,7 +222,7 @@ module Make(Clock : Ck_clock.S)
       );
       !child_actions
     and scan_container ~in_someday parent =
-      let actions = Node.child_nodes parent |> scan ~in_someday in
+      let actions = R.child_nodes parent |> scan ~in_someday in
       if not (TreeNode.Child_map.is_empty actions) then (
         let tree_node = { TreeNode.
           item = `Item (parent :> Item.generic);
@@ -320,7 +318,7 @@ module Make(Clock : Ck_clock.S)
           | None -> deleted_details
           | Some initial_node ->
               let initial_parent = R.parent t.r initial_node in
-              let child_nodes node = Node.child_nodes node |> group_by_type ~parent:node in
+              let child_nodes node = R.child_nodes node |> group_by_type ~parent:node in
               let children = WidgetTree.make (child_nodes initial_node) in
               let parent, set_parent = React.S.create ~eq:opt_node_equal initial_parent in
               let node, set_node = React.S.create ~eq:opt_node_equal (Some (initial_node :> Item.generic)) in
@@ -350,7 +348,7 @@ module Make(Clock : Ck_clock.S)
           match node with
           | `Area _ | `Project _ as node ->
               results := (indent ^ Node.name node, fun () -> Up.set_pa_parent t.master item node) :: !results;
-              Node.child_nodes node |> scan ~indent:(indent ^ "» ")
+              R.child_nodes node |> scan ~indent:(indent ^ "» ")
           | `Action _ -> ()
         )
       ) in
@@ -366,7 +364,7 @@ module Make(Clock : Ck_clock.S)
           match node with
           | `Area _ as node ->
               results := (indent ^ Node.name node, fun () -> Up.set_a_parent t.master item node) :: !results;
-              Node.child_nodes node |> scan ~indent:(indent ^ "» ")
+              R.child_nodes node |> scan ~indent:(indent ^ "» ")
           | `Project _ | `Action _ -> ()
         )
       ) in

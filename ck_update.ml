@@ -158,7 +158,7 @@ module Make(Git : Git_storage_s.S)
     | `Contact _ -> remove ["contact"; uuid]
     | `Area _ | `Project _ | `Action _ as node ->
         try
-          let (_, child) = Ck_utils.M.min_binding (R.Node.child_nodes node) in
+          let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
           error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
         with Not_found -> remove ["db"; uuid]
 
@@ -225,7 +225,7 @@ module Make(Git : Git_storage_s.S)
 
   let find_example_child pred node =
     try
-      R.Node.child_nodes node |> Ck_utils.M.iter (fun _ n -> if pred n then raise (Found n));
+      R.child_nodes node |> Ck_utils.M.iter (fun _ n -> if pred n then raise (Found n));
       None
     with Found x -> Some x
 
@@ -261,7 +261,7 @@ module Make(Git : Git_storage_s.S)
     let new_details = `Action (Ck_disk_node.as_action (R.project_node node)) in
     let node = `Project node in
     try
-      let (_, child) = Ck_utils.M.min_binding (R.Node.child_nodes node) in
+      let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
       error "Can't convert to an action because it has a child (%s)" (R.Node.name child) |> return
     with Not_found ->
     let msg = Printf.sprintf "Convert %s to action" (R.Node.name node) in

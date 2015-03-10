@@ -69,12 +69,9 @@ module type REV = sig
 
   module Node : sig
     include DISK_NODE
-    open Types
-
     val rev : [< generic] -> rev
 
     val uuid : [< generic ] -> Ck_id.t
-    val child_nodes : [< area | project | action ] -> [ area | project | action ] M.t
 
     val key : [< generic ] -> Sort_key.t
     (** A key for sorting by name. *)
@@ -82,14 +79,13 @@ module type REV = sig
     val equal : generic -> generic -> bool
     (** Note that the rev field is ignored, so nodes from different commits can
      * be equal. *)
-
-    val equal_excl_children : generic -> generic -> bool
   end
   open Node.Types
 
   type commit
 
   val equal : t -> t -> bool
+  val child_nodes : [< area | project | action ] -> [ area | project | action ] M.t
 
   val roots : t -> [ area | project | action ] M.t
   val history : t -> Git_storage_s.log_entry list   (* XXX: only recent entries *)

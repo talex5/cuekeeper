@@ -13,6 +13,7 @@ module Make(Git : Git_storage_s.S) = struct
       type rev = {
         commit : Git.Commit.t;
         mutable roots : apa M.t;
+        mutable children : apa M.t Ck_id.M.t;
         contacts : contact_node Ck_id.M.t ref;
         index : (Ck_id.t, apa) Hashtbl.t;
         history : Git_storage_s.log_entry list;
@@ -20,7 +21,6 @@ module Make(Git : Git_storage_s.S) = struct
       and node_details = {
         rev : rev;
         uuid : Ck_id.t;
-        child_nodes : apa M.t;
       }
       and action_node = Ck_disk_node.Types.action_node * node_details
       and project_node = Ck_disk_node.Types.project_node * node_details
@@ -30,11 +30,6 @@ module Make(Git : Git_storage_s.S) = struct
         [ `Action of action_node
         | `Project of project_node
         | `Area of area_node ]
-      and generic_node =
-        [ `Action of action_node
-        | `Project of project_node
-        | `Area of area_node
-        | `Contact of contact_node ]
 
       type action = [`Action of action_node]
       type project = [`Project of project_node]
@@ -44,7 +39,9 @@ module Make(Git : Git_storage_s.S) = struct
 
     open Types
 
-    type generic = generic_node
+    type generic =
+      [ apa
+      | `Contact of contact_node ]
 
     let apa_disk_node = function
       | `Action (d, _) -> `Action d
@@ -78,19 +75,12 @@ module Make(Git : Git_storage_s.S) = struct
       | `Project (d, _) -> Ck_disk_node.is_done (`Project d)
 
     let uuid t = (details t).uuid
-    let child_nodes t = (details t).child_nodes
 
     let key node = (String.lowercase (name node), uuid node)
 
-    let equal_excl_children a b =
+    let equal a b =
       uuid a = uuid b &&
       disk_node a = disk_node b
-
-    let rec equal a b =
-      equal_excl_children a b &&
-      M.equal equal
-        (child_nodes a :> generic M.t)
-        (child_nodes b :> generic M.t)
   end
 
   open Node.Types
@@ -101,20 +91,18 @@ module Make(Git : Git_storage_s.S) = struct
   let equal a b =
     a.commit = b.commit
 
-  let rec walk fn =
-    M.iter (fun _k v ->
-      fn v;
-      walk fn (Node.child_nodes v)
-    )
+  let child_nodes node =
+    let t = Node.rev node in
+    let parent = Node.uuid node in
+    try Ck_id.M.find parent t.children with Not_found -> M.empty
 
   let make commit =
     Git.Commit.checkout commit >>= fun tree ->
-    let disk_nodes = Hashtbl.create 100 in
     let contacts = ref Ck_id.M.empty in
     let children = Hashtbl.create 100 in
     let index = Hashtbl.create 100 in
     Git.Commit.history ~depth:10 commit >>= fun history ->
-    let t = { commit; roots = M.empty; contacts; index; history} in
+    let t = { commit; roots = M.empty; contacts; index; children = Ck_id.M.empty; history} in
     (* Load areas, projects and actions *)
     Git.Staging.list tree ["db"] >>=
     Lwt_list.iter_s (function
@@ -122,9 +110,15 @@ module Make(Git : Git_storage_s.S) = struct
           let uuid = Ck_id.of_string uuid in
           assert (uuid <> Ck_id.root);
           Git.Staging.read_exn tree key >|= fun s ->
-          let node = Ck_disk_node.of_string s in
-          Hashtbl.add disk_nodes uuid node;
-          let parent = Ck_disk_node.parent node in
+          let details = {rev = t; uuid} in
+          let disk_node = Ck_disk_node.of_string s in
+          let node =
+            match disk_node with
+            | `Action n -> `Action (n, details)
+            | `Project n -> `Project (n, details)
+            | `Area n -> `Area (n, details) in
+          Hashtbl.add index uuid node;
+          let parent = Ck_disk_node.parent disk_node in
           let old_children =
             try Hashtbl.find children parent
             with Not_found -> [] in
@@ -141,36 +135,24 @@ module Make(Git : Git_storage_s.S) = struct
           let details = {
             rev = t;
             uuid;
-            child_nodes = M.empty;
           } in
           contacts := !contacts |> Ck_id.M.add uuid (contact, details);
       | _ -> assert false
     ) >>= fun () ->
+    (* todo: reject cycles *)
     children |> Hashtbl.iter (fun parent children ->
-      if parent <> Ck_id.root && not (Hashtbl.mem disk_nodes parent) then (
+      if parent <> Ck_id.root && not (Hashtbl.mem index parent) then (
         error "Parent UUID '%a' of child nodes %s missing!" Ck_id.fmt parent (String.concat ", " (List.map Ck_id.to_string children))
       )
     );
-    (* todo: reject cycles *)
-    let rec make_node uuid =
-      let details = {
-        rev = t;
-        uuid;
-        child_nodes = make_child_nodes uuid;
-      } in
-      match Hashtbl.find disk_nodes uuid with
-      | `Action n -> `Action (n, details)
-      | `Project n -> `Project (n, details)
-      | `Area n -> `Area (n, details)
-    and make_child_nodes uuid =
-      begin try Hashtbl.find children uuid with Not_found -> [] end
-      |> List.map make_node
-      |> List.fold_left (fun set node ->
-          M.add (Node.key node) node set
+    t.children <-
+      Hashtbl.fold (fun uuid child_uuids acc ->
+        let child_map = child_uuids |> List.fold_left (fun acc child_uuid ->
+          let child = Hashtbl.find index child_uuid in
+          acc |> M.add (Node.key child) child
         ) M.empty in
-    let roots = make_child_nodes Ck_id.root in
-    roots |> walk (fun node -> Hashtbl.add index (Node.uuid node) node);
-    t.roots <- roots;
+        acc |> Ck_id.M.add uuid child_map
+      ) children Ck_id.M.empty;
     return t
 
   let get t uuid =
@@ -183,7 +165,10 @@ module Make(Git : Git_storage_s.S) = struct
 
   let parent t node = get t (Node.parent node)
 
-  let roots t = t.roots
+  let roots t =
+    try Ck_id.M.find Ck_id.root t.children
+    with Not_found -> M.empty
+
   let commit t = t.commit
   let history t = t.history
   let contacts t = !(t.contacts)
