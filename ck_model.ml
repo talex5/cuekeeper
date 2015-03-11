@@ -141,6 +141,9 @@ module Make(Clock : Ck_clock.S)
   let set_name t item name =
     Up.set_name t.master item name
 
+  let set_description t item v =
+    Up.set_description t.master item v
+
   let set_action_state t item state =
     Up.set_action_state t.master item state
 

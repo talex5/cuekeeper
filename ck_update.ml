@@ -184,6 +184,10 @@ module Make(Git : Git_storage_s.S)
     let msg = Printf.sprintf "Rename '%s' to '%s'" (R.Node.name node) name in
     update t ~msg node (Ck_disk_node.with_name (R.disk_node node) name)
 
+  let set_description t node v =
+    let msg = Printf.sprintf "Update description for '%s'" (R.Node.name node) in
+    update t ~msg node (Ck_disk_node.with_description (R.disk_node node) v)
+
   let set_action_state t node astate =
     let new_node = Ck_disk_node.with_astate (R.action_node node) astate in
     let node = `Action node in

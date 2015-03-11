@@ -187,8 +187,27 @@ div.ck-details h4 {
 
 div.ck-details div.description {
 	border: 1px solid #DDDDDD;
-	padding: 0.625rem 0.75rem;
+	padding: 0.2rem;
 	background: #ffc;
+}
+
+div.description-form textarea {
+	margin-bottom: 0.5rem;
+}
+
+div.description a.edit {
+	text-align: right;
+	display: block;
+}
+
+div.description-form div.actions {
+	text-align: right;
+	display: block;
+}
+
+div.description p {
+	margin: 0.2rem;
+	margin-bottom: 0;
 }
 
 div.tabs-content div.content {

@@ -617,6 +617,52 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             | `Area _ -> [label "An "; change_type "area"; label " in "; title_elem; change_button] in
     rlist_of ~init:(React.S.value descr) descr
 
+  let make_editable_description m item =
+    let editing, set_editing = React.S.create None in
+    let elements =
+      editing >>~= (function
+        | None ->
+            item >|~= (function
+              | None -> []
+              | Some item ->
+                  let clicked _ev =
+                    set_editing (Some item);
+                    false in
+                  [
+                    p [pcdata (M.Item.description item)];
+                    a ~a:[a_class ["edit"]; a_onclick clicked] [pcdata "(edit)"];
+                  ]
+            );
+        | Some item ->
+            let cancel _ev = set_editing None; false in
+            let value = textarea ~a:[a_rows 5] (pcdata (M.Item.description item)) in
+            async ~name:"focus" (fun () ->
+              let elem = Tyxml_js.To_dom.of_textarea value in
+              elem##focus ();
+              Lwt.return ()
+            );
+            let submit _ev =
+              let elem = Tyxml_js.To_dom.of_textarea value in
+              let v = Js.to_string (elem##value) |> String.trim in
+              async ~name:"set_description" (fun () -> M.set_description m item v);
+              set_editing None;
+              false in
+            React.S.const [
+              form ~a:[a_onsubmit submit] [
+                value;
+                div ~a:[a_class ["actions"]] [
+                  a ~a:[a_onclick cancel] [pcdata "(cancel) "];
+                  input ~a:[a_input_type `Submit; a_value "OK"] ();
+                ]
+              ]
+            ]
+      ) in
+    let cl = editing >|~= (function
+      | None -> ["description"]
+      | Some _ -> ["description-form"]
+    ) in
+    R.Html5.div ~a:[R.Html5.a_class cl] (rlist_of elements)
+
   let make_details_panel m ~show_node ~remove ~uuid details =
     let closed, set_closed = React.S.create false in
     let close () =
@@ -666,6 +712,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       match initial_item with
       | None -> "-"
       | Some item -> M.Item.ctime item |> fmt_date in
+    let description = make_editable_description m item in
     let result =
       div ~a:[R.Html5.a_class cl] [
         a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
@@ -682,12 +729,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         ];
         R.Html5.ul ~a:[a_class ["ck-groups"]] children;
         make_child_adder m ~show_node item;
-        div ~a:[a_class ["description"]] [
-          p [R.Html5.pcdata (item >|~= function
-            | Some item -> M.Item.description item
-            | None -> "This item has been deleted."
-          )];
-        ]
+        description;
       ] in
     elem := Some result;
     result

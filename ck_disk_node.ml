@@ -73,6 +73,7 @@ let map_details fn = function
   | `Contact d -> `Contact (fn d)
 
 let with_name node name = node |> map_details (fun d -> {d with name})
+let with_description node description = node |> map_details (fun d -> {d with description})
 let with_parent node parent = node |> map_details (fun d -> {d with parent})
 let equal = (=)
 

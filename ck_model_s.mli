@@ -44,6 +44,7 @@ module type MODEL = sig
   val delete : t -> [< Item.generic] -> unit or_error Lwt.t
 
   val set_name : t ->  [< Item.generic] -> string -> unit Lwt.t
+  val set_description : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_starred : t -> [< project | action] -> bool -> unit Lwt.t
   val set_action_state : t -> action_node -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t

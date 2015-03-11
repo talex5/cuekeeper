@@ -37,6 +37,10 @@ let rec filter_map fn = function
       | None -> filter_map fn xs
       | Some y -> y :: filter_map fn xs
 
-let rlist_of ~init s =
+let rlist_of ?init s =
+  let init =
+    match init with
+    | None -> React.S.value s
+    | Some v -> v in
   let changes = React.S.changes s |> React.E.map (fun x -> ReactiveData.RList.Set x) in
   ReactiveData.RList.make_from init changes
