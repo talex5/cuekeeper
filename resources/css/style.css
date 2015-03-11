@@ -1,5 +1,5 @@
 div.ck-tree li { list-style-type: none; }
-div.ck-details li { list-style-type: none; }
+div.ck-details ul.ck-groups li { list-style-type: none; }
 li.add  { list-style-type: none; }
 
 div.add ul { margin-left: 0; }
@@ -210,6 +210,10 @@ div.description p {
 	margin-bottom: 0;
 }
 
+div.description p + p {
+	margin-top: 0.5rem;
+}
+
 div.tabs-content div.content {
 	padding-top: 0;
 }
@@ -309,3 +313,10 @@ div.ck-done-actions {
 div.alert-box p:last-child {
 	margin-bottom: 0;
 }
+
+div.description h1 { font-size: 1.6rem; font-weight: bold; text-decoration: underline; }
+div.description h2 { font-size: 1.4rem; font-weight: bold;}
+div.description h3 { font-size: 1.2rem; font-weight: bold;}
+div.description h4 { font-size: 1.1rem; font-weight: bold;}
+div.description h5 { font-size: 1.05rem; font-weight: bold;}
+div.description h6 { font-size: 1.02rem; font-weight: bold;}

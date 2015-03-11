@@ -628,8 +628,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   let clicked _ev =
                     set_editing (Some item);
                     false in
+                  let raw_html = M.Item.description item |> Omd.of_string |> Omd.to_html in
+                  let description = div [] in
+                  let () =
+                    let elem = Tyxml_js.To_dom.of_div description in
+                    elem##innerHTML <- Js.string raw_html in
                   [
-                    p [pcdata (M.Item.description item)];
+                    description;
                     a ~a:[a_class ["edit"]; a_onclick clicked] [pcdata "(edit)"];
                   ]
             );
