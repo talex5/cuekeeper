@@ -53,6 +53,10 @@ span.ck-item.ck-project a.ck-title {
 	font-weight: medium;
 	text-decoration: underline;
 }
+div.ck-details div.ck-contact a.ck-title,
+span.ck-item.ck-contact a.ck-title {
+	font-weight: bold;
+}
 div.ck-details div.ck-action a.ck-title,
 span.ck-item.ck-action a.ck-title {
 	font-style: italic;
@@ -320,3 +324,4 @@ div.description h3 { font-size: 1.2rem; font-weight: bold;}
 div.description h4 { font-size: 1.1rem; font-weight: bold;}
 div.description h5 { font-size: 1.05rem; font-weight: bold;}
 div.description h6 { font-size: 1.02rem; font-weight: bold;}
+div.description ul.vcard { background: white }
