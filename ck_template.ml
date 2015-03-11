@@ -682,7 +682,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
     let initial_item = React.S.value details.M.details_item in
     let delete_clicked ev =
-      begin match initial_item with
+      begin match React.S.value item with
       | None -> ()
       | Some item -> async ~name:"delete" (fun () -> M.delete m item >|= report_error ~parent:(ev##target)) end;
       false in
