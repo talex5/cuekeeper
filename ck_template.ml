@@ -640,7 +640,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             );
         | Some item ->
             let cancel _ev = set_editing None; false in
-            let value = textarea ~a:[a_rows 5] (pcdata (M.Item.description item)) in
+            let submit_ref = ref (fun _ -> true) in
+            let keydown (ev:Dom_html.keyboardEvent Js.t) =
+              if ev##keyCode = 13 && Js.to_bool ev##ctrlKey then !submit_ref ev
+              else true in
+            let value = textarea ~a:[a_rows 5; a_onkeydown keydown]
+              (pcdata (M.Item.description item)) in
             async ~name:"focus" (fun () ->
               let elem = Tyxml_js.To_dom.of_textarea value in
               elem##focus ();
@@ -652,6 +657,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               async ~name:"set_description" (fun () -> M.set_description m item v);
               set_editing None;
               false in
+            submit_ref := submit;
             React.S.const [
               form ~a:[a_onsubmit submit] [
                 value;
