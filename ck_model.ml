@@ -85,7 +85,6 @@ module Make(Clock : Ck_clock.S)
   type tree_view =
     [ `Process of Widget.t ReactiveData.RList.t
     | `Work of Widget.t ReactiveData.RList.t
-    | `Sync of Git_storage_s.log_entry list React.S.t
     | `Contact of Widget.t ReactiveData.RList.t
     | `Review of Widget.t ReactiveData.RList.t
     | `Schedule of unit ]
@@ -103,6 +102,7 @@ module Make(Clock : Ck_clock.S)
     mutable r : R.t;
     tree : tree_view React.S.t;
     set_tree : tree_view -> unit;
+    log : Git_storage_s.log_entry ReactiveData.RList.t;
     mutable details : (details * (R.t -> unit)) Ck_id.M.t;
     mutable update_tree : R.t -> unit;
     mutable keep_me : unit React.S.t list;
@@ -436,10 +436,8 @@ module Make(Clock : Ck_clock.S)
     let widgets = WidgetTree.widgets rtree in
     (widgets, update_tree)
 
-  let make_history r =
-    let history, set_history = React.S.create (R.history r) in
-    let update_tree r = set_history (R.history r) in
-    history, update_tree
+  let get_log r =
+    Git.Commit.history ~depth:10 (R.commit r)
 
   let make_tree r = function
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u
@@ -447,7 +445,6 @@ module Make(Clock : Ck_clock.S)
     | `Review -> let t, u = rtree r make_review_tree in `Review t, u
     | `Contact -> let t, u = rtree r make_contact_tree in `Contact t, u
     | `Schedule -> `Schedule (), ignore
-    | `Sync -> let t, u = make_history r in `Sync t, u
 
   let set_mode t mode =
     let tree_view, update_tree = make_tree t.r mode in
@@ -455,6 +452,7 @@ module Make(Clock : Ck_clock.S)
     t.set_tree tree_view
 
   let tree t = t.tree
+  let log t = t.log
 
   let init_repo staging =
     Git.Staging.update staging ["ck-version"] "0.1"
@@ -464,15 +462,24 @@ module Make(Clock : Ck_clock.S)
     Git.Repository.branch ~if_new:init_repo repo "master" >>= Up.make ~on_update >>= fun master ->
     let head = Up.head master in
     R.make head >>= fun r ->
+    get_log r >>= fun initial_log ->
+    let log, set_log = React.S.create initial_log in
+    let log = rlist_of log in
     let rtree, update_tree = make_tree r `Work in
     let tree, set_tree = React.S.create ~eq:assume_changed rtree in
-    let t = { repo; master; r; tree; set_tree; update_tree; details = Ck_id.M.empty; keep_me = [] } in
+    let t = {
+      repo; master; r;
+      tree; set_tree; update_tree;
+      log;
+      details = Ck_id.M.empty;
+      keep_me = []
+    } in
     Lwt.wakeup set_on_update (fun head ->
       R.make head >>= fun r ->
       t.r <- r;
       t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
       t.update_tree r;
-      return ()
+      get_log r >|= set_log
     );
     if M.is_empty (R.roots r) then (
       initialise t >>= fun () -> return t

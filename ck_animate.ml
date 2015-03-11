@@ -11,8 +11,9 @@ let async : (unit -> unit Lwt.t) -> unit = Lwt_js_events.async
 let clamp lo hi v =
   min (max v lo) hi
 
-(* Fade out, then animate max-height down to zero. Can't do this with CSS because of FF bug #830056 *)
-let fade_out elem =
+(* Fade out, then animate max-height down to zero. Can't do this with CSS because of FF bug #830056.
+ * [when_complete] is called on success (but not if cancelled). *)
+let fade_out ?when_complete elem =
   let cancelled = ref false in
   let start = Unix.gettimeofday () in
   let shrink_start = start +. resize_time in
@@ -30,6 +31,10 @@ let fade_out elem =
       elem##style##maxHeight <- (Js.string (string_of_int h ^ "px"));
       if h > 0 then
         Dom_html._requestAnimationFrame (Js.wrap_callback aux)
+      else 
+        match when_complete with
+        | None -> ()
+        | Some fn -> fn ()
     ) in
   aux ();
   fun () ->

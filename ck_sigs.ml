@@ -87,7 +87,6 @@ module type REV = sig
   val child_nodes : [< area | project | action ] -> [ area | project | action ] M.t
 
   val roots : t -> [ area | project | action ] M.t
-  val history : t -> Git_storage_s.log_entry list   (* XXX: only recent entries *)
   val commit : t -> commit
 
   val contacts : t -> contact_node Ck_id.M.t

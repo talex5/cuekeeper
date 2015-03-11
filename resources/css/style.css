@@ -1,5 +1,14 @@
 div.ck-tree li { list-style-type: none; }
 div.ck-details ul.ck-groups li { list-style-type: none; }
+
+ol.ck-history li {
+	list-style-type: none;
+}
+
+ol.ck-history {
+	margin-left: 0;
+}
+
 li.add  { list-style-type: none; }
 
 div.add ul { margin-left: 0; }
@@ -13,6 +22,7 @@ div.inline {
 
 ul.ck-adders {
 	padding-top: 0.1875rem;
+	margin-bottom: 0;
 	float: right;
 }
 
@@ -325,3 +335,12 @@ div.description h4 { font-size: 1.1rem; font-weight: bold;}
 div.description h5 { font-size: 1.05rem; font-weight: bold;}
 div.description h6 { font-size: 1.02rem; font-weight: bold;}
 div.description ul.vcard { background: white }
+
+div.ck-actions {
+	text-align: right;
+	margin-bottom: 0.5rem;
+}
+
+dl.sub-nav {
+	margin-bottom: 0;
+}

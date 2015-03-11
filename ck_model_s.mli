@@ -61,10 +61,11 @@ module type MODEL = sig
   val candidate_label : candidate_parent -> string
   val set_parent : candidate_parent -> unit Lwt.t
 
-  val set_mode : t -> [ `Process | `Work | `Sync | `Contact | `Review | `Schedule ] -> unit
+  val log : t -> Git_storage_s.log_entry ReactiveData.RList.t
+
+  val set_mode : t -> [ `Process | `Work | `Contact | `Review | `Schedule ] -> unit
   val tree : t -> [ `Process of Widget.t ReactiveData.RList.t
                   | `Work of Widget.t ReactiveData.RList.t
-                  | `Sync of Git_storage_s.log_entry list React.S.t
                   | `Contact of Widget.t ReactiveData.RList.t
                   | `Review of Widget.t ReactiveData.RList.t
                   | `Schedule of unit ] React.S.t

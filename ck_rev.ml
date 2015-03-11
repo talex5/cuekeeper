@@ -16,7 +16,6 @@ module Make(Git : Git_storage_s.S) = struct
         mutable children : apa M.t Ck_id.M.t;
         contacts : contact_node Ck_id.M.t ref;
         index : (Ck_id.t, apa) Hashtbl.t;
-        history : Git_storage_s.log_entry list;
       }
       and 'a node_details = {
         rev : rev;
@@ -102,8 +101,7 @@ module Make(Git : Git_storage_s.S) = struct
     let contacts = ref Ck_id.M.empty in
     let children = Hashtbl.create 100 in
     let index = Hashtbl.create 100 in
-    Git.Commit.history ~depth:10 commit >>= fun history ->
-    let t = { commit; roots = M.empty; contacts; index; children = Ck_id.M.empty; history} in
+    let t = { commit; roots = M.empty; contacts; index; children = Ck_id.M.empty } in
     (* Load areas, projects and actions *)
     Git.Staging.list tree ["db"] >>=
     Lwt_list.iter_s (function
@@ -167,7 +165,6 @@ module Make(Git : Git_storage_s.S) = struct
     with Not_found -> M.empty
 
   let commit t = t.commit
-  let history t = t.history
   let contacts t = !(t.contacts)
 
   let disk_node = Node.disk_node

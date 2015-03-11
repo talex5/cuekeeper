@@ -122,8 +122,6 @@ let (>>?=) = Js.Opt.bind
 module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   module W = M.Widget
 
-  let current_highlight, set_highlight = React.S.create None
-
   let with_done cls = function
     | `Action _ | `Project _ as node when M.Item.is_done node -> "ck-done" :: cls
     | _ -> cls
@@ -365,8 +363,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ]
 
   let make_sync history =
-    let items =
-      rlist_of ~init:(React.S.value history) history
+    let items = history
       |> ReactiveData.RList.map (fun log_entry ->
           let open Git_storage_s in
           let summary =
@@ -376,7 +373,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           let msg = fmt_date log_entry.date ^ ": " ^ summary in
           li [pcdata msg]
       ) in
-    [
+    div [
       h4 [pcdata "Recent changes"];
       R.Html5.ol ~a:[a_class ["ck-history"]] items;
     ]
@@ -421,7 +418,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         )]
     | `Contact tree -> make_contact_view m ~show_node tree
     | `Work work_tree -> make_work_view m ~show_node work_tree
-    | `Sync history -> make_sync history
     | `Schedule () -> [p [pcdata "Not implemented yet"]]
 
   let mode_of = function
@@ -430,7 +426,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     | `Review _ -> `Review
     | `Contact _ -> `Contact
     | `Schedule _ -> `Schedule
-    | `Sync _ -> `Sync
 
   let make_mode_switcher m current_tree =
     let item name mode =
@@ -447,7 +442,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       item "Contact" `Contact;
       item "Schedule" `Schedule;
       item "Review" `Review;
-      item "Sync" `Sync;
     ]
 
   let assume_changed _ _ = false
@@ -674,34 +668,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ) in
     R.Html5.div ~a:[R.Html5.a_class cl] (rlist_of elements)
 
-  let make_details_panel m ~show_node ~remove ~uuid details =
-    let closed, set_closed = React.S.create false in
-    let close () =
-      set_closed true;                          (* Start fade-out animation *)
-      details.M.details_stop ();
-    in
-    let elem = ref None in
-    let cl =
-      let cancel_close = ref ignore in
-      closed >>~= (fun closed ->
-        !cancel_close ();
-        begin match closed, !elem with
-        | true, Some elem ->
-            let elem = Tyxml_js.To_dom.of_element elem in
-            let cancel_anim = Ck_animate.fade_out elem in
-            let delete_panel = Lwt_js.sleep 0.5 >|= remove in
-            cancel_close := (fun () ->
-              Lwt.cancel delete_panel;
-              cancel_anim ()
-            )
-        | _ -> () end;
-        current_highlight |> React.S.map (fun highlight ->
-          "ck-details" :: List.concat [
-            if highlight = Some uuid then ["ck-highlight"] else [];
-            if closed then ["closed"] else [];
-          ]
-        )
-      ) in
+  let make_details_panel m ~set_closed ~show_node details =
     let item = details.M.details_item in
     let title_cl =
       item >|~= (function
@@ -724,13 +691,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | None -> "-"
       | Some item -> M.Item.ctime item |> fmt_date in
     let description = make_editable_description m item in
-    let result =
-      div ~a:[R.Html5.a_class cl] [
-        a ~a:[a_onclick (fun _ -> close (); true); a_class ["close"]] [entity "#215"];
-        div ~a:[R.Html5.a_class title_cl] [
-          R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
-          R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
-        ];
+    let title = 
+      div ~a:[R.Html5.a_class title_cl] [
+        R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
+        R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
+      ] in
+    let contents =
+      div [
         div [
           R.Html5.span (make_parent_details m ~show_node details);
         ];
@@ -742,8 +709,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         make_child_adder m ~show_node item;
         description;
       ] in
-    elem := Some result;
-    result
+    (title, contents)
 
   let make_toplevel_adders m ~show_node =
     let editing, set_editing = React.S.create ~eq:assume_changed None in
@@ -765,15 +731,16 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           add_form ~close ~show_node adder in
     ReactiveData.RList.singleton_s widget
 
+  let history_uuid = Ck_id.of_string "aeeb4ba1-ae68-43ff-b23e-1f66e8b950a3"
+
   let make_details_area m =
     let details_pane, details_handle = ReactiveData.RList.make [] in
-    let rec show_node (item : [< M.Item.generic]) =
-      let uuid = M.Item.uuid item in
-      let remove () =
-        let current_items = ReactiveData.RList.value details_pane in
-        match index_of uuid current_items with
-        | None -> ()
-        | Some i-> ReactiveData.RList.remove i details_handle in
+    let remove uuid =
+      let current_items = ReactiveData.RList.value details_pane in
+      match index_of uuid current_items with
+      | None -> ()
+      | Some i-> ReactiveData.RList.remove i details_handle in
+    let show_or_create uuid make =
       let current_items = ReactiveData.RList.value details_pane in
       let existing =
         try
@@ -781,20 +748,33 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         with Not_found -> None in
       match existing with
       | None ->
-          let details = M.details m item in
-          ReactiveData.RList.insert (uuid, make_details_panel m ~show_node ~remove ~uuid details) (List.length current_items) details_handle;
+          let closed, set_closed = React.S.create false in
+          let panel = make closed set_closed in
+          ReactiveData.RList.insert (uuid, panel) (List.length current_items) details_handle;
       | Some _ ->
-          set_highlight (Some uuid);
-          async ~name:"highlight" (fun () ->
-            Lwt_js.sleep 1.0 >|= fun () ->
-            if React.S.value current_highlight = Some uuid then set_highlight None
-          )
+          Ck_panel.highlight uuid
       in
-    (ReactiveData.RList.map snd details_pane, show_node)
+    let rec show_node (item : [< M.Item.generic]) =
+      let uuid = M.Item.uuid item in
+      show_or_create uuid (fun closed set_closed ->
+        let details = M.details m item in
+        let on_destroy () =
+          details.M.details_stop ();
+          remove uuid in
+        let title, contents = make_details_panel m ~set_closed ~show_node details in
+        Ck_panel.make ~on_destroy ~closed ~set_closed ~title ~contents ~id:uuid
+      ) in
+    let show_history () =
+      show_or_create history_uuid (fun closed set_closed ->
+        let title = b [pcdata "History"] in
+        let contents = make_sync (M.log m) in
+        Ck_panel.make ~on_destroy:(fun () -> remove history_uuid) ~closed ~set_closed ~title ~contents ~id:history_uuid
+      ) in
+    (ReactiveData.RList.map (fun (_, panel) -> Ck_panel.element panel) details_pane, show_node, show_history)
 
   let make_top m =
     let current_tree = M.tree m in
-    let details_area, show_node = make_details_area m in
+    let details_area, show_node, show_history = make_details_area m in
     let left_panel =
       let live = current_tree >|~= make_tree ~show_node m in
       rlist_of ~init:(React.S.value live) live in
@@ -809,7 +789,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         );
       ];
       div ~a:[a_class ["row"]] [
-        R.Html5.div ~a:[a_class ["medium-12"; "columns"; "ck-tree"]] (
+        div ~a:[a_class ["large-12"; "columns"; "ck-actions"]] [
+          a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "History"];
+        ]
+      ];
+      div ~a:[a_class ["row"]] [
+        R.Html5.div ~a:[a_class ["medium-12"; "columns"]] (
           make_error_box current_error;
         )
       ];
