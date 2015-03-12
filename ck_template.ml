@@ -62,8 +62,8 @@ let close_modal () =
       close ()
 
 (* Listen to global clicks and keypresses so we can close modals on click/escape *)
+let keycode_escape = 27
 let () =
-  let keycode_escape = 27 in
   let click (ev:#Dom_html.mouseEvent Js.t) =
     match !close_current_model with
     | None -> Js._true
@@ -496,12 +496,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         close ()
       );
       false in
+    let keydown (ev:Dom_html.keyboardEvent Js.t) =
+      if ev##keyCode = keycode_escape then (
+        close();
+        false
+      ) else true in
     let name_input = input ~a:[a_name "name"; a_placeholder "Name"] () in
     auto_focus name_input;
-    form ~a:[a_onsubmit do_add] [
+    form ~a:[a_onsubmit do_add; a_onkeydown keydown] [
       name_input;
-      input ~a:[a_input_type `Submit; a_value "Add"] ();
-      a ~a:[a_onclick (fun _ev -> close (); true)] [pcdata " (cancel)"];
     ]
 
   let make_child_adder m ~show_node item =
@@ -537,7 +540,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       )
     in
     let rlist = ReactiveData.RList.singleton_s widgets in
-    R.Html5.div ~a:[a_class ["add"]] rlist
+    R.Html5.div ~a:[a_class ["ck-adders"]] rlist
 
   let make_editable_title m item =
     let name = item >|~= (function
@@ -569,14 +572,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                 )
               );
               set_editing None;
-              true in
+              false in
             let old_name = React.S.value name in
             let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 25; a_value old_name] () in
             auto_focus name_input;
             [
               form ~a:[a_class ["rename"]; a_onsubmit submit] [
                 name_input;
-                input ~a:[a_input_type `Submit; a_value "OK"] ();
               ]
             ]
       ) in
@@ -838,10 +840,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     [
       modal_div;
       div ~a:[a_class ["row"]] [
-        div ~a:[a_class ["medium-8"; "columns"; "ck-tree"]] [
+        div ~a:[a_class ["medium-8"; "columns"]] [
           make_mode_switcher m current_tree;
         ];
-        R.Html5.div ~a:[a_class ["medium-4"; "columns"; "ck-tree"; "add"]] (
+        R.Html5.div ~a:[a_class ["medium-4"; "columns"; "ck-adders"]] (
           make_toplevel_adders m ~show_node
         );
       ];

@@ -18,12 +18,12 @@ ol.ck-history p {
 	margin-bottom: 0.2rem;
 }
 
-li.add  { list-style-type: none; }
-
-div.add ul { margin-left: 0; }
-div.add li { margin-right: 1em; }
-div.add li:last-child { margin-right: 0; }
-div.add li { display: inline; }
+li.ck-adders  { list-style-type: none; }
+div.ck-adders ul { margin-left: 0; }
+div.ck-adders li { margin-right: 1em; }
+div.ck-adders li:last-child { margin-right: 0; }
+div.ck-adders li,
+div.ck-adders li { display: inline; }
 
 div.inline {
 	display: inline;
@@ -33,6 +33,10 @@ ul.ck-adders {
 	padding-top: 0.1875rem;
 	margin-bottom: 0;
 	float: right;
+}
+
+div.ck-adders input {
+	width: 100%;
 }
 
 div.ck-details form.rename {
@@ -158,15 +162,6 @@ span.ck-toggles a.ck-active-✓ {
 div.ck-done span.allow-strikethrough,
 span.ck-done span.allow-strikethrough {
 	text-decoration: line-through;
-}
-
-li a a.add {
-	visibility: hidden;
-	border: none;
-}
-
-li:hover a a.add {
-	visibility: visible;
 }
 
 div.ck-details {
