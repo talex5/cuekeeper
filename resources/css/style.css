@@ -171,6 +171,9 @@ li:hover a a.add {
 
 div.ck-details {
 	position: relative;
+	-webkit-animation-timing-function: linear;
+	-webkit-animation-name: fade-in-panel;
+	-webkit-animation-duration: 0.5s;
 	animation-timing-function: linear;
 	animation-name: fade-in-panel;
 	animation-duration: 0.5s;
@@ -186,6 +189,8 @@ div.ck-details.closed {
 }
 
 div.ck-details.ck-highlight .ck-heading {
+	-webkit-animation-name: flash;
+	-webkit-animation-duration: 1.0s;
 	animation-name: flash;
 	animation-duration: 1.0s;
 	background: yellow;
@@ -248,6 +253,8 @@ div.ck-details ul {
 }
 
 li.new {
+	-webkit-animation-name: fade-in-li;
+	-webkit-animation-duration: 0.5s;
 	animation-name: fade-in-li;
 	animation-duration: 0.5s;
 }
@@ -274,6 +281,14 @@ li {
 }
 */
 
+@-webkit-keyframes flash {
+	0% { background: yellow; }
+	24% { background: white; }
+	25% { background: yellow; }
+	50% { background: white; }
+	100% { background: white; }
+}
+
 @keyframes flash {
 	0% { background: yellow; }
 	24% { background: white; }
@@ -283,9 +298,16 @@ li {
 }
 
 div.ck-time-travel-warning.new {
+	-webkit-animation-name: fade-in-warning;
+	-webkit-animation-duration: 0.5s;
 	animation-name: fade-in-warning;
 	animation-duration: 0.5s;
 	overflow: hidden;
+}
+
+@-webkit-keyframes fade-in-li {
+	0% { opacity: 0.0; margin-top: -10px}
+	100% { opacity: 1.0; margin-top: 0px}
 }
 
 @keyframes fade-in-li {
@@ -293,10 +315,21 @@ div.ck-time-travel-warning.new {
 	100% { opacity: 1.0; margin-top: 0px}
 }
 
+@-webkit-keyframes fade-in-panel {
+	0% { opacity: 0.0; max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0}
+	10% { opacity: 0.1; max-height: 10vh; margin-bottom: 4px; padding: 0.5rem}
+	100% { opacity: 1.0; max-height: 100vh; margin-bottom: 4px; padding: 0.5rem}
+}
+
 @keyframes fade-in-panel {
 	0% { opacity: 0.0; max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0}
 	10% { opacity: 0.1; max-height: 10vh; margin-bottom: 4px; padding: 0.5rem}
 	100% { opacity: 1.0; max-height: 100vh; margin-bottom: 4px; padding: 0.5rem}
+}
+
+@-webkit-keyframes fade-in-warning {
+	0% { max-height: 0 }
+	100% { max-height: 4em; }
 }
 
 @keyframes fade-in-warning {

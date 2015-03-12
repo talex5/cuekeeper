@@ -838,10 +838,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     [
       modal_div;
       div ~a:[a_class ["row"]] [
-        div ~a:[a_class ["large-8"; "columns"; "ck-tree"]] [
+        div ~a:[a_class ["medium-8"; "columns"; "ck-tree"]] [
           make_mode_switcher m current_tree;
         ];
-        R.Html5.div ~a:[a_class ["large-4"; "columns"; "ck-tree"; "add"]] (
+        R.Html5.div ~a:[a_class ["medium-4"; "columns"; "ck-tree"; "add"]] (
           make_toplevel_adders m ~show_node
         );
       ];
