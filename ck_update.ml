@@ -229,6 +229,13 @@ module Make(Git : Git_storage_s.S)
     update t ~msg node (Ck_disk_node.with_description (R.disk_node node) v)
 
   let set_action_state t node astate =
+    let astate =
+      match astate with
+      | `Done | `Next | `Waiting | `Future as s -> s
+      | `Waiting_for_contact contact ->
+          let contact = `Contact contact in
+          assert (R.Node.rev (`Action node) == R.Node.rev contact);
+          `Waiting_for_contact (R.Node.uuid contact) in
     let new_node = Ck_disk_node.with_astate (R.action_node node) astate in
     let node = `Action node in
     let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in

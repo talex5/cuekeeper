@@ -46,20 +46,23 @@ module type MODEL = sig
   val set_name : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_description : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_starred : t -> [< project | action] -> bool -> unit Lwt.t
-  val set_action_state : t -> action_node -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
+  val set_action_state : t -> action_node -> [< `Next | `Waiting | `Waiting_for_contact of contact_node | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
 
   val convert_to_area : t -> project_node -> unit or_error Lwt.t
   val convert_to_project : t -> [< action | area] -> unit or_error Lwt.t
   val convert_to_action : t -> project_node -> unit or_error Lwt.t
 
-  type candidate_parent
+  type candidate
 
-  val candidate_parents_for : t -> [< area | project | action] -> candidate_parent list
+  val candidate_parents_for : t -> [< area | project | action] -> candidate list
   (** Get the possible new parents for an item. *)
 
-  val candidate_label : candidate_parent -> string
-  val set_parent : candidate_parent -> unit Lwt.t
+  val candidate_contacts_for : t -> action -> candidate list
+  (** Get the possible contacts for an action. *)
+
+  val candidate_label : candidate -> string
+  val choose_candidate : candidate -> unit Lwt.t
 
   val log : t -> Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t
   val fix_head : t -> Git_storage_s.Log_entry.t option -> unit Lwt.t

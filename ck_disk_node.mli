@@ -25,7 +25,7 @@ val make_contact : name:string -> description:string -> ctime:float -> contact_n
 val with_name : generic -> string -> generic
 val with_description : generic -> string -> generic
 val with_parent : generic -> Ck_id.t -> generic
-val with_astate : action_node -> [ `Next | `Waiting | `Future | `Done ] -> action_node
+val with_astate : action_node -> [ `Next | `Waiting | `Waiting_for_contact of Ck_id.t | `Future | `Done ] -> action_node
 val with_pstate : project_node -> [ `Active | `SomedayMaybe | `Done ] -> project_node
 val with_starred : [< project | action] -> bool -> [project | action]
 

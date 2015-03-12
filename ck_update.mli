@@ -58,7 +58,7 @@ module Make(Git : Git_storage_s.S)
   val set_name : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_description : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_starred : t -> [< action | project] -> bool -> unit Lwt.t
-  val set_action_state : t -> action_node -> [ `Next | `Waiting | `Future | `Done ] -> unit Lwt.t
+  val set_action_state : t -> action_node -> [< `Next | `Waiting | `Waiting_for_contact of contact_node | `Future | `Done ] -> unit Lwt.t
   val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
 
   val set_a_parent : t -> [area] -> [area] -> unit Lwt.t

@@ -27,7 +27,7 @@ module type DISK_NODE = sig
   val description : [< generic] -> string
   val ctime : [< generic ] -> float
   val starred : [< project | action] -> bool
-  val action_state : action_node -> [ `Next | `Waiting | `Future | `Done ]
+  val action_state : action_node -> [ `Next | `Waiting | `Waiting_for_contact of Ck_id.t | `Future | `Done  ]
   val project_state : project_node -> [ `Active | `SomedayMaybe | `Done ]
   val is_done : [< project | action] -> bool
 end
@@ -90,6 +90,7 @@ module type REV = sig
   val commit : t -> commit
 
   val contacts : t -> contact_node Ck_id.M.t
+  val actions_of : contact_node -> action_node list
 
   val get : t -> Ck_id.t -> [ area | project | action ] option
   val get_contact : t -> Ck_id.t -> contact_node option

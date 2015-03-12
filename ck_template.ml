@@ -91,6 +91,38 @@ let () =
   Dom_html.addEventListener Dom_html.document Dom_html.Event.click (Dom.handler click) Js._true |> ignore_listener;
   Dom_html.addEventListener Dom_html.document Dom_html.Event.keypress (Dom.handler keyup) Js._true |> ignore_listener
 
+let pos_from_root (elem : #Dom_html.element Js.t) =
+  let rec aux x y elem =
+    let x = x + elem##offsetLeft in
+    let y = y + elem##offsetTop in
+    Js.Opt.case (elem##offsetParent)
+      (fun () -> (x, y))
+      (fun parent -> aux x y parent) in
+  aux 0 0 elem
+
+let show_modal, modal_div =
+  close_modal ();
+  let dropdown, set_dropdown = ReactiveData.RList.make [] in
+  let dropdown_style, set_dropdown_style = React.S.create "" in
+  let modal_div =
+    R.Html5.div ~a:[a_class ["f-dropdown"; "ck-modal"]; R.Html5.a_style dropdown_style] dropdown in
+  let close () =
+    ReactiveData.RList.set set_dropdown [];
+    set_dropdown_style "";
+    close_current_model := None in
+  let show ~parent content =
+    let left, bottom =
+      Js.Opt.case parent
+        (fun () -> 10, 10)
+        (fun parent ->
+            let left, top = pos_from_root parent in
+            let height = parent##offsetHeight in
+            (left, top + height)) in
+    ReactiveData.RList.set set_dropdown content;
+    set_dropdown_style (Printf.sprintf "position: absolute; left: %dpx; top: %dpx;" left bottom);
+    close_current_model := Some (Tyxml_js.To_dom.of_node modal_div, close) in
+  (show, modal_div)
+
 let current_error, set_current_error = React.S.create None
 
 let make_error_box error =
@@ -149,6 +181,23 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     if lifetime >= 0.0 && lifetime <  1.0 then "new" :: ty
     else ty
 
+  let toggle_of_astate = function
+    | `Done | `Next | `Waiting | `Future as s -> s
+    | `Waiting_for_contact _ -> `Waiting
+
+  let waiting_candidates m item =
+    M.candidate_contacts_for m item |> List.map (fun candidate ->
+      let clicked _ev =
+        close_modal ();
+        async ~name:"set waiting" (fun () -> M.choose_candidate candidate);
+        true in
+      li [
+        a ~a:[a_onclick clicked] [
+          pcdata (M.candidate_label candidate)
+        ]
+      ]
+    )
+
   let toggle_label ~set_details ~current details =
     let l =
       match details with
@@ -159,8 +208,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | `Active -> "a"
       | `SomedayMaybe -> "sm" in
     let cl = if current = details then "ck-active-" ^ l else "ck-inactive" in
-    let changed _ev =
-      if current <> details then set_details details; true in
+    let changed ev =
+      set_details ev details;
+      true in
     a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
 
   let make_toggles ~m ~set_details ~item current options =
@@ -175,11 +225,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let toggles_for_type m = function
     | `Action action as item ->
-        let set_details n =
-          async ~name:"set_action_state" (fun () -> M.set_action_state m action n) in
-        make_toggles ~m ~set_details ~item (M.Item.action_state action) [`Done; `Next; `Waiting; `Future]
+        let current = M.Item.action_state action |> toggle_of_astate in
+        let set_details ev n =
+          if n = `Waiting then (
+            let content = ul (waiting_candidates m item) in
+            show_modal ~parent:(ev##target) [content];
+          ) else if current <> n then (
+            async ~name:"set_action_state" (fun () -> M.set_action_state m action n)
+          ) in
+        make_toggles ~m ~set_details ~item current [`Done; `Next; `Waiting; `Future]
     | `Project project as item ->
-        let set_details n =
+        let set_details _ev n =
           async ~name:"set_project_state" (fun () -> M.set_project_state m project n) in
         make_toggles ~m ~set_details ~item (M.Item.project_state project) [`Done; `Active; `SomedayMaybe]
     | `Area _ | `Contact _ -> []
@@ -230,38 +286,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         | `No_animation -> () in
     React.S.retain li_state (fun () -> ignore animate) |> ignore;
     li_elem
-
-  let pos_from_root (elem : #Dom_html.element Js.t) =
-    let rec aux x y elem =
-      let x = x + elem##offsetLeft in
-      let y = y + elem##offsetTop in
-      Js.Opt.case (elem##offsetParent)
-        (fun () -> (x, y))
-        (fun parent -> aux x y parent) in
-    aux 0 0 elem
-
-  let show_modal, modal_div =
-    close_modal ();
-    let dropdown, set_dropdown = ReactiveData.RList.make [] in
-    let dropdown_style, set_dropdown_style = React.S.create "" in
-    let modal_div =
-      R.Html5.div ~a:[a_class ["f-dropdown"; "ck-modal"]; R.Html5.a_style dropdown_style] dropdown in
-    let close () =
-      ReactiveData.RList.set set_dropdown [];
-      set_dropdown_style "";
-      close_current_model := None in
-    let show ~parent content =
-      let left, bottom =
-        Js.Opt.case parent
-          (fun () -> 10, 10)
-          (fun parent ->
-              let left, top = pos_from_root parent in
-              let height = parent##offsetHeight in
-              (left, top + height)) in
-      ReactiveData.RList.set set_dropdown content;
-      set_dropdown_style (Printf.sprintf "position: absolute; left: %dpx; top: %dpx;" left bottom);
-      close_current_model := Some (Tyxml_js.To_dom.of_node modal_div, close) in
-    (show, modal_div)
 
   let show_add_modal m ~show_node ~button item =
     let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 25] () in
@@ -588,7 +612,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     M.candidate_parents_for m item |> List.map (fun candidate ->
       let clicked _ev =
         close_modal ();
-        async ~name:"set parent" (fun () -> M.set_parent candidate);
+        async ~name:"set parent" (fun () -> M.choose_candidate candidate);
         true in
       li [
         a ~a:[a_onclick clicked] [

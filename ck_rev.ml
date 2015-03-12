@@ -15,6 +15,7 @@ module Make(Git : Git_storage_s.S) = struct
         mutable roots : apa M.t;
         mutable children : apa M.t Ck_id.M.t;
         contacts : contact_node Ck_id.M.t ref;
+        actions_of_contact : (Ck_id.t, action_node) Hashtbl.t;
         index : (Ck_id.t, apa) Hashtbl.t;
       }
       and 'a node_details = {
@@ -96,12 +97,20 @@ module Make(Git : Git_storage_s.S) = struct
     let parent = Node.uuid node in
     try Ck_id.M.find parent t.children with Not_found -> M.empty
 
+  let process_item t = function
+    | `Action a ->
+        begin match Node.action_state a with
+        | `Waiting_for_contact c -> Hashtbl.add t.actions_of_contact c a
+        | _ -> () end
+    | _ -> ()
+
   let make commit =
     Git.Commit.checkout commit >>= fun tree ->
     let contacts = ref Ck_id.M.empty in
     let children = Hashtbl.create 100 in
     let index = Hashtbl.create 100 in
-    let t = { commit; roots = M.empty; contacts; index; children = Ck_id.M.empty } in
+    let actions_of_contact = Hashtbl.create 10 in
+    let t = { commit; roots = M.empty; contacts; index; actions_of_contact; children = Ck_id.M.empty } in
     (* Load areas, projects and actions *)
     Git.Staging.list tree ["db"] >>=
     Lwt_list.iter_s (function
@@ -144,6 +153,7 @@ module Make(Git : Git_storage_s.S) = struct
       Hashtbl.fold (fun uuid child_uuids acc ->
         let child_map = child_uuids |> List.fold_left (fun acc child_uuid ->
           let child = Hashtbl.find index child_uuid in
+          process_item t child;
           acc |> M.add (Node.key child) child
         ) M.empty in
         acc |> Ck_id.M.add uuid child_map
@@ -166,6 +176,8 @@ module Make(Git : Git_storage_s.S) = struct
 
   let commit t = t.commit
   let contacts t = !(t.contacts)
+  let actions_of c =
+    Hashtbl.find_all c.rev.actions_of_contact c.uuid
 
   let disk_node = Node.disk_node
   let action_node n = n.disk_node

@@ -12,7 +12,7 @@ type node_details = {
 
 type action_details = {
   astarred : bool with default(false);
-  astate : [ `Next | `Waiting | `Future | `Done ]
+  astate : [ `Next | `Waiting | `Waiting_for_contact of Ck_id.t | `Future | `Done ]
 } with sexp
 
 type project_details = {
