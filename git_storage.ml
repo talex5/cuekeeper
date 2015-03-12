@@ -62,17 +62,21 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       {t with c_store = tmp_branch}
 
     let history ?depth t =
+      let open Git_storage_s in
       I.history ?depth (t.c_store "Read history") >>= fun history ->
       let h = ref [] in
       history |> Top.iter (fun head ->
         h := head :: !h
       );
-      !h |> Lwt_list.map_s (fun hash ->
+      let map = ref Log_entry_map.empty in
+      !h |> Lwt_list.iter_s (fun hash ->
           I.task_of_head (t.c_store "Read log entry") hash >|= fun task ->
           let msg = Irmin.Task.messages task in
           let date = Irmin.Task.date task |> Int64.to_float in
-          {Git_storage_s.date; msg}
-      )
+          let entry = {Log_entry.date; msg; id = hash} in
+          map := !map |> Log_entry_map.add entry entry
+      ) >|= fun () ->
+      !map
 
     let merge a b =
       I.of_head a.c_repo.config a.c_repo.task_maker (id a) >>= fun tmp ->
@@ -171,6 +175,10 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
 
     let branch t ~if_new name =
       I.of_tag t.config t.task_maker name >>= Branch.of_store t ~if_new
+
+    let commit t hash =
+      (* XXX: what does Irmin do if the hash doesn't exist? *)
+      Commit.of_id t hash >|= fun c -> Some c
   end
 
   let make config task_maker = {config; task_maker}

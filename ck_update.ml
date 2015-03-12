@@ -7,6 +7,7 @@ open Lwt
 let async : (unit -> unit Lwt.t) -> unit = Lwt.async
 
 module Make(Git : Git_storage_s.S)
+           (Clock : Ck_clock.S)
            (R : sig
              include REV with type commit = Git.Commit.t
              val make : Git.Commit.t -> t Lwt.t
@@ -19,10 +20,12 @@ module Make(Git : Git_storage_s.S)
 
   type t = {
     branch : Git.Branch.t;
+    fixed_head : bool ref;            (* If [true], we are in "time-machine" mode, and not tracking [branch] *)
     head : Git.Commit.t ref;
     updated : unit Lwt_condition.t;
     mutex : Lwt_mutex.t;
     update_signal : unit React.S.t;
+    on_update : (Git.Commit.t -> unit Lwt.t) Lwt.t;   (* (a thread just to avoid a cycle at creation time) *)
   }
 
   type update_cb = Git.Commit.t -> unit Lwt.t
@@ -30,7 +33,18 @@ module Make(Git : Git_storage_s.S)
   let error fmt =
     Printf.ksprintf (fun msg -> `Error msg) fmt
 
+  (* Must be called with t.mutex held *)
+  let update_head ~on_update ~updated ~head = function
+    | None -> failwith "Branch has been deleted!"
+    | Some new_head when Git.Commit.equal !head new_head -> return ()
+    | Some new_head ->
+        head := new_head;
+        on_update >>= fun on_update ->
+        on_update new_head >|= fun () ->
+        Lwt_condition.broadcast updated ()
+
   let make ~on_update branch =
+    let fixed_head = ref false in
     let mutex = Lwt_mutex.create () in
     match Git.Branch.head branch |> React.S.value with
     | None -> failwith "No commits on branch!"
@@ -45,31 +59,44 @@ module Make(Git : Git_storage_s.S)
           async (fun () ->
             Lwt_mutex.with_lock mutex (fun () ->
               update_scheduled := false;
-              (* Head might have changed while we waited for the lock. *)
-              match React.S.value (Git.Branch.head branch) with
-              | None ->
-                  failwith "Branch has been deleted!"
-              | Some new_head when not (Git.Commit.equal !head new_head) ->
-                  head := new_head;
-                  on_update >>= fun on_update ->
-                  on_update new_head >>= fun () ->
-                  Lwt_condition.broadcast updated ();
-                  return ()
-              | Some _ ->
-                  return ()  (* No change *)
+              if not !fixed_head then (
+                (* Head might have changed while we waited for the lock. *)
+                React.S.value (Git.Branch.head branch)
+                |> update_head ~on_update ~updated ~head
+              ) else return ()  (* Fixed head - ignore updates *)
             )
           )
         )
       ) in
     return {
       branch;
+      fixed_head;
       head;
       updated;
       mutex;
       update_signal;
+      on_update;
     }
 
+  let fix_head t = function
+    | None ->
+        Lwt_mutex.with_lock t.mutex (fun () ->
+          t.fixed_head := false;
+          React.S.value (Git.Branch.head t.branch)
+          |> update_head ~on_update:t.on_update ~updated:t.updated ~head:t.head
+        )
+    | Some _ as new_head ->
+        Lwt_mutex.with_lock t.mutex (fun () ->
+          t.fixed_head := true;
+          update_head ~on_update:t.on_update ~updated:t.updated ~head:t.head new_head
+        )
+
   let head t = !(t.head)
+
+  let branch_head t =
+    match React.S.value (Git.Branch.head t.branch) with
+    | None -> failwith "Branch has been deleted!"
+    | Some commit -> commit
 
   let mem uuid rev =
     R.get rev uuid <> None
@@ -82,7 +109,8 @@ module Make(Git : Git_storage_s.S)
     fn view >>= fun result ->
     Git.Commit.commit ~msg view >>= fun pull_rq ->
     let rec aux () =
-      let old_head = head t in
+      (* Merge to branch tip, even if we're on a fixed head *)
+      let old_head = branch_head t in
       Git.Commit.merge old_head pull_rq >>= function
       | `Conflict msg -> Ck_utils.error "Conflict during merge: %s (discarding change)" msg
       | `Ok merged when Git.Commit.equal old_head merged ->
@@ -100,13 +128,20 @@ module Make(Git : Git_storage_s.S)
         Git.Branch.fast_forward_to t.branch merged >|= fun merge_result ->
         (* If `Ok, [updated] cannot have fired yet because we still hold the lock. When it does
          * fire next, it must contain our update. It must fire soon, as head has changed. *)
+        if merge_result = `Ok then (
+          (* If we were on a fixed head then return to tracking master. Otherwise, the user won't
+           * see the update. *)
+          t.fixed_head := false;
+        );
         (merge_result, updated)
       ) >>= function
       | `Ok, updated -> return updated
-      | `Not_fast_forward, updated ->
+      | `Not_fast_forward, _updated ->
           Log.warn "Update while we were trying to merge - retrying...";
-          if old_head <> head t then aux ()
-          else updated >>= aux
+          Clock.sleep 1.0 >>= fun () ->      (* Might be a bug - avoid hanging the browser *)
+          (* Possibly we should wait for branch_head to move, but this is a very unlikely case
+           * so do a simple sleep-and-retry *)
+          aux ()
       in
     aux () >>= fun updated ->     (* Changes have been committed. *)
     updated >>= fun () ->         (* [on_update] has been called. *)

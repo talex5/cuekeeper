@@ -11,7 +11,13 @@ module Make(Clock : Ck_clock.S)
            (G : GUI_DATA) = struct
   module R = Ck_rev.Make(Git)
   module Node = R.Node
-  module Up = Ck_update.Make(Git)(R)
+  module Up = Ck_update.Make(Git)(Clock)(R)
+  module Slow_history = Slow_set.Make(Clock)(Git_storage_s.Log_entry)(Git_storage_s.Log_entry_map)
+  module Slow_log_entry = struct
+    type t = Git_storage_s.Log_entry.t Slow_set.item
+    let equal a b = Git_storage_s.Log_entry.equal (Slow_set.data a) (Slow_set.data b)
+  end
+  module Delta_history = Delta_RList.Make(Git_storage_s.Log_entry)(Slow_log_entry)(Git_storage_s.Log_entry_map)
 
   type gui_data = G.t
 
@@ -102,7 +108,9 @@ module Make(Clock : Ck_clock.S)
     mutable r : R.t;
     tree : tree_view React.S.t;
     set_tree : tree_view -> unit;
-    log : Git_storage_s.log_entry ReactiveData.RList.t;
+    log : Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t;
+    fixed_head : Git_storage_s.Log_entry.t option React.S.t;
+    set_fixed_head : Git_storage_s.Log_entry.t option -> unit;
     mutable details : (details * (R.t -> unit)) Ck_id.M.t;
     mutable update_tree : R.t -> unit;
     mutable keep_me : unit React.S.t list;
@@ -436,8 +444,9 @@ module Make(Clock : Ck_clock.S)
     let widgets = WidgetTree.widgets rtree in
     (widgets, update_tree)
 
-  let get_log r =
-    Git.Commit.history ~depth:10 (R.commit r)
+  let get_log master =
+    Up.branch_head master
+    |> Git.Commit.history ~depth:10
 
   let make_tree r = function
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u
@@ -453,6 +462,15 @@ module Make(Clock : Ck_clock.S)
 
   let tree t = t.tree
   let log t = t.log
+  let fix_head t entry =
+    t.set_fixed_head entry;
+    match entry with
+    | None -> Up.fix_head t.master None
+    | Some entry ->
+        Git.Repository.commit t.repo entry.Git_storage_s.Log_entry.id
+        >>= Up.fix_head t.master
+
+  let fixed_head t = t.fixed_head
 
   let init_repo staging =
     Git.Staging.update staging ["ck-version"] "0.1"
@@ -462,15 +480,19 @@ module Make(Clock : Ck_clock.S)
     Git.Repository.branch ~if_new:init_repo repo "master" >>= Up.make ~on_update >>= fun master ->
     let head = Up.head master in
     R.make head >>= fun r ->
-    get_log r >>= fun initial_log ->
+    get_log master >>= fun initial_log ->
     let log, set_log = React.S.create initial_log in
-    let log = rlist_of log in
+    let fixed_head, set_fixed_head = React.S.create None in
+    let log =
+      Slow_history.make ~delay:1.0 ~eq:Git_storage_s.Log_entry.equal log
+      |> Delta_history.make in
     let rtree, update_tree = make_tree r `Work in
     let tree, set_tree = React.S.create ~eq:assume_changed rtree in
     let t = {
       repo; master; r;
       tree; set_tree; update_tree;
       log;
+      fixed_head; set_fixed_head;
       details = Ck_id.M.empty;
       keep_me = []
     } in
@@ -479,7 +501,7 @@ module Make(Clock : Ck_clock.S)
       t.r <- r;
       t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
       t.update_tree r;
-      get_log r >|= set_log
+      get_log master >|= set_log
     );
     if M.is_empty (R.roots r) then (
       initialise t >>= fun () -> return t

@@ -26,11 +26,21 @@ let async ~name (fn:unit -> unit Lwt.t) =
     )
   )
 
+let string_of_day = function
+  | 0 -> "Sun"
+  | 1 -> "Mon"
+  | 2 -> "Tue"
+  | 3 -> "Wed"
+  | 4 -> "Thu"
+  | 5 -> "Fri"
+  | 6 -> "Sat"
+  | _ -> "XXX"
+
 let fmt_date date =
   let open Unix in
   let tm = gmtime date in
-  Printf.sprintf "%04d-%02d-%02d"
-    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+  Printf.sprintf "%04d-%02d-%02d %02d:%02d (%s)"
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min (string_of_day tm.tm_wday)
 
 let close_current_model = ref None
 
@@ -362,19 +372,43 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ];
     ]
 
-  let make_sync history =
-    let items = history
-      |> ReactiveData.RList.map (fun log_entry ->
-          let open Git_storage_s in
+  let make_sync m =
+    let items = M.log m
+      |> ReactiveData.RList.map (fun slow_item ->
+          let item_ref = ref None in
+          let cancel = ref ignore in
+          let cl =
+            Slow_set.state slow_item >|~= fun state ->
+              !cancel ();
+              match state with
+              | `New -> ["new"]
+              | `Init | `Current -> []
+              | `Removed _ ->
+                  begin match !item_ref with
+                  | None -> ()
+                  | Some item ->
+                      let elem = Tyxml_js.To_dom.of_li item in
+                      cancel := Ck_animate.fade_out elem end;
+                  [] in
+          let log_entry = Slow_set.data slow_item in
+          let view _ev =
+            async ~name:"fix_head" (fun () -> M.fix_head m (Some log_entry));
+            false in
+          let open Git_storage_s.Log_entry in
           let summary =
             match log_entry.msg with
             | [] -> "(no log message)"
             | x::_ -> x in
-          let msg = fmt_date log_entry.date ^ ": " ^ summary in
-          li [pcdata msg]
+          let date = fmt_date log_entry.date in
+          let item =
+            li ~a:[R.Html5.a_class cl] [
+              a ~a:[a_onclick view] [pcdata date];
+              p [pcdata summary];
+            ] in
+          item_ref := Some item;
+          item
       ) in
     div [
-      h4 [pcdata "Recent changes"];
       R.Html5.ol ~a:[a_class ["ck-history"]] items;
     ]
 
@@ -767,10 +801,33 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let show_history () =
       show_or_create history_uuid (fun closed set_closed ->
         let title = b [pcdata "History"] in
-        let contents = make_sync (M.log m) in
+        let contents = make_sync m in
         Ck_panel.make ~on_destroy:(fun () -> remove history_uuid) ~closed ~set_closed ~title ~contents ~id:history_uuid
       ) in
     (ReactiveData.RList.map (fun (_, panel) -> Ck_panel.element panel) details_pane, show_node, show_history)
+
+  let time_travel_warning m =
+    let showing = ref false in
+    let return_to_present _ev =
+      async ~name:"return_to_present" (fun () -> M.fix_head m None);
+      false in
+    M.fixed_head m >|~= (function
+      | None -> showing := false; []
+      | Some log_entry ->
+          let cl = ["alert-box"; "radius"; "ck-time-travel-warning"] in
+          let cl = if !showing then cl else "new" :: cl in
+          showing := true;
+          [
+            div ~a:[a_class cl] [
+              pcdata (
+                Printf.sprintf "Time-travel active: you are viewing the state of CueKeeper as at %s."
+                  (fmt_date log_entry.Git_storage_s.Log_entry.date)
+              );
+              a ~a:[a_class ["close"]; a_onclick return_to_present] [pcdata "×"]
+            ]
+          ]
+    )
+    |> rlist_of
 
   let make_top m =
     let current_tree = M.tree m in
@@ -794,6 +851,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         ]
       ];
       div ~a:[a_class ["row"]] [
+        R.Html5.div ~a:[a_class ["medium-12"; "columns"]] (
+          time_travel_warning m;
+        );
         R.Html5.div ~a:[a_class ["medium-12"; "columns"]] (
           make_error_box current_error;
         )

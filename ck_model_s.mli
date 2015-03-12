@@ -61,7 +61,9 @@ module type MODEL = sig
   val candidate_label : candidate_parent -> string
   val set_parent : candidate_parent -> unit Lwt.t
 
-  val log : t -> Git_storage_s.log_entry ReactiveData.RList.t
+  val log : t -> Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t
+  val fix_head : t -> Git_storage_s.Log_entry.t option -> unit Lwt.t
+  val fixed_head : t -> Git_storage_s.Log_entry.t option React.S.t
 
   val set_mode : t -> [ `Process | `Work | `Contact | `Review | `Schedule ] -> unit
   val tree : t -> [ `Process of Widget.t ReactiveData.RList.t

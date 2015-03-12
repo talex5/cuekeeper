@@ -6,6 +6,7 @@
 open Ck_sigs
 
 module Make(Git : Git_storage_s.S)
+           (Clock : Ck_clock.S)
            (R : sig
              include REV with type commit = Git.Commit.t
              val make : Git.Commit.t -> t Lwt.t
@@ -25,7 +26,18 @@ module Make(Git : Git_storage_s.S)
    * the store has been modified by another process. *)
 
   val head : t -> Git.Commit.t
-  (** The current tip of the branch. *)
+  (** The current head. Usually the branch tip, but can be different if [fix_head] is used.
+   * Also, this is the cached version of the last state of the head. It is the version
+   * passed to [on_update] and might lag the real head slightly. *)
+
+  val fix_head : t -> Git.Commit.t option -> unit Lwt.t
+  (** Set [head] to the given commit and pause tracking our branch.
+   * Pass [None] to return to tracking the branch's head.
+   * Modifications made via [t] will automatically resume tracking, but changes
+   * made by other means will be ignored. *)
+
+  val branch_head : t -> Git.Commit.t
+  (** The current tip of the branch (whatever the setting of [fix_head]) *)
 
   (** Functions for making updates all work in the same way.
    * 1. Make a new branch from the commit that produced the source item.
