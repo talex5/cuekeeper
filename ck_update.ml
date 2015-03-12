@@ -21,23 +21,26 @@ module Make(Git : Git_storage_s.S)
   type t = {
     branch : Git.Branch.t;
     fixed_head : bool ref;            (* If [true], we are in "time-machine" mode, and not tracking [branch] *)
-    head : Git.Commit.t ref;
+    head : R.t ref;
     updated : unit Lwt_condition.t;
     mutex : Lwt_mutex.t;
     update_signal : unit React.S.t;
-    on_update : (Git.Commit.t -> unit Lwt.t) Lwt.t;   (* (a thread just to avoid a cycle at creation time) *)
+    on_update : (R.t -> unit Lwt.t) Lwt.t;   (* (a thread just to avoid a cycle at creation time) *)
   }
 
-  type update_cb = Git.Commit.t -> unit Lwt.t
+  type update_cb = R.t -> unit Lwt.t
 
   let error fmt =
     Printf.ksprintf (fun msg -> `Error msg) fmt
 
   (* Must be called with t.mutex held *)
-  let update_head ~on_update ~updated ~head = function
+  let update_head ~on_update ~updated ~head new_head =
+    let old_head = R.commit !head in
+    match new_head with
     | None -> failwith "Branch has been deleted!"
-    | Some new_head when Git.Commit.equal !head new_head -> return ()
+    | Some new_head when Git.Commit.equal old_head new_head -> return ()
     | Some new_head ->
+        R.make new_head >>= fun new_head ->
         head := new_head;
         on_update >>= fun on_update ->
         on_update new_head >|= fun () ->
@@ -49,6 +52,7 @@ module Make(Git : Git_storage_s.S)
     match Git.Branch.head branch |> React.S.value with
     | None -> failwith "No commits on branch!"
     | Some initial_head ->
+    R.make initial_head >>= fun initial_head ->
     let head = ref initial_head in
     let updated = Lwt_condition.create () in
     let update_scheduled = ref false in

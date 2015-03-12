@@ -478,8 +478,7 @@ module Make(Clock : Ck_clock.S)
   let make repo =
     let on_update, set_on_update = Lwt.wait () in
     Git.Repository.branch ~if_new:init_repo repo "master" >>= Up.make ~on_update >>= fun master ->
-    let head = Up.head master in
-    R.make head >>= fun r ->
+    let r = Up.head master in
     get_log master >>= fun initial_log ->
     let log, set_log = React.S.create initial_log in
     let fixed_head, set_fixed_head = React.S.create None in
@@ -496,8 +495,7 @@ module Make(Clock : Ck_clock.S)
       details = Ck_id.M.empty;
       keep_me = []
     } in
-    Lwt.wakeup set_on_update (fun head ->
-      R.make head >>= fun r ->
+    Lwt.wakeup set_on_update (fun r ->
       t.r <- r;
       t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
       t.update_tree r;

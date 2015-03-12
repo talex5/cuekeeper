@@ -16,7 +16,7 @@ module Make(Git : Git_storage_s.S)
              val area_node : Node.Types.area_node -> Ck_disk_node.Types.area_node
            end) : sig
   type t
-  type update_cb = Git.Commit.t -> unit Lwt.t
+  type update_cb = R.t -> unit Lwt.t
 
   open R.Node.Types
 
@@ -25,7 +25,7 @@ module Make(Git : Git_storage_s.S)
    * Calls [on_update] after the branch has changed (either due to the methods below or because
    * the store has been modified by another process. *)
 
-  val head : t -> Git.Commit.t
+  val head : t -> R.t
   (** The current head. Usually the branch tip, but can be different if [fix_head] is used.
    * Also, this is the cached version of the last state of the head. It is the version
    * passed to [on_update] and might lag the real head slightly. *)
