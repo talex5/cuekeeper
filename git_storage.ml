@@ -69,11 +69,13 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
         h := head :: !h
       );
       let map = ref Log_entry_map.empty in
+      let rank = ref 0 in
       !h |> Lwt_list.iter_s (fun hash ->
           I.task_of_head (t.c_store "Read log entry") hash >|= fun task ->
+          incr rank;
           let msg = Irmin.Task.messages task in
           let date = Irmin.Task.date task |> Int64.to_float in
-          let entry = {Log_entry.date; msg; id = hash} in
+          let entry = {Log_entry.date; rank = !rank; msg; id = hash} in
           map := !map |> Log_entry_map.add entry entry
       ) >|= fun () ->
       !map

@@ -10,13 +10,12 @@ module Log_entry = struct
   end
   type t = {
     id : Irmin.Hash.SHA1.t;
+    rank : int;
     date : float;
     msg : string list;
   }
-  let compare b a = (* Newest first *)
-    match compare a.date b.date with
-    | 0 -> compare a.id b.id
-    | x -> x
+  let compare a b = (* Newest first *)
+    compare a.rank b.rank
   let id x = x.id
   let show x = String.concat "\n" x.msg
   let equal a b =
