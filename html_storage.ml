@@ -66,9 +66,23 @@ end = struct
   type t = Dom_html.storage Js.t
   type key = string
 
+  open Sexplib.Std
+  type p = (string * string) with sexp
+
+  let did_init = ref false
+
   let make () =
-    Js.Optdef.get (Dom_html.window##localStorage)
-      (fun () -> failwith "HTML 5 storage is not available")
+    let t = Js.Optdef.get (Dom_html.window##localStorage)
+      (fun () -> failwith "HTML 5 storage is not available") in
+    if not !did_init && not (Js.Opt.test (t##getItem (Js.string "CueKeeper.rw.master"))) then (
+      did_init := true;
+      print_endline "Initialising DB for demo...";
+      Demo.data
+      |> List.iter (fun (k, v) ->
+          t##setItem (Js.string k, Js.string v)
+      )
+    );
+    t
 
   let get t key =
     Js.Opt.case (t##getItem (Js.string key))
@@ -108,6 +122,7 @@ end = struct
       (fun () -> None)
       (fun v ->
         Some (Js.to_string v |> Codec.decode))
+
 end
 
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
