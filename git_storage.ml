@@ -82,8 +82,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
 
     let merge a b =
       I.of_head a.c_repo.config a.c_repo.task_maker (id a) >>= fun tmp ->
-      (* XXX: using n:1 to avoid https://github.com/mirage/irmin/issues/160 *)
-      I.merge_head ~n:1 (tmp "Merge") (id b) >|= function
+      I.merge_head (tmp "Merge") (id b) >|= function
       | `Ok () -> `Ok {a with c_store = tmp}
       | `Conflict _ as c -> c
   end
@@ -154,13 +153,10 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
         (* XXX: race *)
         I.update_head (t.store "Fast-forward") commit_id >>= fun () ->
         return `Ok in
-      (* XXX: using n:1 to avoid https://github.com/mirage/irmin/issues/160
-       * But this is wrong. We might find a common ancestor that isn't the
-       * node we want, even if it is a fast-forward. *)
       match !(t.head_id) with
       | None -> do_ff ()
       | Some expected ->
-          I.lcas_head ~n:1 (t.store "Check fast-forward") commit_id >>= function
+          I.lcas_head (t.store "Check fast-forward") commit_id >>= function
           | `Max_depth_reached ->
               Log.warn "WARNING: Max_depth_reached - can't check FF is safe";
               do_ff ()
