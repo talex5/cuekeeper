@@ -499,6 +499,7 @@ module Make(Clock : Ck_clock.S)
       t.r <- r;
       t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
       t.update_tree r;
+      if not (Up.fixed_head t.master) then set_fixed_head None;
       get_log master >|= set_log
     );
     if M.is_empty (R.roots r) then (

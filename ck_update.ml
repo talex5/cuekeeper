@@ -96,6 +96,7 @@ module Make(Git : Git_storage_s.S)
         )
 
   let head t = !(t.head)
+  let fixed_head t = !(t.fixed_head)
 
   let branch_head t =
     match React.S.value (Git.Branch.head t.branch) with

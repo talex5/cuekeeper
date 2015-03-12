@@ -36,6 +36,8 @@ module Make(Git : Git_storage_s.S)
    * Modifications made via [t] will automatically resume tracking, but changes
    * made by other means will be ignored. *)
 
+  val fixed_head : t -> bool
+
   val branch_head : t -> Git.Commit.t
   (** The current tip of the branch (whatever the setting of [fix_head]) *)
 
