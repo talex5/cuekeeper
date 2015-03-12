@@ -394,9 +394,29 @@ div.description ul.vcard { background: white }
 
 div.ck-actions {
 	text-align: right;
-	margin-bottom: 0.5rem;
+	margin-bottom: 0.0;
 }
 
 dl.sub-nav {
 	margin-bottom: 0;
+}
+dl.sub-nav.li {
+	margin-left: 0;
+}
+dl.sub-nav a {
+	background: #f4f4f4;
+	border-radius: 3px;
+}
+dl.sub-nav dd:first-child {
+	margin-left: 0;
+}
+div.ck-tree {
+	margin-left: 0;
+}
+
+ul.vcard {
+	width: 100%;
+}
+ul.vcard img {
+	float: right;
 }

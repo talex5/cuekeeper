@@ -463,7 +463,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       show_add_contact m ~show_node ~parent:ev##target;
       false in
     [
-      div [a ~a:[a_onclick add_clicked] [pcdata "+contact"]];
+      h4 [pcdata "Contacts"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]];
       R.Html5.ul (
         ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
       )
@@ -872,8 +872,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         );
       ];
       div ~a:[a_class ["row"]] [
-        div ~a:[a_class ["large-12"; "columns"; "ck-actions"]] [
-          a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "History"];
+        div ~a:[a_class ["small-12"; "columns"; "ck-actions"]] [
+          a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
         ]
       ];
       div ~a:[a_class ["row"]] [
