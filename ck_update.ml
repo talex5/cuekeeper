@@ -10,7 +10,7 @@ module Make(Git : Git_storage_s.S)
            (Clock : Ck_clock.S)
            (R : sig
              include REV with type commit = Git.Commit.t
-             val make : Git.Commit.t -> t Lwt.t
+             val make : time:float -> Git.Commit.t -> t Lwt.t
              val disk_node : [< Node.generic] -> Ck_disk_node.generic
              val action_node : Node.Types.action_node -> Ck_disk_node.Types.action_node
              val project_node : Node.Types.project_node -> Ck_disk_node.Types.project_node
@@ -20,13 +20,43 @@ module Make(Git : Git_storage_s.S)
 
   type t = {
     branch : Git.Branch.t;
-    fixed_head : bool ref;            (* If [true], we are in "time-machine" mode, and not tracking [branch] *)
-    head : R.t ref;
+    mutable fixed_head : bool;            (* If [true], we are in "time-machine" mode, and not tracking [branch] *)
+    mutable head : R.t;
     updated : unit Lwt_condition.t;
     mutex : Lwt_mutex.t;
-    update_signal : unit React.S.t;
+    mutable update_signal : unit React.S.t;
     on_update : (R.t -> unit Lwt.t) Lwt.t;   (* (a thread just to avoid a cycle at creation time) *)
+    mutable alarm : unit Lwt.t;
   }
+
+  let rec update_alarm t =
+    Lwt.cancel (t.alarm);
+    match R.expires t.head with
+    | None -> ()
+    | Some time ->
+        let sleeper = Clock.sleep (time -. Clock.now ()) in
+        t.alarm <- sleeper;
+        async (fun () ->
+          Lwt.catch
+            (fun () ->
+              sleeper >>= fun () ->
+              Lwt_mutex.with_lock t.mutex (fun () ->
+                update_head t (R.commit t.head)
+              )
+            )
+            (function
+              | Canceled -> return ()
+              | ex -> raise ex
+            )
+        )
+  and update_head t new_head =   (* Call with mutex locked *)
+    let time = Clock.now () in
+    R.make ~time new_head >>= fun new_head ->
+    t.head <- new_head;
+    t.on_update >>= fun on_update ->
+    on_update new_head >|= fun () ->
+    Lwt_condition.broadcast t.updated ();
+    update_alarm t
 
   type update_cb = R.t -> unit Lwt.t
 
@@ -34,69 +64,66 @@ module Make(Git : Git_storage_s.S)
     Printf.ksprintf (fun msg -> `Error msg) fmt
 
   (* Must be called with t.mutex held *)
-  let update_head ~on_update ~updated ~head new_head =
-    let old_head = R.commit !head in
+  let maybe_update_head t new_head =
+    let old_head = R.commit t.head in
     match new_head with
     | None -> failwith "Branch has been deleted!"
     | Some new_head when Git.Commit.equal old_head new_head -> return ()
-    | Some new_head ->
-        R.make new_head >>= fun new_head ->
-        head := new_head;
-        on_update >>= fun on_update ->
-        on_update new_head >|= fun () ->
-        Lwt_condition.broadcast updated ()
+    | Some new_head -> update_head t new_head
 
   let make ~on_update branch =
-    let fixed_head = ref false in
     let mutex = Lwt_mutex.create () in
     match Git.Branch.head branch |> React.S.value with
     | None -> failwith "No commits on branch!"
     | Some initial_head ->
-    R.make initial_head >>= fun initial_head ->
-    let head = ref initial_head in
+    let time = Clock.now () in
+    R.make ~time initial_head >>= fun initial_head ->
     let updated = Lwt_condition.create () in
     let update_scheduled = ref false in
-    let update_signal =
+    let t = {
+      branch;
+      fixed_head = false;
+      head = initial_head;
+      updated;
+      mutex;
+      update_signal = React.S.const ();
+      on_update;
+      alarm = Lwt.return ();
+    } in
+    t.update_signal <-
       Git.Branch.head branch |> React.S.map (fun _ ->
         if not (!update_scheduled) then (
           update_scheduled := true;
           async (fun () ->
             Lwt_mutex.with_lock mutex (fun () ->
               update_scheduled := false;
-              if not !fixed_head then (
+              if not t.fixed_head then (
                 (* Head might have changed while we waited for the lock. *)
                 React.S.value (Git.Branch.head branch)
-                |> update_head ~on_update ~updated ~head
+                |> maybe_update_head t
               ) else return ()  (* Fixed head - ignore updates *)
             )
           )
         )
-      ) in
-    return {
-      branch;
-      fixed_head;
-      head;
-      updated;
-      mutex;
-      update_signal;
-      on_update;
-    }
+      );
+    update_alarm t;
+    return t
 
   let fix_head t = function
     | None ->
         Lwt_mutex.with_lock t.mutex (fun () ->
-          t.fixed_head := false;
+          t.fixed_head <- false;
           React.S.value (Git.Branch.head t.branch)
-          |> update_head ~on_update:t.on_update ~updated:t.updated ~head:t.head
+          |> maybe_update_head t
         )
     | Some _ as new_head ->
         Lwt_mutex.with_lock t.mutex (fun () ->
-          t.fixed_head := true;
-          update_head ~on_update:t.on_update ~updated:t.updated ~head:t.head new_head
+          t.fixed_head <- true;
+          maybe_update_head t new_head
         )
 
-  let head t = !(t.head)
-  let fixed_head t = !(t.fixed_head)
+  let head t = t.head
+  let fixed_head t = t.fixed_head
 
   let branch_head t =
     match React.S.value (Git.Branch.head t.branch) with
@@ -123,7 +150,8 @@ module Make(Git : Git_storage_s.S)
           return (return ())
       | `Ok merged ->
       (* Check that the merge is readable *)
-      Lwt.catch (fun () -> R.make merged >|= ignore)
+      let time = Clock.now () in
+      Lwt.catch (fun () -> R.make ~time merged >|= ignore)
         (fun ex -> Ck_utils.error "Change generated an invalid commit:\n%s\n\nThis is a BUG. The invalid change has been discarded."
           (Printexc.to_string ex)) >>= fun () ->
       Lwt_mutex.with_lock t.mutex (fun () ->
@@ -136,7 +164,7 @@ module Make(Git : Git_storage_s.S)
         if merge_result = `Ok then (
           (* If we were on a fixed head then return to tracking master. Otherwise, the user won't
            * see the update. *)
-          t.fixed_head := false;
+          t.fixed_head <- false;
         );
         (merge_result, updated)
       ) >>= function

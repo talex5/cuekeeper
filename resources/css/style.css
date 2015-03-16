@@ -158,6 +158,20 @@ span.ck-toggles a.ck-active-✓ {
 	color: black;
 	background-color: #ff8;
 }
+div.ck-tree span.ck-toggles a.ck-active-alert {
+	-webkit-animation-name: alert;
+	-webkit-animation-iteration-count: infinite;
+	-webkit-animation-duration: 2.0s;
+	animation-name: alert;
+	animation-iteration-count: infinite;
+	animation-duration: 2.0s;
+}
+
+span.ck-toggles a.ck-active-alert {
+	border-color: black;
+	color: white;
+	background-color: red;
+}
 
 div.ck-done span.allow-strikethrough,
 span.ck-done span.allow-strikethrough {
@@ -276,6 +290,18 @@ li {
 }
 */
 
+@-webkit-keyframes alert {
+	0% { background: yellow; }
+	50% { background: red; }
+	100% { background: red; }
+}
+
+@keyframes alert {
+	0% { background: yellow; }
+	50% { background: red; }
+	100% { background: red; }
+}
+
 @-webkit-keyframes flash {
 	0% { background: yellow; }
 	24% { background: white; }
@@ -349,6 +375,12 @@ span.ck-group-label {
 	color: #888;
 }
 
+span.ck-group-label {
+	color: #888;
+	margin-top: 0.2rem;
+	display: block;
+}
+
 ul.ck-dropdown.f-dropdown {
 	max-width: 30em;
 	width: auto;
@@ -407,6 +439,11 @@ dl.sub-nav a {
 	background: #f4f4f4;
 	border-radius: 3px;
 }
+dl.sub-nav a.alert {
+	color: white;
+	background: #f88;
+	border-radius: 3px;
+}
 dl.sub-nav dd:first-child {
 	margin-left: 0;
 }
@@ -438,4 +475,16 @@ table td.ck-waiting-menu {
 table td.ck-or {
 	background: #eee;
 	vertical-align: middle;
+}
+
+div.ck-add-scheduled {
+	padding: 2px;
+}
+
+div.ck-add-scheduled input {
+	width: 100%;
+}
+
+div.ck-add-scheduled div.pika-single {
+	border: none;
 }

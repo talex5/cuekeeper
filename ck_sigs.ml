@@ -79,6 +79,10 @@ module type REV = sig
     val equal : generic -> generic -> bool
     (** Note that the rev field is ignored, so nodes from different commits can
      * be equal. *)
+
+    val is_due : Types.action_node -> bool
+    (** [true] if this is a waiting action due at or before the time
+     * this revision was loaded. *)
   end
   open Node.Types
 
@@ -97,4 +101,14 @@ module type REV = sig
   val get_contact : t -> Ck_id.t -> contact_node option
 
   val parent : t -> [< area | project | action] -> [ area | project | action ] option
+
+  val schedule : t -> Node.Types.action_node list
+  (** The ([`Waiting_until time] actions, earliest first. *)
+
+  val alert : t -> bool
+  (** Alert the user that action is required.
+   * Currently, this is true when a [`Waiting_until] action is due. *)
+
+  val expires : t -> float option
+  (** Will need to reload at this time (this is when the next scheduled action becomes due). *)
 end

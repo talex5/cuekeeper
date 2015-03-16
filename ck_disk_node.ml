@@ -99,8 +99,8 @@ let with_starred node s =
   | `Action (a, d) -> `Action ({a with astarred = s}, d)
   | `Project (p, d) -> `Project ({p with pstarred = s}, d)
 
-let make_action ~name ~description ~parent ~ctime =
-  `Action ({ astate = `Next; astarred = false }, make ~name ~description ~parent ~ctime)
+let make_action ~state ~name ~description ~parent ~ctime =
+  `Action ({ astate = state; astarred = false }, make ~name ~description ~parent ~ctime)
 
 let make_project ~name ~description ~parent ~ctime =
   `Project ({ pstate = `Active; pstarred = false }, make ~name ~description ~parent ~ctime)

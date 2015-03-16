@@ -10,6 +10,8 @@ module type MODEL = sig
   module Item : sig
     include DISK_NODE
     val uuid : [< generic] -> Ck_id.t
+    val is_due : Types.action_node -> bool
+    (** Whether a [`Waiting_until] action is due. *)
   end
 
   open Item.Types
@@ -34,7 +36,8 @@ module type MODEL = sig
     details_stop : stop;
   }
 
-  val add_action : t -> ?parent:[< area | project] -> name:string -> description:string -> [area | project | action] option Lwt.t
+  val add_action : t -> state:Ck_id.t action_state -> ?parent:[< area | project] ->
+                   name:string -> description:string -> [area | project | action] option Lwt.t
   val add_project : t -> ?parent:[< area | project] -> name:string -> description:string -> [area | project | action] option Lwt.t
   val add_area : t -> ?parent:[< area] -> name:string -> description:string -> [area | project | action] option Lwt.t
   val add_contact : t -> name:string -> [> contact] option Lwt.t
@@ -73,7 +76,10 @@ module type MODEL = sig
                   | `Work of Widget.t ReactiveData.RList.t
                   | `Contact of Widget.t ReactiveData.RList.t
                   | `Review of Widget.t ReactiveData.RList.t
-                  | `Schedule of unit ] React.S.t
+                  | `Schedule of Widget.t ReactiveData.RList.t] React.S.t
 
   val details : t -> [< Item.generic] -> details
+
+  val alert : t -> bool React.S.t
+  (** Alert the user that action is required (the Work view will show what) *)
 end

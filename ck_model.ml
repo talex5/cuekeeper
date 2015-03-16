@@ -77,6 +77,11 @@ module Make(Clock : Ck_clock.S)
 
     let children t = t.children
 
+    let group ~pri label = {
+      item = `Group (pri, label);
+      children = Child_map.empty;
+    }
+
     let leaf_of_node n = {
       item = `Item (n :> Item.generic);
       children = Child_map.empty;
@@ -93,7 +98,7 @@ module Make(Clock : Ck_clock.S)
     | `Work of Widget.t ReactiveData.RList.t
     | `Contact of Widget.t ReactiveData.RList.t
     | `Review of Widget.t ReactiveData.RList.t
-    | `Schedule of unit ]
+    | `Schedule of Widget.t ReactiveData.RList.t ]
 
   type details = {
     details_item : Item.generic option React.S.t;
@@ -114,6 +119,7 @@ module Make(Clock : Ck_clock.S)
     mutable details : (details * (R.t -> unit)) Ck_id.M.t;
     mutable update_tree : R.t -> unit;
     mutable keep_me : unit React.S.t list;
+    alert : bool React.S.t;
   }
 
   let assume_changed _ _ = false
@@ -127,12 +133,12 @@ module Make(Clock : Ck_clock.S)
     Up.add t.master ~parent disk_node >|= fun id ->
     R.get t.r id
 
-  let add_action t = add Ck_disk_node.make_action t
+  let add_action t ~state = add (Ck_disk_node.make_action ~state) t
   let add_project t = add Ck_disk_node.make_project t
   let add_area t = add Ck_disk_node.make_area t
 
   let add_contact t ~name =
-    let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Unix.gettimeofday ()) in
+    let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Clock.now ()) in
     Up.add_contact t.master ~base:t.r disk_node >|= fun id ->
     match R.get_contact t.r id with
     | None -> None
@@ -141,7 +147,7 @@ module Make(Clock : Ck_clock.S)
   let add_child t parent name =
     match parent with
     | `Area _ as a -> add_project t ~parent:a ~name ~description:""
-    | `Project _ as p -> add_action t ~parent:p ~name ~description:""
+    | `Project _ as p -> add_action t ~state:`Next ~parent:p ~name ~description:""
 
   let delete t node =
     Up.delete t.master node
@@ -204,6 +210,27 @@ module Make(Clock : Ck_clock.S)
       acc |> TreeNode.add value
     ) contacts TreeNode.Child_map.empty
 
+  let make_schedule_tree r =
+    let day = ref None in
+    let results = ref TreeNode.Child_map.empty in
+    R.schedule r |> List.iter (fun action ->
+      match Node.action_state action with
+      | `Waiting_until time ->
+          let tm = Unix.localtime time in
+          let date = Unix.(Printf.sprintf "%04d-%02d-%02d (%s)"
+                            (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday (string_of_day tm.tm_wday)) in
+          let group =
+            match !day with
+            | Some (prev_date, group) when prev_date = date -> group
+            | _ -> TreeNode.group ~pri:0 date in
+          let node = TreeNode.leaf_of_node (`Action action) in
+          let group = {group with TreeNode.children = TreeNode.add node group.TreeNode.children} in
+          day := Some (date, group);
+          results := TreeNode.add group !results
+      | _ -> assert false
+    );
+    !results
+
   let is_someday_project p =
     Node.project_state p = `SomedayMaybe
 
@@ -222,10 +249,12 @@ module Make(Clock : Ck_clock.S)
             scan_container ~in_someday node
         | `Area _ -> scan_container ~in_someday node
         | `Action action ->
+            let add () =
+              let item = TreeNode.leaf_of_node node in
+              child_actions := !child_actions |> TreeNode.add item in
             match Node.action_state action with
-            | `Next when not in_someday ->
-                let item = TreeNode.leaf_of_node node in
-                child_actions := !child_actions |> TreeNode.add item
+            | `Next when not in_someday -> add ()
+            | `Waiting_until _ when Node.is_due action -> add ()
             | `Done ->
                 let item = TreeNode.leaf_of_node node in
                 done_items := !done_items |> TreeNode.add item
@@ -471,6 +500,7 @@ module Make(Clock : Ck_clock.S)
       ~uuid:"6002ea71-6f1c-4ba9-8728-720f4b4c9845"
       ~parent:switch_to_ck
       (Ck_disk_node.make_action
+        ~state:`Next
         ~name:"Read wikipedia page on GTD"
         ~description:"http://en.wikipedia.org/wiki/Getting_Things_Done")
     >>= fun _ ->
@@ -500,7 +530,7 @@ module Make(Clock : Ck_clock.S)
     | `Work -> let t, u = rtree r make_work_tree in `Work t, u
     | `Review -> let t, u = rtree r make_review_tree in `Review t, u
     | `Contact -> let t, u = rtree r make_contact_tree in `Contact t, u
-    | `Schedule -> `Schedule (), ignore
+    | `Schedule -> let t, u = rtree r make_schedule_tree in `Schedule t, u
 
   let set_mode t mode =
     let tree_view, update_tree = make_tree t.r mode in
@@ -527,6 +557,7 @@ module Make(Clock : Ck_clock.S)
     Git.Repository.branch ~if_new:init_repo repo "master" >>= Up.make ~on_update >>= fun master ->
     let r = Up.head master in
     get_log master >>= fun initial_log ->
+    let alert, set_alert = React.S.create (R.alert r) in
     let log, set_log = React.S.create initial_log in
     let fixed_head, set_fixed_head = React.S.create None in
     let log =
@@ -538,11 +569,13 @@ module Make(Clock : Ck_clock.S)
       repo; master; r;
       tree; set_tree; update_tree;
       log;
+      alert;
       fixed_head; set_fixed_head;
       details = Ck_id.M.empty;
       keep_me = []
     } in
     Lwt.wakeup set_on_update (fun r ->
+      set_alert (R.alert r);
       t.r <- r;
       t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
       t.update_tree r;
@@ -552,4 +585,6 @@ module Make(Clock : Ck_clock.S)
     if M.is_empty (R.roots r) then (
       initialise t >>= fun () -> return t
     ) else return t
+
+  let alert t = t.alert
 end

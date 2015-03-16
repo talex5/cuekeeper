@@ -17,6 +17,10 @@ module Make(Git : Git_storage_s.S) = struct
         contacts : contact_node Ck_id.M.t ref;
         actions_of_contact : (Ck_id.t, action_node) Hashtbl.t;
         index : (Ck_id.t, apa) Hashtbl.t;
+        mutable alert : bool;
+        mutable schedule : action_node list;
+        mutable expires : float option;
+        valid_from : float;
       }
       and 'a node_details = {
         rev : rev;
@@ -79,9 +83,19 @@ module Make(Git : Git_storage_s.S) = struct
 
     let key node = (String.lowercase (name node), uuid node)
 
+    let is_due action =
+      match action_state action with
+      | `Waiting_until time -> time <= action.rev.valid_from
+      | _ -> false
+
+    let node_due = function
+      | `Action action -> is_due action
+      | _ -> false
+
     let equal a b =
       uuid a = uuid b &&
-      disk_node a = disk_node b
+      disk_node a = disk_node b &&
+      node_due a = node_due b   (* Force the GUI to update when an item becomes due *)
   end
 
   open Node.Types
@@ -97,20 +111,31 @@ module Make(Git : Git_storage_s.S) = struct
     let parent = Node.uuid node in
     try Ck_id.M.find parent t.children with Not_found -> M.empty
 
-  let process_item t = function
+  let process_item ~now t = function
     | `Action a ->
         begin match Node.action_state a with
         | `Waiting_for_contact c -> Hashtbl.add t.actions_of_contact c a
+        | `Waiting_until time ->
+            t.schedule <- a :: t.schedule;
+            if time <= now then t.alert <- true
+            else (
+              match t.expires with
+              | Some old_time when old_time <= time -> ()
+              | _ -> t.expires <- Some time
+            )
         | _ -> () end
     | _ -> ()
 
-  let make commit =
+  let make ~time commit =
     Git.Commit.checkout commit >>= fun tree ->
     let contacts = ref Ck_id.M.empty in
     let children = Hashtbl.create 100 in
     let index = Hashtbl.create 100 in
     let actions_of_contact = Hashtbl.create 10 in
-    let t = { commit; roots = M.empty; contacts; index; actions_of_contact; children = Ck_id.M.empty } in
+    let t = {
+      commit; roots = M.empty; contacts; index; actions_of_contact; children = Ck_id.M.empty;
+      schedule = []; alert = false; valid_from = time; expires = None
+    } in
     (* Load areas, projects and actions *)
     Git.Staging.list tree ["db"] >>=
     Lwt_list.iter_s (function
@@ -153,7 +178,7 @@ module Make(Git : Git_storage_s.S) = struct
       Hashtbl.fold (fun uuid child_uuids acc ->
         let child_map = child_uuids |> List.fold_left (fun acc child_uuid ->
           let child = Hashtbl.find index child_uuid in
-          process_item t child;
+          process_item ~now:time t child;
           acc |> M.add (Node.key child) child
         ) M.empty in
         acc |> Ck_id.M.add uuid child_map
@@ -183,4 +208,16 @@ module Make(Git : Git_storage_s.S) = struct
   let action_node n = n.disk_node
   let project_node n = n.disk_node
   let area_node n = n.disk_node
+
+  let due action =
+    match Node.action_state action with
+    | `Waiting_until time -> time
+    | _ -> assert false
+
+  let by_due_time a b =
+    compare (due a) (due b)
+
+  let schedule t = List.sort by_due_time t.schedule
+  let alert t = t.alert
+  let expires t = t.expires
 end

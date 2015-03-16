@@ -26,19 +26,15 @@ let async ~name (fn:unit -> unit Lwt.t) =
     )
   )
 
-let string_of_day = function
-  | 0 -> "Sun"
-  | 1 -> "Mon"
-  | 2 -> "Tue"
-  | 3 -> "Wed"
-  | 4 -> "Thu"
-  | 5 -> "Fri"
-  | 6 -> "Sat"
-  | _ -> "XXX"
-
 let fmt_date date =
   let open Unix in
-  let tm = gmtime date in
+  let tm = localtime date in
+  Printf.sprintf "%04d-%02d-%02d (%s)"
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday (string_of_day tm.tm_wday)
+
+let fmt_timestamp date =
+  let open Unix in
+  let tm = localtime date in
   Printf.sprintf "%04d-%02d-%02d %02d:%02d (%s)"
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min (string_of_day tm.tm_wday)
 
@@ -198,7 +194,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ]
     )
 
-  let toggle_label ~set_details ~current details =
+  let toggle_label ~set_details ~current ~due details =
     let l =
       match details with
       | `Done -> "✓"
@@ -207,15 +203,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | `Future -> "f"
       | `Active -> "a"
       | `SomedayMaybe -> "sm" in
-    let cl = if current = details then "ck-active-" ^ l else "ck-inactive" in
+    let cl =
+      if due && l = "w" then "ck-active-alert"
+      else if current = details then "ck-active-" ^ l else "ck-inactive" in
     let changed ev =
       set_details ev details;
       true in
     a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
 
-  let make_toggles ~m ~set_details ~item current options =
+  let make_toggles ~m ~set_details ~item ?(due=false) current options =
     let starred = M.Item.starred item in
-    let state_toggles = options |> List.map (toggle_label ~set_details ~current) in
+    let state_toggles = options |> List.map (toggle_label ~set_details ~current ~due) in
     let cl = if starred then "star-active" else "star-inactive" in
     let set_star _ev =
       async ~name:"set_starred" (fun () -> M.set_starred m item (not starred));
@@ -223,11 +221,16 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let star = a ~a:[a_class [cl]; a_onclick set_star] [pcdata "★"] in
     state_toggles @ [star]
 
+  let due action =
+    match M.Item.action_state action with
+    | `Waiting_until time -> Some time
+    | _ -> None
+
   let wait_until_date m action =
     let on_select date =
       async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
       close_modal () in
-    Pikaday.make ~on_select
+    Pikaday.make ?initial:(due action) ~on_select ()
 
   let toggles_for_type m = function
     | `Action action as item ->
@@ -245,7 +248,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ) else if current <> n then (
             async ~name:"set_action_state" (fun () -> M.set_action_state m action n)
           ) in
-        make_toggles ~m ~set_details ~item current [`Done; `Next; `Waiting; `Future]
+        let due = M.Item.is_due action in
+        make_toggles ~m ~set_details ~item ~due current [`Done; `Next; `Waiting; `Future]
     | `Project project as item ->
         let set_details _ev n =
           async ~name:"set_project_state" (fun () -> M.set_project_state m project n) in
@@ -435,7 +439,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             match log_entry.msg with
             | [] -> "(no log message)"
             | x::_ -> x in
-          let date = fmt_date log_entry.date in
+          let date = fmt_timestamp log_entry.date in
           let item =
             li ~a:[R.Html5.a_class cl] [
               a ~a:[a_onclick view] [pcdata date];
@@ -481,6 +485,34 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       )
     ]
 
+  let make_schedule_view m ~show_node tree =
+    let add_clicked ev =
+      let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 20] () in
+      auto_focus name_input;
+      let on_select date =
+        let input_elem = Tyxml_js.To_dom.of_input name_input in
+        let name = input_elem##value |> Js.to_string |> String.trim in
+        if name <> "" then (
+          async ~name:"add to schedule" (fun () ->
+            M.add_action m ~state:(`Waiting_until date) ?parent:None ~name ~description:"" >|= function
+            | None -> print_endline "Added item no longer exists!"
+            | Some item -> show_node (item :> M.Item.generic)
+          );
+          close_modal ()
+        ) in
+      let content = div ~a:[a_class ["ck-add-scheduled"]] [
+        name_input;
+        Pikaday.make ~on_select ()
+      ] in
+      show_modal ~parent:(ev##target) [content];
+      false in
+    [
+      h4 [pcdata "Schedule"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]];
+      R.Html5.ul (
+        ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
+      )
+    ]
+
   let make_tree ~show_node m = function
     | `Process tree | `Review tree ->
         [R.Html5.ul (
@@ -488,7 +520,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         )]
     | `Contact tree -> make_contact_view m ~show_node tree
     | `Work work_tree -> make_work_view m ~show_node work_tree
-    | `Schedule () -> [p [pcdata "Not implemented yet"]]
+    | `Schedule tree -> make_schedule_view m ~show_node tree
 
   let mode_of = function
     | `Process _ -> `Process
@@ -498,17 +530,27 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     | `Schedule _ -> `Schedule
 
   let make_mode_switcher m current_tree =
-    let item name mode =
+    let item ?alert name mode =
       let cl = current_tree |> React.S.map (fun t ->
         if (mode_of t) = mode then ["active"] else []
       ) in
-      let clicked _ev = M.set_mode m mode; true in
-      let button = a ~a:[a_href "#"; a_onclick clicked] [pcdata name] in
+      let clicked _ev = M.set_mode m mode; false in
+      let attrs = [a_onclick clicked] in
+      let attrs =
+        match alert with
+        | None -> attrs
+        | Some s ->
+            let cl = R.Html5.a_class (s >|~= function
+              | false -> [""]
+              | true -> ["alert"]
+            ) in
+            cl :: attrs in
+      let button = a ~a:attrs [pcdata name] in
       dd ~a:[R.Html5.a_class cl] [button] in
 
     dl ~a:[a_class ["sub-nav"]] [
       item "Process" `Process;
-      item "Work" `Work;
+      item "Work" `Work ~alert:(M.alert m);
       item "Contact" `Contact;
       item "Schedule" `Schedule;
       item "Review" `Review;
@@ -561,12 +603,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   | `Action _ | `Contact _ -> pcdata ""
                   | `Project _ as item -> ul ~a:[a_class ["add"]] [
                       add_button (M.add_project m ~parent:item) "+sub-project";
-                      add_button (M.add_action m ~parent:item) "+action";
+                      add_button (M.add_action m ~state:`Next ~parent:item) "+action";
                     ]
                   | `Area _ as item -> ul ~a:[a_class ["add"]] [
                       add_button (M.add_area m ~parent:item) "+sub-area";
                       add_button (M.add_project m ~parent:item) "+project";
-                      add_button (M.add_action m ~parent:item) "+action";
+                      add_button (M.add_action m ~state:`Next ~parent:item) "+action";
                     ]
             )
         (* When we are editing, display the form. *)
@@ -744,7 +786,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let on_select date =
       async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
       close_modal () in
-    let content = Pikaday.make ~on_select in
+    let content = Pikaday.make ?initial:(due action) ~on_select () in
     show_modal ~parent:(ev##target) [content]
 
   let make_details_panel m ~set_closed ~show_node details =
@@ -768,7 +810,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let ctime =
       match initial_item with
       | None -> "-"
-      | Some item -> M.Item.ctime item |> fmt_date in
+      | Some item -> M.Item.ctime item |> fmt_timestamp in
     let description = make_editable_description m item in
     let title = 
       div ~a:[R.Html5.a_class title_cl] [
@@ -815,7 +857,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ul ~a:[a_class ["ck-adders"]] [
             make (M.add_area m ?parent:None) "+area";
             make (M.add_project m ?parent:None) "+project";
-            make (M.add_action m ?parent:None) "+action";
+            make (M.add_action m ~state:`Next ?parent:None) "+action";
           ]
       | Some adder ->
           let close () = set_editing None in
@@ -878,7 +920,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             div ~a:[a_class cl] [
               pcdata (
                 Printf.sprintf "Time-travel active: you are viewing the state of CueKeeper as at %s."
-                  (fmt_date log_entry.Git_storage_s.Log_entry.date)
+                  (fmt_timestamp log_entry.Git_storage_s.Log_entry.date)
               );
               a ~a:[a_class ["close"]; a_onclick return_to_present] [pcdata "×"]
             ]

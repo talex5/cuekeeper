@@ -44,3 +44,13 @@ let rlist_of ?init s =
     | Some v -> v in
   let changes = React.S.changes s |> React.E.map (fun x -> ReactiveData.RList.Set x) in
   ReactiveData.RList.make_from init changes
+
+let string_of_day = function
+  | 0 -> "Sun"
+  | 1 -> "Mon"
+  | 2 -> "Tue"
+  | 3 -> "Wed"
+  | 4 -> "Thu"
+  | 5 -> "Fri"
+  | 6 -> "Sat"
+  | _ -> "XXX"

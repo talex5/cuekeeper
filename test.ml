@@ -18,7 +18,7 @@ module Test_clock = struct
   let now () = !time
   let sleep delay =
     assert (delay >= 0.0);
-    let result, waker = Lwt.wait () in
+    let result, waker = Lwt.task () in
     schedule := !schedule |> Queue.add (!time +. delay, waker);
     result
 
@@ -260,7 +260,7 @@ let suite =
         M.set_mode m `Work;
         let next_actions = M.tree m |> expect_tree in
 
-        M.add_action ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun _ ->
+        M.add_action ~state:`Next ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun _ ->
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree [
@@ -300,7 +300,7 @@ let suite =
           n "Recently completed" [];
         ];
 
-        M.add_action ~parent:work ~name:"GC unused signals" ~description:"" m >>= fun _ ->
+        M.add_action ~state:`Next ~parent:work ~name:"GC unused signals" ~description:"" m >>= fun _ ->
         next_actions |> assert_tree [
           n "Next actions" [
             n "+Work" [
@@ -333,6 +333,64 @@ let suite =
           n "Next actions" [
             n "Work" [
               n "GC unused signals" [];
+            ]
+          ];
+          n "Recently completed" [];
+        ];
+
+        let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
+        M.set_action_state m units (`Waiting_until 5.0) >>= fun () ->
+        next_actions |> assert_tree [
+          n "Next actions" [
+            n "Work" [
+              n "GC unused signals" [];
+            ]
+          ];
+          n "Recently completed" [];
+        ];
+
+        Test_clock.run_to 5.0;
+        next_actions |> assert_tree [
+          n "Next actions" [
+            n "Work" [
+              n "GC unused signals" [];
+              n "+Write unit tests" [];
+            ]
+          ];
+          n "Recently completed" [];
+        ];
+
+        let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
+        M.set_action_state m units (`Waiting_until 6.0) >>= fun () ->
+        M.add_action ~state:(`Waiting_until 7.0) ~parent:work ~name:"Implement scheduing" ~description:"" m >>= fun _ ->
+        next_actions |> assert_tree [
+          n "Next actions" [
+            n "Work" [
+              n "GC unused signals" [];
+              n "-Write unit tests" [];
+            ]
+          ];
+          n "Recently completed" [];
+        ];
+
+        Test_clock.run_to 6.0;
+        next_actions |> assert_tree [
+          n "Next actions" [
+            n "Work" [
+              n "GC unused signals" [];
+              n "+Write unit tests" [];
+            ]
+          ];
+          n "Recently completed" [];
+        ];
+
+        Test_clock.run_to 7.5;
+        next_actions |> assert_tree [
+          n "Next actions" [
+            n "Work" [
+              n "GC unused signals" [];
+              n "+Implement scheduing" [];
+              n "Write unit tests" [];
             ]
           ];
           n "Recently completed" [];
