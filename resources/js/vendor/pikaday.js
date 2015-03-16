@@ -547,7 +547,9 @@
                 }
                 opts.setDefaultDate = true;
             }
-        }
+        } else if (opts.container) {
+	  opts.container.appendChild(self.el);
+	}
 
         var defDate = opts.defaultDate;
 
