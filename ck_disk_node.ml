@@ -10,9 +10,17 @@ type node_details = {
   ctime : float;
 } with sexp
 
+type astate =
+  [ `Next
+  | `Waiting
+  | `Waiting_for_contact of Ck_id.t
+  | `Waiting_until of float
+  | `Future
+  | `Done ] with sexp
+
 type action_details = {
   astarred : bool with default(false);
-  astate : [ `Next | `Waiting | `Waiting_for_contact of Ck_id.t | `Future | `Done ]
+  astate : astate;
 } with sexp
 
 type project_details = {

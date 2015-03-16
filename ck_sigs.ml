@@ -5,6 +5,7 @@ open Ck_utils
 
 type stop = unit -> unit
 type 'a or_error = [ `Ok of 'a | `Error of string ]
+type 'c action_state = [ `Next | `Waiting | `Waiting_for_contact of 'c | `Waiting_until of float | `Future | `Done ]
 
 module type DISK_NODE = sig
   module Types : sig
@@ -27,7 +28,7 @@ module type DISK_NODE = sig
   val description : [< generic] -> string
   val ctime : [< generic ] -> float
   val starred : [< project | action] -> bool
-  val action_state : action_node -> [ `Next | `Waiting | `Waiting_for_contact of Ck_id.t | `Future | `Done  ]
+  val action_state : action_node -> Ck_id.t action_state
   val project_state : project_node -> [ `Active | `SomedayMaybe | `Done ]
   val is_done : [< project | action] -> bool
 end

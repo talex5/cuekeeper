@@ -420,3 +420,22 @@ ul.vcard {
 ul.vcard img {
 	float: right;
 }
+
+button.pika-button {
+	transition: none;
+}
+
+div.ck-modal table {
+	border: none;
+}
+
+table td.ck-waiting-menu {
+	text-align: left;
+	vertical-align: top;
+	padding: 0;
+}
+
+table td.ck-or {
+	background: #eee;
+	vertical-align: middle;
+}

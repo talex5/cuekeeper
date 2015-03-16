@@ -46,7 +46,7 @@ module type MODEL = sig
   val set_name : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_description : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_starred : t -> [< project | action] -> bool -> unit Lwt.t
-  val set_action_state : t -> action_node -> [< `Next | `Waiting | `Waiting_for_contact of contact_node | `Future | `Done ] -> unit Lwt.t
+  val set_action_state : t -> action_node -> [< contact_node action_state] -> unit Lwt.t
   val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
 
   val convert_to_area : t -> project_node -> unit or_error Lwt.t

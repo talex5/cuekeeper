@@ -231,7 +231,7 @@ module Make(Git : Git_storage_s.S)
   let set_action_state t node astate =
     let astate =
       match astate with
-      | `Done | `Next | `Waiting | `Future as s -> s
+      | `Done | `Next | `Waiting | `Waiting_until _ | `Future as s -> s
       | `Waiting_for_contact contact ->
           let contact = `Contact contact in
           assert (R.Node.rev (`Action node) == R.Node.rev contact);

@@ -267,7 +267,7 @@ module Make(Clock : Ck_clock.S)
       | _, (`Action a) ->
           match Node.action_state a with
           | `Next -> (2, "Next actions")
-          | `Waiting | `Waiting_for_contact _ -> (3, "Waiting actions")
+          | `Waiting | `Waiting_for_contact _ | `Waiting_until _ -> (3, "Waiting actions")
           | `Future -> (4, "Future actions")
           | `Done -> (5, "Completed actions") in
     let add node =

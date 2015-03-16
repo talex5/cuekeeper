@@ -183,7 +183,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let toggle_of_astate = function
     | `Done | `Next | `Waiting | `Future as s -> s
-    | `Waiting_for_contact _ -> `Waiting
+    | `Waiting_for_contact _ | `Waiting_until _ -> `Waiting
 
   let waiting_candidates m item =
     M.candidate_contacts_for m item |> List.map (fun candidate ->
@@ -223,12 +223,24 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let star = a ~a:[a_class [cl]; a_onclick set_star] [pcdata "★"] in
     state_toggles @ [star]
 
+  let wait_until_date m action =
+    let on_select date =
+      async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
+      close_modal () in
+    Pikaday.make ~on_select
+
   let toggles_for_type m = function
     | `Action action as item ->
         let current = M.Item.action_state action |> toggle_of_astate in
         let set_details ev n =
           if n = `Waiting then (
-            let content = ul (waiting_candidates m item) in
+            let content = table [
+              tr [
+                td [wait_until_date m action];
+                td ~a:[a_class ["ck-or"]] [pcdata "or"];
+                td ~a:[a_class ["ck-waiting-menu"]] [ul (waiting_candidates m item)]
+              ]
+            ] in
             show_modal ~parent:(ev##target) [content];
           ) else if current <> n then (
             async ~name:"set_action_state" (fun () -> M.set_action_state m action n)
@@ -728,6 +740,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ) in
     R.Html5.div ~a:[R.Html5.a_class cl] (rlist_of elements)
 
+  let edit_date ~ev m action =
+    let on_select date =
+      async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
+      close_modal () in
+    let content = Pikaday.make ~on_select in
+    show_modal ~parent:(ev##target) [content]
+
   let make_details_panel m ~set_closed ~show_node details =
     let item = details.M.details_item in
     let title_cl =
@@ -756,6 +775,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
         R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
       ] in
+    let waiting_for =
+      item >|~= (function
+        | Some (`Action action) ->
+            begin match M.Item.action_state action with
+            | `Waiting_until time ->
+                let clicked ev = edit_date ~ev m action; false in
+                [label "Waiting until "; a ~a:[a_onclick clicked] [pcdata (fmt_date time)]]
+            | _ -> []
+            end
+        | _ -> []
+      ) |> rlist_of in
     let contents =
       div [
         div [
@@ -765,6 +795,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           label ("Created " ^ ctime);
           a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata " (delete)"];
         ];
+        R.Html5.div waiting_for;
         R.Html5.ul ~a:[a_class ["ck-groups"]] children;
         make_child_adder m ~show_node item;
         description;
