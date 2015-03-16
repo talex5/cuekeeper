@@ -40,3 +40,7 @@ USA
 
 This project includes Foundation (http://foundation.zurb.com). These files
 are released under the MIT license.
+
+
+This project includes the Pikaday date picker (https://github.com/dbushell/Pikaday).
+These files are released under the BSD & MIT licenses.
