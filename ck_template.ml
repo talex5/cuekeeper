@@ -5,8 +5,7 @@ open Tyxml_js
 open Html5
 open Ck_utils
 
-let (>|=) = Lwt.(>|=)
-let (>>=) = Lwt.(>>=)
+open Lwt.Infix
 
 module Gui_tree_data = struct
   (* If the gui_data for a widget is None then it has just appeared.
