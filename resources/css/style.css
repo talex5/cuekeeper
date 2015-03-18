@@ -429,6 +429,10 @@ div.ck-actions {
 	margin-bottom: 0.0;
 }
 
+div.ck-actions a + a {
+	margin-left: 1.5em;
+}
+
 dl.sub-nav {
 	margin-bottom: 0;
 }

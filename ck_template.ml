@@ -903,7 +903,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let contents = make_sync m in
         Ck_panel.make ~on_destroy:(fun () -> remove history_uuid) ~closed ~set_closed ~title ~contents ~id:history_uuid
       ) in
-    (ReactiveData.RList.map (fun (_, panel) -> Ck_panel.element panel) details_pane, show_node, show_history)
+    let close_all () =
+      ReactiveData.RList.value details_pane
+      |> List.iter (fun (_id, panel) -> Ck_panel.close panel) in
+    (
+      ReactiveData.RList.map (fun (_, panel) -> Ck_panel.element panel) details_pane,
+      show_node,
+      show_history,
+      close_all
+    )
 
   let time_travel_warning m =
     let showing = ref false in
@@ -930,7 +938,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let make_top m =
     let current_tree = M.tree m in
-    let details_area, show_node, show_history = make_details_area m in
+    let details_area, show_node, show_history, close_all = make_details_area m in
     let left_panel =
       let live = current_tree >|~= make_tree ~show_node m in
       rlist_of ~init:(React.S.value live) live in
@@ -947,6 +955,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       div ~a:[a_class ["row"]] [
         div ~a:[a_class ["small-12"; "columns"; "ck-actions"]] [
           a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
+          a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
         ]
       ];
       div ~a:[a_class ["row"]] [
