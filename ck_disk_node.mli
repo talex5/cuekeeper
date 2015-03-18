@@ -15,12 +15,16 @@ val to_string : [< area | project | action ] -> string
 val contact_of_string : string -> contact_node
 val contact_to_string : contact_node -> string
 
+val context_of_string : string -> context_node
+val context_to_string : context_node -> string
+
 val equal : ([< generic] as 'a) -> 'a -> bool
 
 val make_action : state:Ck_id.t action_state -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> action]
 val make_project : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> project]
 val make_area : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> area]
 val make_contact : name:string -> description:string -> ctime:float -> contact_node
+val make_context : name:string -> description:string -> ctime:float -> context_node
 
 val with_name : generic -> string -> generic
 val with_description : generic -> string -> generic
@@ -28,6 +32,7 @@ val with_parent : generic -> Ck_id.t -> generic
 val with_astate : action_node -> Ck_id.t action_state -> action_node
 val with_pstate : project_node -> [ `Active | `SomedayMaybe | `Done ] -> project_node
 val with_starred : [< project | action] -> bool -> [project | action]
+val with_context : action_node -> Ck_id.t option -> action_node
 
 val as_area : project_node -> area_node
 val as_project : [< area | action] -> project_node

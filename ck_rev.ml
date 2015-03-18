@@ -14,8 +14,10 @@ module Make(Git : Git_storage_s.S) = struct
         commit : Git.Commit.t;
         mutable roots : apa M.t;
         mutable children : apa M.t Ck_id.M.t;
+        contexts : context_node Ck_id.M.t ref;
         contacts : contact_node Ck_id.M.t ref;
         actions_of_contact : (Ck_id.t, action_node) Hashtbl.t;
+        actions_of_context : (Ck_id.t, action_node) Hashtbl.t;
         index : (Ck_id.t, apa) Hashtbl.t;
         mutable alert : bool;
         mutable schedule : action_node list;
@@ -30,6 +32,7 @@ module Make(Git : Git_storage_s.S) = struct
       and action_node = Ck_disk_node.Types.action_node node_details
       and project_node = Ck_disk_node.Types.project_node node_details
       and area_node = Ck_disk_node.Types.area_node node_details
+      and context_node = Ck_disk_node.Types.context_node node_details
       and contact_node = Ck_disk_node.Types.contact_node node_details
       and apa =
         [ `Action of action_node
@@ -40,13 +43,15 @@ module Make(Git : Git_storage_s.S) = struct
       type project = [`Project of project_node]
       type area = [`Area of area_node]
       type contact = [`Contact of contact_node]
+      type context = [`Context of context_node]
     end
 
     open Types
 
     type generic =
       [ apa
-      | `Contact of contact_node ]
+      | `Contact of contact_node
+      | `Context of context_node ]
 
     let apa_disk_node = function
       | `Action n -> `Action n.disk_node
@@ -58,12 +63,14 @@ module Make(Git : Git_storage_s.S) = struct
       | `Project n -> `Project n.disk_node
       | `Area n -> `Area n.disk_node
       | `Contact n -> `Contact n.disk_node
+      | `Context n -> `Context n.disk_node
 
     let details = function
       | `Action n -> {n with disk_node = ()}
       | `Project n -> {n with disk_node = ()}
       | `Area n -> {n with disk_node = ()}
       | `Contact n -> {n with disk_node = ()}
+      | `Context n -> {n with disk_node = ()}
 
     let rev n = (details n).rev
     let uuid n = (details n).uuid
@@ -73,6 +80,7 @@ module Make(Git : Git_storage_s.S) = struct
     let description t = Ck_disk_node.description (disk_node t)
     let ctime t = Ck_disk_node.ctime (disk_node t)
     let action_state n = Ck_disk_node.action_state n.disk_node
+    let context n = Ck_disk_node.context n.disk_node
     let project_state n = Ck_disk_node.project_state n.disk_node
     let starred = function
       | `Action n -> Ck_disk_node.starred (`Action n.disk_node)
@@ -112,9 +120,18 @@ module Make(Git : Git_storage_s.S) = struct
     try Ck_id.M.find parent t.children with Not_found -> M.empty
 
   let process_item ~now t = function
-    | `Action a ->
+    | `Action a as node ->
+        begin match Node.context a with
+        | None -> ()
+        | Some id ->
+            if not (Ck_id.M.mem id !(t.contexts)) then
+              error "Context '%a' of '%s' not found!" Ck_id.fmt id (Node.name node);
+            Hashtbl.add t.actions_of_context id a end;
         begin match Node.action_state a with
-        | `Waiting_for_contact c -> Hashtbl.add t.actions_of_contact c a
+        | `Waiting_for_contact c ->
+            if not (Ck_id.M.mem c !(t.contacts)) then
+              error "Contact '%a' of '%s' not found!" Ck_id.fmt c (Node.name node);
+            Hashtbl.add t.actions_of_contact c a
         | `Waiting_until time ->
             t.schedule <- a :: t.schedule;
             if time <= now then t.alert <- true
@@ -129,11 +146,14 @@ module Make(Git : Git_storage_s.S) = struct
   let make ~time commit =
     Git.Commit.checkout commit >>= fun tree ->
     let contacts = ref Ck_id.M.empty in
+    let contexts = ref Ck_id.M.empty in
     let children = Hashtbl.create 100 in
     let index = Hashtbl.create 100 in
     let actions_of_contact = Hashtbl.create 10 in
+    let actions_of_context = Hashtbl.create 10 in
     let t = {
       commit; roots = M.empty; contacts; index; actions_of_contact; children = Ck_id.M.empty;
+      contexts; actions_of_context;
       schedule = []; alert = false; valid_from = time; expires = None
     } in
     (* Load areas, projects and actions *)
@@ -168,6 +188,17 @@ module Make(Git : Git_storage_s.S) = struct
           contacts := !contacts |> Ck_id.M.add uuid contact;
       | _ -> assert false
     ) >>= fun () ->
+    (* Load contexts *)
+    Git.Staging.list tree ["context"] >>=
+    Lwt_list.iter_s (function
+      | ["context"; uuid] as key ->
+          let uuid = Ck_id.of_string uuid in
+          Git.Staging.read_exn tree key >|= fun s ->
+          let disk_node = Ck_disk_node.context_of_string s in
+          let context = {rev = t; uuid; disk_node} in
+          contexts := !contexts |> Ck_id.M.add uuid context;
+      | _ -> assert false
+    ) >>= fun () ->
     (* todo: reject cycles *)
     children |> Hashtbl.iter (fun parent children ->
       if parent <> Ck_id.root && not (Hashtbl.mem index parent) then (
@@ -193,7 +224,16 @@ module Make(Git : Git_storage_s.S) = struct
     try Some (Ck_id.M.find uuid !(t.contacts))
     with Not_found -> None
 
+  let get_context t uuid =
+    try Some (Ck_id.M.find uuid !(t.contexts))
+    with Not_found -> None
+
   let parent t node = get t (Node.parent node)
+
+  let context action =
+    match Node.context action with
+    | None -> None
+    | Some id -> get_context action.rev id
 
   let roots t =
     try Ck_id.M.find Ck_id.root t.children
@@ -201,8 +241,13 @@ module Make(Git : Git_storage_s.S) = struct
 
   let commit t = t.commit
   let contacts t = !(t.contacts)
-  let actions_of c =
+  let contexts t = !(t.contexts)
+
+  let actions_of_contact c =
     Hashtbl.find_all c.rev.actions_of_contact c.uuid
+
+  let actions_of_context c =
+    Hashtbl.find_all c.rev.actions_of_context c.uuid
 
   let disk_node = Node.disk_node
   let action_node n = n.disk_node

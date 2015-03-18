@@ -211,6 +211,10 @@ module Make(Git : Git_storage_s.S)
           assert (Ck_id.M.mem uuid (R.contacts base));
           let s = Ck_disk_node.contact_to_string new_disk_node in
           Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
+      | `Context new_disk_node ->
+          assert (Ck_id.M.mem uuid (R.contexts base));
+          let s = Ck_disk_node.context_to_string new_disk_node in
+          Git.Staging.update view ["context"; Ck_id.to_string uuid] s
     )
 
   let delete t node =
@@ -224,6 +228,7 @@ module Make(Git : Git_storage_s.S)
       `Ok () in
     match node with
     | `Contact _ -> remove ["contact"; uuid]
+    | `Context _ -> remove ["context"; uuid]
     | `Area _ | `Project _ | `Action _ as node ->
         try
           let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
@@ -248,6 +253,15 @@ module Make(Git : Git_storage_s.S)
       Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
 
+  let add_context t ~base context =
+    let uuid = Ck_id.mint () in
+    assert (not (Ck_id.M.mem uuid (R.contexts base)));
+    let s = Ck_disk_node.context_to_string context in
+    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name (`Context context)) in
+    merge_to_master t ~base ~msg (fun view ->
+      Git.Staging.update view ["context"; Ck_id.to_string uuid] s
+    ) >|= fun () -> uuid
+
   let set_name t node name =
     let msg = Printf.sprintf "Rename '%s' to '%s'" (R.Node.name node) name in
     update t ~msg node (Ck_disk_node.with_name (R.disk_node node) name)
@@ -255,6 +269,19 @@ module Make(Git : Git_storage_s.S)
   let set_description t node v =
     let msg = Printf.sprintf "Update description for '%s'" (R.Node.name node) in
     update t ~msg node (Ck_disk_node.with_description (R.disk_node node) v)
+
+  let set_context t node context =
+    let context =
+      match context with
+      | None -> None
+      | Some context ->
+          let context = `Context context in
+          assert (R.Node.rev (`Action node) == R.Node.rev context);
+          Some (R.Node.uuid context) in
+    let new_node = Ck_disk_node.with_context (R.action_node node) context in
+    let node = `Action node in
+    let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
+    update t ~msg node (`Action new_node)
 
   let set_action_state t node astate =
     let astate =

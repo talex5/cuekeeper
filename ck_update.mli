@@ -53,6 +53,7 @@ module Make(Git : Git_storage_s.S)
     (parent:Ck_id.t -> ctime:float -> [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action]) ->
     Ck_id.t Lwt.t
   val add_contact : t -> base:R.t -> Ck_disk_node.Types.contact_node -> Ck_id.t Lwt.t
+  val add_context : t -> base:R.t -> Ck_disk_node.Types.context_node -> Ck_id.t Lwt.t
   val delete : t -> [< R.Node.generic] -> unit or_error Lwt.t
 
   val set_name : t -> [< R.Node.generic ] -> string -> unit Lwt.t
@@ -60,6 +61,7 @@ module Make(Git : Git_storage_s.S)
   val set_starred : t -> [< action | project] -> bool -> unit Lwt.t
   val set_action_state : t -> action_node -> [< contact_node action_state ] -> unit Lwt.t
   val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
+  val set_context : t -> action_node -> context_node option -> unit Lwt.t
 
   val set_a_parent : t -> [area] -> [area] -> unit Lwt.t
   val set_pa_parent : t -> [< project | action] -> [< area | project] -> unit Lwt.t

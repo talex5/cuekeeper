@@ -80,6 +80,10 @@ div.ck-details div.ck-contact a.ck-title,
 span.ck-item.ck-contact a.ck-title {
 	font-weight: bold;
 }
+div.ck-details div.ck-context a.ck-title,
+span.ck-item.ck-context a.ck-title {
+	font-style: italic;
+}
 div.ck-details div.ck-action a.ck-title,
 span.ck-item.ck-action a.ck-title {
 	font-style: italic;

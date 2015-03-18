@@ -103,6 +103,7 @@ module Make(Clock : Ck_clock.S)
   type details = {
     details_item : Item.generic option React.S.t;
     details_parent : [ area | project | action ] option React.S.t;
+    details_context : context option option React.S.t;
     details_children : Widget.t ReactiveData.RList.t;
     details_stop : stop;
   }
@@ -143,6 +144,19 @@ module Make(Clock : Ck_clock.S)
     match R.get_contact t.r id with
     | None -> None
     | Some x -> Some (`Contact x)
+
+  let add_context t ~name =
+    let disk_node = Ck_disk_node.make_context ~name ~description:"" ~ctime:(Clock.now ()) in
+    Up.add_context t.master ~base:t.r disk_node >|= fun id ->
+    match R.get_context t.r id with
+    | None -> None
+    | Some x -> Some (`Context x)
+
+  let set_context t item context =
+    match R.get t.r (Node.uuid (`Action item)), R.get_context t.r (Node.uuid (`Context context)) with
+    | Some (`Action action), Some context -> Up.set_context t.master action (Some context) >|= fun () -> `Ok ()
+    | _, None -> `Error "Context no longer exists!" |> return
+    | _, _ -> `Error "Action no longer exists!" |> return
 
   let add_child t parent name =
     match parent with
@@ -286,6 +300,12 @@ module Make(Clock : Ck_clock.S)
     | Some a, Some b -> R.Node.equal (a :> Node.generic) (b :> Node.generic)
     | _ -> false
 
+  let opt_opt_node_equal a b =
+    match a, b with
+    | None, None -> true
+    | Some a, Some b -> opt_node_equal a b
+    | _ -> false
+
   let group_by_type ~parent child_nodes =
     let tree_nodes = ref TreeNode.Child_map.empty in
     let group_for node =
@@ -317,6 +337,7 @@ module Make(Clock : Ck_clock.S)
     {
       details_item = React.S.const None;
       details_parent = React.S.const None;
+      details_context = React.S.const None;
       details_children = ReactiveData.RList.empty;
       details_stop = ignore
     }
@@ -339,20 +360,61 @@ module Make(Clock : Ck_clock.S)
   let on_remove r = function
     | `Area _ | `Project _ | `Action _ as node ->
         (R.get r (Node.uuid node) :> Node.generic option)
+    | `Context _ as node ->
+        begin match R.get_context r (Node.uuid node) with
+        | None -> None
+        | Some c -> Some (`Context c) end
     | `Contact _ as node ->
         match R.get_contact r (Node.uuid node) with
         | None -> None
         | Some c -> Some (`Contact c)
+
+  let make_details t ~initial_node ~child_nodes ?get_parent ?get_context ~get ~wrap ~ok () =
+    let uuid = Node.uuid initial_node in
+    match get t.r uuid with
+    | None -> deleted_details
+    | Some initial_node ->
+        let parent, update_parent =
+          match get_parent with
+          | None -> React.S.const None, (fun _ _  -> ())
+          | Some get_parent ->
+              let parent, set_parent = React.S.create ~eq:opt_node_equal (get_parent t.r initial_node) in
+              let update r = function
+                | None -> set_parent None
+                | Some node -> set_parent (get_parent r node) in
+              parent, update in
+        let context, update_context =
+          match get_context with
+          | None -> React.S.const None, ignore
+          | Some get_context ->
+              let context, set_context = React.S.create ~eq:opt_opt_node_equal (get_context (Some initial_node)) in
+              let update c = set_context (get_context c) in
+              context, update in
+        let node, set_node = React.S.create ~eq:opt_node_equal (Some (wrap initial_node)) in
+        let children = WidgetTree.make (child_nodes initial_node) in
+        let update r =
+          let node = get r uuid in
+          update_parent r node;
+          update_context node;
+          match node with
+          | None ->
+              set_node None;
+              WidgetTree.update children TreeNode.Child_map.empty ~on_remove:(on_remove r)
+          | Some node ->
+              set_node (Some (wrap node));
+              WidgetTree.update children (child_nodes node) ~on_remove:(on_remove r) in
+        ok ~node ~parent ~context ~children:(WidgetTree.widgets children) ~update
 
   let details t initial_node =
     let initial_node = (initial_node :> Node.generic) in
     let uuid = Node.uuid initial_node in
     try fst (Ck_id.M.find uuid t.details)
     with Not_found ->
-      let ok ~node ~parent ~children ~update =
+      let ok ~node ~parent ~context ~children ~update =
         let details = {
           details_item = node;
           details_parent = parent;
+          details_context = context;
           details_children = children;
           details_stop = (fun () ->
             t.details <- t.details |> Ck_id.M.remove uuid;
@@ -363,50 +425,39 @@ module Make(Clock : Ck_clock.S)
         details in
       (* Note: initial_node may already be out-of-date *)
       match initial_node with
+      | `Context _ ->
+          let child_nodes c =
+            R.actions_of_context c
+            |> List.fold_left (fun acc action ->
+              acc |> TreeNode.add (TreeNode.leaf_of_node (`Action action))
+            ) TreeNode.Child_map.empty in
+          let get r id = R.get_context r id in
+          let wrap x = `Context x in
+          make_details t ~initial_node ~child_nodes ~get ~wrap ~ok ()
       | `Contact _ ->
-          begin match R.get_contact t.r (Node.uuid initial_node) with
-          | None -> deleted_details
-          | Some initial_node ->
-              let node, set_node = React.S.create ~eq:opt_node_equal (Some (`Contact initial_node)) in
-              let child_nodes c =
-                R.actions_of c
-                |> List.fold_left (fun acc action ->
-                  acc |> TreeNode.add (TreeNode.leaf_of_node (`Action action))
-                ) TreeNode.Child_map.empty in
-              let children = WidgetTree.make (child_nodes initial_node) in
-              let update r =
-                match R.get_contact r uuid with
-                | None ->
-                    set_node None;
-                    WidgetTree.update children TreeNode.Child_map.empty ~on_remove:(on_remove r)
-                | Some node ->
-                    set_node (Some (`Contact node));
-                    WidgetTree.update children (child_nodes node) ~on_remove:(on_remove r) in
-              ok ~node ~parent:(React.S.const None) ~children:(WidgetTree.widgets children) ~update
-          end
+          let child_nodes c =
+            R.actions_of_contact c
+            |> List.fold_left (fun acc action ->
+              acc |> TreeNode.add (TreeNode.leaf_of_node (`Action action))
+            ) TreeNode.Child_map.empty in
+          let get r id = R.get_contact r id in
+          let wrap x = `Contact x in
+          make_details t ~initial_node ~child_nodes ~get ~wrap ~ok ()
       | `Area _ | `Project _ | `Action _ as initial_node ->
-          match R.get t.r (Node.uuid initial_node) with
-          | None -> deleted_details
-          | Some initial_node ->
-              let initial_parent = R.parent t.r initial_node in
-              let child_nodes node =
-                R.child_nodes node
-                |> group_by_type ~parent:node
-                |> add_waiting_info node in
-              let children = WidgetTree.make (child_nodes initial_node) in
-              let parent, set_parent = React.S.create ~eq:opt_node_equal initial_parent in
-              let node, set_node = React.S.create ~eq:opt_node_equal (Some (initial_node :> Item.generic)) in
-              let update r =
-                let node = R.get r uuid in
-                set_node (node :> Item.generic option);
-                match node with
-                | None ->
-                    set_parent None;
-                    WidgetTree.update children TreeNode.Child_map.empty ~on_remove:(on_remove r)
-                | Some node ->
-                    set_parent (R.parent r node);
-                    WidgetTree.update children (child_nodes node) ~on_remove:(on_remove r) in
-              ok ~node ~parent ~children:(WidgetTree.widgets children) ~update
+          let child_nodes node =
+            R.child_nodes node
+            |> group_by_type ~parent:node
+            |> add_waiting_info node in
+          let wrap x = (x :> Item.generic) in
+          let get = R.get in
+          let get_context = function
+            | None -> None
+            | Some (`Area _ | `Project _) -> None
+            | Some (`Action action) ->
+                match R.context action with
+                | None -> Some None
+                | Some c -> Some (Some (`Context c)) in
+          make_details t ~initial_node ~child_nodes ~get ~wrap ~get_parent:R.parent ~get_context ~ok ()
 
   type candidate = string * (unit -> unit Lwt.t)
   let candidate_label = fst
@@ -445,7 +496,7 @@ module Make(Clock : Ck_clock.S)
     List.rev !results
 
   let candidate_parents_for t item =
-    (* Item may be from an older revision, but the want the current parents as options. *)
+    (* Item may be from an older revision, but we want the current parents as options. *)
     match R.get t.r (Item.uuid item) with
     | None -> []    (* Item has been deleted *)
     | Some item ->
@@ -454,7 +505,7 @@ module Make(Clock : Ck_clock.S)
     | `Area _ as node -> candidate_parents_for_a t node
 
   let candidate_contacts_for t item =
-    (* Item may be from an older revision, but the want the current contacts as options. *)
+    (* Item may be from an older revision, but we want the current contacts as options. *)
     match R.get t.r (Item.uuid item) with
     | None -> []    (* Item has been deleted *)
     | Some (`Area _ | `Project _) -> []   (* Action has been converted to something else *)
@@ -466,6 +517,20 @@ module Make(Clock : Ck_clock.S)
           |> List.sort (fun a b -> compare (fst a) (fst b)) in
         let waiting = ("Waiting", fun () -> Up.set_action_state t.master action `Waiting) in
         waiting :: contacts
+
+  let candidate_contexts_for t item =
+    (* Item may be from an older revision, but we want the current contexts as options. *)
+    match R.get t.r (Item.uuid item) with
+    | None -> []    (* Item has been deleted *)
+    | Some (`Area _ | `Project _) -> []   (* Action has been converted to something else *)
+    | Some (`Action action) ->
+        let contexts =
+          R.contexts t.r |> Ck_id.M.bindings |> List.map (fun (_id, context) ->
+            (Node.name (`Context context), fun () -> Up.set_context t.master action (Some context))
+          )
+          |> List.sort (fun a b -> compare (fst a) (fst b)) in
+        let none = ("(no context)", fun () -> Up.set_context t.master action None) in
+        none :: contexts
 
   let initialise t =
     let add ~uuid ?parent disk_node =

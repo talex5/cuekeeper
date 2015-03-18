@@ -13,15 +13,17 @@ module type DISK_NODE = sig
     type project_node
     type area_node
     type contact_node
+    type context_node
 
     type action = [`Action of action_node]
     type project = [`Project of project_node]
     type area = [`Area of area_node]
     type contact = [`Contact of contact_node]
+    type context = [`Context of context_node]
   end
   open Types
 
-  type generic = [ area | project | action | contact ]
+  type generic = [ area | project | action | contact | context ]
 
   val parent : [< area | project | action ] -> Ck_id.t
   val name : [< generic ] -> string
@@ -31,6 +33,7 @@ module type DISK_NODE = sig
   val action_state : action_node -> Ck_id.t action_state
   val project_state : project_node -> [ `Active | `SomedayMaybe | `Done ]
   val is_done : [< project | action] -> bool
+  val context : action_node -> Ck_id.t option
 end
 
 module type EQ = sig
@@ -95,12 +98,17 @@ module type REV = sig
   val commit : t -> commit
 
   val contacts : t -> contact_node Ck_id.M.t
-  val actions_of : contact_node -> action_node list
+  val actions_of_contact : contact_node -> action_node list
+
+  val contexts : t -> context_node Ck_id.M.t
+  val actions_of_context : context_node -> action_node list
 
   val get : t -> Ck_id.t -> [ area | project | action ] option
   val get_contact : t -> Ck_id.t -> contact_node option
+  val get_context : t -> Ck_id.t -> context_node option
 
   val parent : t -> [< area | project | action] -> [ area | project | action ] option
+  val context : action_node -> context_node option
 
   val schedule : t -> Node.Types.action_node list
   (** The ([`Waiting_until time] actions, earliest first. *)

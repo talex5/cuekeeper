@@ -6,6 +6,7 @@ open Html5
 open Ck_utils
 
 let (>|=) = Lwt.(>|=)
+let (>>=) = Lwt.(>>=)
 
 module Gui_tree_data = struct
   (* If the gui_data for a widget is None then it has just appeared.
@@ -169,6 +170,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     | `Project _ -> "ck-project"
     | `Action _ -> "ck-action"
     | `Contact _ -> "ck-contact"
+    | `Context _ -> "ck-context"
     | `Deleted -> "ck-deleted"
 
   let class_of_time_and_type ctime item =
@@ -254,7 +256,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let set_details _ev n =
           async ~name:"set_project_state" (fun () -> M.set_project_state m project n) in
         make_toggles ~m ~set_details ~item (M.Item.project_state project) [`Done; `Active; `SomedayMaybe]
-    | `Area _ | `Contact _ -> []
+    | `Area _ | `Contact _ | `Context _ -> []
 
   let make_state_toggles m item =
     let toggles = item >|~= (function
@@ -346,6 +348,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ];
       begin match item with
       | `Contact _ -> pcdata ""
+      | `Context _ -> pcdata ""
       | `Action _ -> a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"]
       | `Area _ | `Project _ as item ->
           let add_child ev =
@@ -600,7 +603,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               | None -> pcdata ""
               | Some item ->
                   match item with
-                  | `Action _ | `Contact _ -> pcdata ""
+                  | `Action _ | `Contact _ | `Context _ -> pcdata ""
                   | `Project _ as item -> ul ~a:[a_class ["add"]] [
                       add_button (M.add_project m ~parent:item) "+sub-project";
                       add_button (M.add_action m ~state:`Next ~parent:item) "+action";
@@ -709,6 +712,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       details.M.details_item >|~= function
         | None -> [pcdata "(deleted)"]
         | Some (`Contact _) -> [label "A contact"]
+        | Some (`Context _) -> [label "A context"]
         | Some (`Area _ | `Project _ | `Action _ as item) ->
             let change_type label =
               let on_click ev =
@@ -789,6 +793,41 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let content = Pikaday.make ?initial:(due action) ~on_select () in
     show_modal ~parent:(ev##target) [content]
 
+  let edit_context m ~show_node item ev =
+    match React.S.value item with
+    | Some (`Action action) -> begin
+        let new_contact_form =
+          let name_input = input ~a:[a_name "name"; a_placeholder "New context"; a_size 20] () in
+          auto_focus name_input;
+          let add_context _ev =
+            let input_elem = Tyxml_js.To_dom.of_input name_input in
+            let name = input_elem##value |> Js.to_string |> String.trim in
+            if name <> "" then async ~name:"add context" (fun () ->
+              M.add_context m ~name >>= function
+              | None -> print_endline "Added item no longer exists!"; Lwt.return ()
+              | Some (`Context context as node) ->
+                  close_modal ();
+                  show_node node;
+                  M.set_context m action context >|= report_error ~parent:(ev##target)
+            );
+            false in
+          li [form ~a:[a_onsubmit add_context] [name_input]] in
+        let contexts =
+          M.candidate_contexts_for m (`Action action) |> List.map (fun candidate ->
+          let select _ev =
+            async ~name:"set context" (fun () ->
+              close_modal ();
+              M.choose_candidate candidate
+            );
+            false in
+          li [a ~a:[a_onclick select] [pcdata (M.candidate_label candidate)]]
+        ) in
+        let content = ul (new_contact_form :: contexts) in
+        show_modal ~parent:(ev##target) [content];
+        false
+    end
+    | _ -> false
+
   let make_details_panel m ~set_closed ~show_node details =
     let item = details.M.details_item in
     let title_cl =
@@ -828,6 +867,20 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             end
         | _ -> []
       ) |> rlist_of in
+    let context =
+      details.M.details_context >|~= (function
+        | None -> []            (* Item type doesn't have contexts *)
+        | Some opt_context ->
+            let context_name =
+              match opt_context with
+              | None -> pcdata "(no context)"
+              | Some c -> render_item m ~show_node (c :> M.Item.generic) in
+            [
+              label "Context: ";
+              context_name;
+              a ~a:[a_onclick (edit_context m ~show_node item)] [pcdata " (change)"]
+            ]
+      ) |> rlist_of in
     let contents =
       div [
         div [
@@ -837,6 +890,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           label ("Created " ^ ctime);
           a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata " (delete)"];
         ];
+        R.Html5.div context;
         R.Html5.div waiting_for;
         R.Html5.ul ~a:[a_class ["ck-groups"]] children;
         make_child_adder m ~show_node item;

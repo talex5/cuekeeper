@@ -10,6 +10,7 @@ module type MODEL = sig
   module Item : sig
     include DISK_NODE
     val uuid : [< generic] -> Ck_id.t
+
     val is_due : Types.action_node -> bool
     (** Whether a [`Waiting_until] action is due. *)
   end
@@ -21,7 +22,7 @@ module type MODEL = sig
     type t
 
     val item : t -> [
-      | `Item of [ area | project | action | contact ] React.S.t
+      | `Item of [ area | project | action | contact | context ] React.S.t
       | `Group of string
     ]
     val children : t -> t ReactiveData.RList.t
@@ -30,8 +31,9 @@ module type MODEL = sig
   end
 
   type details = {
-    details_item : [ area | project | action | contact ] option React.S.t;
+    details_item : [ area | project | action | contact | context ] option React.S.t;
     details_parent : [ area | project | action ] option React.S.t;
+    details_context : context option option React.S.t;
     details_children : Widget.t ReactiveData.RList.t;
     details_stop : stop;
   }
@@ -41,6 +43,8 @@ module type MODEL = sig
   val add_project : t -> ?parent:[< area | project] -> name:string -> description:string -> [area | project | action] option Lwt.t
   val add_area : t -> ?parent:[< area] -> name:string -> description:string -> [area | project | action] option Lwt.t
   val add_contact : t -> name:string -> [> contact] option Lwt.t
+  val add_context : t -> name:string -> [> context] option Lwt.t
+  val set_context : t -> action_node -> context_node -> unit or_error Lwt.t
 
   val add_child : t -> [< area | project] -> string -> [area | project | action] option Lwt.t
 
@@ -63,6 +67,9 @@ module type MODEL = sig
 
   val candidate_contacts_for : t -> action -> candidate list
   (** Get the possible contacts for an action. *)
+
+  val candidate_contexts_for : t -> action -> candidate list
+  (** Get the possible contexts for an action. *)
 
   val candidate_label : candidate -> string
   val choose_candidate : candidate -> unit Lwt.t
