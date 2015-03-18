@@ -210,6 +210,20 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
     W.notify t.w k None;
     return_unit
 
+  (* TODO: implement locking here *)
+  let compare_and_set t k ~test ~set =
+    read t k >>= fun current ->
+    let matches =
+      match current, test with
+      | None, None -> true
+      | Some current, Some expected -> V.equal current expected
+      | _ -> false in
+    if matches then (
+      match set with
+      | Some value -> update t k value >|= fun () -> true
+      | None -> remove t k >|= fun () -> true
+    ) else return false
+
   let watch t key =
     ignore (Lazy.force (t.listener));
     Irmin.Private.Watch.lwt_stream_lift (
