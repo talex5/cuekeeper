@@ -61,6 +61,8 @@ let () =
     set_current_error (Some msg)
   )
 
+let ck_label s = span ~a:[a_class ["ck-label"]] [pcdata s]
+
 let (>>?=) = Js.Opt.bind
 
 module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
@@ -421,9 +423,31 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       )
     ]
 
+  let review_mode_switcher ~current m =
+    let item mode =
+      let clicked _ev = M.set_review_mode m mode; false in
+      let attrs = [a_input_type `Radio; a_onclick clicked] in
+      let attrs = if mode = current then a_checked `Checked :: attrs else attrs in
+      input ~a:attrs () in
+    form ~a:[a_class ["ck-review-mode"]] [
+      ck_label "Review:";
+      item `Waiting; pcdata "Waiting";
+      item `Future; pcdata "Future";
+      item `Areas; pcdata "Areas";
+      item `Everything; pcdata "Everything";
+    ]
+
+  let class_of_review_mode = function
+    | `Waiting -> "ck-review-waiting"
+    | `Future -> "ck-review-future"
+    | `Areas -> "ck-review-areas"
+    | `Everything -> "ck-review-everything"
+
   let make_tree ~show_node m = function
-    | `Process tree | `Review tree ->
-        [R.Html5.ul (
+    | `Process tree ->
+        [R.Html5.ul (ReactiveData.RList.map (make_tree_node_view m ~show_node) tree)]
+    | `Review (review_mode, tree) ->
+        [R.Html5.ul ~a:[a_class [class_of_review_mode review_mode]] (
           ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
         )]
     | `Contact tree -> make_contact_view m ~show_node tree
@@ -455,13 +479,20 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             cl :: attrs in
       let button = a ~a:attrs [pcdata name] in
       dd ~a:[R.Html5.a_class cl] [button] in
-
-    dl ~a:[a_class ["sub-nav"]] [
-      item "Process" `Process;
-      item "Work" `Work ~alert:(M.alert m);
-      item "Contact" `Contact;
-      item "Schedule" `Schedule;
-      item "Review" `Review;
+    let sub_mode =
+      current_tree >|~= (function
+        | `Review (review_mode, _) -> [review_mode_switcher ~current:review_mode m]
+        | _ -> []
+      ) |> rlist_of in
+    div [
+      dl ~a:[a_class ["sub-nav"]] [
+        item "Process" `Process;
+        item "Work" `Work ~alert:(M.alert m);
+        item "Contact" `Contact;
+        item "Schedule" `Schedule;
+        item "Review" `Review;
+      ];
+      R.Html5.div sub_mode
     ]
 
   let assume_changed _ _ = false
@@ -583,8 +614,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ]
     )
 
-  let label s = span ~a:[a_class ["ck-label"]] [pcdata s]
-
   let show_type_modal m ~button item =
     let make label fn item =
       let clicked _ev =
@@ -616,8 +645,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let descr =
       details.M.details_item >|~= function
         | None -> [pcdata "(deleted)"]
-        | Some (`Contact _) -> [label "A contact"]
-        | Some (`Context _) -> [label "A context"]
+        | Some (`Contact _) -> [ck_label "A contact"]
+        | Some (`Context _) -> [ck_label "A context"]
         | Some (`Area _ | `Project _ | `Action _ as item) ->
             let change_type label =
               let on_click ev =
@@ -629,9 +658,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               false in
             let change_button = a ~a:[a_onclick change_clicked] [pcdata " (change)"] in
             match item with
-            | `Action _ -> [label "An "; change_type "action"; label " in "; title_elem; change_button]
-            | `Project _ -> [label "A "; change_type "project"; label " in "; title_elem; change_button]
-            | `Area _ -> [label "An "; change_type "area"; label " in "; title_elem; change_button] in
+            | `Action _ -> [ck_label "An "; change_type "action"; ck_label " in "; title_elem; change_button]
+            | `Project _ -> [ck_label "A "; change_type "project"; ck_label " in "; title_elem; change_button]
+            | `Area _ -> [ck_label "An "; change_type "area"; ck_label " in "; title_elem; change_button] in
     rlist_of ~init:(React.S.value descr) descr
 
   let make_editable_description m item =
@@ -767,7 +796,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             begin match M.Item.action_state action with
             | `Waiting_until time ->
                 let clicked ev = edit_date ~ev m action; false in
-                [label "Waiting until "; a ~a:[a_onclick clicked] [pcdata (fmt_date time)]]
+                [ck_label "Waiting until "; a ~a:[a_onclick clicked] [pcdata (fmt_date time)]]
             | _ -> []
             end
         | _ -> []
@@ -781,7 +810,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               | None -> pcdata "(no context)"
               | Some c -> render_item m ~show_node (c :> M.Item.generic) in
             [
-              label "Context: ";
+              ck_label "Context: ";
               context_name;
               a ~a:[a_onclick (edit_context m ~show_node item)] [pcdata " (change)"]
             ]
@@ -792,7 +821,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           R.Html5.span (make_parent_details m ~show_node details);
         ];
         div [
-          label ("Created " ^ ctime);
+          ck_label ("Created " ^ ctime);
           a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata " (delete)"];
         ];
         R.Html5.div context;
@@ -907,15 +936,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         div ~a:[a_class ["medium-8"; "columns"]] [
           make_mode_switcher m current_tree;
         ];
-        R.Html5.div ~a:[a_class ["medium-4"; "columns"; "ck-adders"]] (
-          make_toplevel_adders m ~show_node
-        );
+        div ~a:[a_class ["medium-4"; "columns"]] [
+          R.Html5.div ~a:[a_class ["ck-adders"]] (
+            make_toplevel_adders m ~show_node
+          );
+          div ~a:[a_class ["ck-actions"]] [
+            a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
+            a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
+          ]
+        ]
       ];
       div ~a:[a_class ["row"]] [
-        div ~a:[a_class ["small-12"; "columns"; "ck-actions"]] [
-          a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
-          a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
-        ]
       ];
       div ~a:[a_class ["row"]] [
         R.Html5.div ~a:[a_class ["medium-12"; "columns"]] (

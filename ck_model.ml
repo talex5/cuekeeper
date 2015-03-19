@@ -96,11 +96,13 @@ module Make(Clock : Ck_clock.S)
   module Widget = WidgetTree.Widget
   open Item.Types
 
+  type review_mode = [ `Waiting | `Future | `Areas | `Everything ]
+
   type tree_view =
     [ `Process of Widget.t ReactiveData.RList.t
     | `Work of Widget.t ReactiveData.RList.t
     | `Contact of Widget.t ReactiveData.RList.t
-    | `Review of Widget.t ReactiveData.RList.t
+    | `Review of review_mode * Widget.t ReactiveData.RList.t
     | `Schedule of Widget.t ReactiveData.RList.t ]
 
   type details = {
@@ -124,6 +126,7 @@ module Make(Clock : Ck_clock.S)
     mutable update_tree : R.t -> unit;
     mutable keep_me : unit React.S.t list;
     alert : bool React.S.t;
+    mutable review_mode : review_mode;
   }
 
   let assume_changed _ _ = false
@@ -216,7 +219,44 @@ module Make(Clock : Ck_clock.S)
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
 
-  let make_review_tree = make_full_tree
+  let or_existing parent item =
+    try TreeNode.Child_map.find (TreeNode.sort_key item) parent
+    with Not_found -> item
+
+  let make_waiting_tree r =
+    let waiting = TreeNode.group ~pri:(-1) "(unspecified reason)" in
+    let results = ref TreeNode.Child_map.empty in
+    let add ~group ~parent item =
+      let group_item = or_existing !results group in
+      let group_item =
+        match parent with
+        | None ->
+            group_item |> TreeNode.with_child (TreeNode.leaf_of_node item)
+        | Some p ->
+            let parent_item =
+              TreeNode.group ~pri:1 (Node.name p)
+              |> or_existing group_item.TreeNode.children
+              |> TreeNode.with_child (TreeNode.leaf_of_node item) in
+            group_item |> TreeNode.with_child parent_item in
+      results := !results |> TreeNode.add group_item in
+    let rec scan ?parent _key = function
+      | `Area _ | `Project _ as node ->
+          R.child_nodes node |> M.iter (scan ~parent:node)
+      | `Action action as node ->
+          match Node.action_state action with
+          | `Waiting -> add ~group:waiting ~parent node
+          | `Waiting_for_contact c ->
+              begin match R.get_contact r c with
+              | Some contact -> add ~group:(TreeNode.leaf_of_node (`Contact contact)) ~parent node
+              | None -> assert false end
+          | _ -> () in
+    R.roots r |> M.iter (scan ?parent:None);
+    !results
+
+  let make_review_tree ~mode r =
+    match mode with
+    | `Waiting -> make_waiting_tree r
+    | _ -> make_full_tree r
 
   let make_contact_tree r =
     let contacts = R.contacts r in
@@ -248,10 +288,6 @@ module Make(Clock : Ck_clock.S)
 
   let is_someday_project p =
     Node.project_state p = `SomedayMaybe
-
-  let or_existing parent item =
-    try TreeNode.Child_map.find (TreeNode.sort_key item) parent
-    with Not_found -> item
 
   let make_work_tree r =
     let next_actions = ref TreeNode.Child_map.empty in
@@ -608,14 +644,22 @@ module Make(Clock : Ck_clock.S)
   let make_tree r = function
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u
     | `Work -> let t, u = rtree r make_work_tree in `Work t, u
-    | `Review -> let t, u = rtree r make_review_tree in `Review t, u
+    | `Review mode -> let t, u = rtree r (make_review_tree ~mode) in `Review (mode, t), u
     | `Contact -> let t, u = rtree r make_contact_tree in `Contact t, u
     | `Schedule -> let t, u = rtree r make_schedule_tree in `Schedule t, u
 
   let set_mode t mode =
+    let mode =
+      match mode with
+      | `Process | `Work | `Contact | `Schedule as m -> m
+      | `Review -> `Review t.review_mode in
     let tree_view, update_tree = make_tree t.r mode in
     t.update_tree <- update_tree;
     t.set_tree tree_view
+
+  let set_review_mode t mode =
+    t.review_mode <- mode;
+    set_mode t `Review
 
   let tree t = t.tree
   let log t = t.log
@@ -652,6 +696,7 @@ module Make(Clock : Ck_clock.S)
       alert;
       fixed_head; set_fixed_head;
       details = Ck_id.M.empty;
+      review_mode = `Waiting;
       keep_me = []
     } in
     Lwt.wakeup set_on_update (fun r ->

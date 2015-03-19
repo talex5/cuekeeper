@@ -32,7 +32,10 @@ div.inline {
 ul.ck-adders {
 	padding-top: 0.1875rem;
 	margin-bottom: 0;
-	float: right;
+}
+
+div.ck-adders {
+	text-align: right;
 }
 
 div.ck-adders input {
@@ -499,4 +502,22 @@ div.ck-add-scheduled div.pika-single {
 div.ck-next-actions > ul,
 div.ck-next-actions > ul > li > ul > li > ul {
 	margin-left :0;
+}
+
+ul.ck-review-waiting,
+ul.ck-review-waiting > li > ul > li > ul {
+	margin-left :0;
+}
+
+form.ck-review-mode {
+	margin-top: 0.2em;
+}
+
+form.ck-review-mode span.ck-label {
+	margin-left: 2px;
+}
+
+form.ck-review-mode input {
+	margin-left: 1em;
+	margin-right: 0.2em;
 }

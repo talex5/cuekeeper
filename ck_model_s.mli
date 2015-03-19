@@ -7,6 +7,8 @@ module type MODEL = sig
   type t
   type gui_data
 
+  type review_mode = [ `Waiting | `Future | `Areas | `Everything ]
+
   module Item : sig
     include DISK_NODE
     val uuid : [< generic] -> Ck_id.t
@@ -82,8 +84,10 @@ module type MODEL = sig
   val tree : t -> [ `Process of Widget.t ReactiveData.RList.t
                   | `Work of Widget.t ReactiveData.RList.t
                   | `Contact of Widget.t ReactiveData.RList.t
-                  | `Review of Widget.t ReactiveData.RList.t
+                  | `Review of review_mode * Widget.t ReactiveData.RList.t
                   | `Schedule of Widget.t ReactiveData.RList.t] React.S.t
+
+  val set_review_mode : t -> [ `Waiting | `Future | `Areas | `Everything ] -> unit
 
   val details : t -> [< Item.generic] -> details
 
