@@ -5,7 +5,7 @@ export CAML_LD_LIBRARY_PATH
 all:
 	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte test.byte
 	ocamlrun _build/test.byte
-	js_of_ocaml +weak.js helpers.js _build/client.byte
+	js_of_ocaml +weak.js js/helpers.js _build/js/client.byte
 
 clean:
 	ocamlbuild -clean
