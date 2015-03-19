@@ -4,6 +4,7 @@
 open Tyxml_js
 open Html5
 open Ck_utils
+open Ck_js_utils
 
 open Lwt.Infix
 
@@ -38,74 +39,14 @@ let fmt_timestamp date =
   Printf.sprintf "%04d-%02d-%02d %02d:%02d (%s)"
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min (string_of_day tm.tm_wday)
 
-let close_current_model = ref None
-
-let rec inside elem child =
-  if elem == child then true
-  else (
-    Js.Opt.case (child##parentNode)
-      (fun () -> false)
-      (fun p -> inside elem p)
-  )
-
-let ignore_listener : Dom_html.event_listener_id -> unit = ignore
-
-let close_modal () =
-  match !close_current_model with
-  | None -> ()
-  | Some (_, close) ->
-      close_current_model := None;
-      close ()
-
-(* Listen to global clicks and keypresses so we can close modals on click/escape *)
-let keycode_escape = 27
-let () =
-  let click (ev:#Dom_html.mouseEvent Js.t) =
-    match !close_current_model with
-    | None -> Js._true
-    | Some (elem, _close) ->
-        Js.Opt.case (ev##target)
-          (fun () -> Js._true)
-          (fun target ->
-            if (target :> Dom.node Js.t) |> inside elem then (
-              (* Click inside modal - pass it on *)
-              Js._true
-            ) else (
-              (* Click outside modal; close the modal *)
-              close_modal ();
-              Dom_html.stopPropagation ev;
-              Js._false
-            )
-          ) in
-  let keyup ev =
-    match !close_current_model with
-    | Some _ when ev##keyCode = keycode_escape ->
-        close_modal ();
-        Dom_html.stopPropagation ev;
-        Js._false
-    | _ -> Js._true in
-  Dom_html.addEventListener Dom_html.document Dom_html.Event.click (Dom.handler click) Js._true |> ignore_listener;
-  Dom_html.addEventListener Dom_html.document Dom_html.Event.keypress (Dom.handler keyup) Js._true |> ignore_listener
-
-let pos_from_root (elem : #Dom_html.element Js.t) =
-  let rec aux x y elem =
-    let x = x + elem##offsetLeft in
-    let y = y + elem##offsetTop in
-    Js.Opt.case (elem##offsetParent)
-      (fun () -> (x, y))
-      (fun parent -> aux x y parent) in
-  aux 0 0 elem
-
 let show_modal, modal_div =
-  close_modal ();
   let dropdown, set_dropdown = ReactiveData.RList.make [] in
   let dropdown_style, set_dropdown_style = React.S.create "" in
   let modal_div =
     R.Html5.div ~a:[a_class ["f-dropdown"; "ck-modal"]; R.Html5.a_style dropdown_style] dropdown in
   let close () =
     ReactiveData.RList.set set_dropdown [];
-    set_dropdown_style "";
-    close_current_model := None in
+    set_dropdown_style "" in
   let show ~parent content =
     let left, bottom =
       Js.Opt.case parent
@@ -116,7 +57,7 @@ let show_modal, modal_div =
             (left, top + height)) in
     ReactiveData.RList.set set_dropdown content;
     set_dropdown_style (Printf.sprintf "position: absolute; left: %dpx; top: %dpx;" left bottom);
-    close_current_model := Some (Tyxml_js.To_dom.of_node modal_div, close) in
+    Ck_modal.show ~close (Tyxml_js.To_dom.of_element modal_div) in
   (show, modal_div)
 
 let current_error, set_current_error = React.S.create None
@@ -185,7 +126,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let waiting_candidates m item =
     M.candidate_contacts_for m item |> List.map (fun candidate ->
       let clicked _ev =
-        close_modal ();
+        Ck_modal.close ();
         async ~name:"set waiting" (fun () -> M.choose_candidate candidate);
         true in
       li [
@@ -230,7 +171,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let wait_until_date m action =
     let on_select date =
       async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
-      close_modal () in
+      Ck_modal.close () in
     Pikaday.make ?initial:(due action) ~on_select ()
 
   let toggles_for_type m = function
@@ -317,7 +258,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           | Some node -> show_node (node :> M.Item.generic)
         );
       );
-      close_modal ();
+      Ck_modal.close ();
       false in
     let content =
       form ~a:[a_onsubmit submit_clicked; a_action "#"] [
@@ -329,7 +270,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let report_error ~parent = function
     | `Ok () -> ()
     | `Error msg ->
-        let close _ev = close_modal (); false in
+        let close _ev = Ck_modal.close (); false in
         let content =
           div ~a:[a_class ["alert-box"]; a_onclick close] [
             pcdata msg;
@@ -467,7 +408,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           | Some node -> show_node (node :> M.Item.generic)
         );
       );
-      close_modal ();
+      Ck_modal.close ();
       false in
     let content =
       form ~a:[a_onsubmit submit_clicked; a_action "#"] [
@@ -500,7 +441,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             | None -> print_endline "Added item no longer exists!"
             | Some item -> show_node (item :> M.Item.generic)
           );
-          close_modal ()
+          Ck_modal.close ()
         ) in
       let content = div ~a:[a_class ["ck-add-scheduled"]] [
         name_input;
@@ -667,7 +608,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let parent_candidates m item =
     M.candidate_parents_for m item |> List.map (fun candidate ->
       let clicked _ev =
-        close_modal ();
+        Ck_modal.close ();
         async ~name:"set parent" (fun () -> M.choose_candidate candidate);
         true in
       li [
@@ -682,7 +623,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let show_type_modal m ~button item =
     let make label fn item =
       let clicked _ev =
-        close_modal ();
+        Ck_modal.close ();
         async ~name:label (fun () -> fn m item >|= report_error ~parent:button);
         false in
       li [a ~a:[a_onclick clicked] [pcdata label]] in
@@ -788,7 +729,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let edit_date ~ev m action =
     let on_select date =
       async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
-      close_modal () in
+      Ck_modal.close () in
     let content = Pikaday.make ?initial:(due action) ~on_select () in
     show_modal ~parent:(ev##target) [content]
 
@@ -805,7 +746,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               M.add_context m ~name >>= function
               | None -> print_endline "Added item no longer exists!"; Lwt.return ()
               | Some (`Context context as node) ->
-                  close_modal ();
+                  Ck_modal.close ();
                   show_node node;
                   M.set_context m action context >|= report_error ~parent:(ev##target)
             );
@@ -815,7 +756,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           M.candidate_contexts_for m (`Action action) |> List.map (fun candidate ->
           let select _ev =
             async ~name:"set context" (fun () ->
-              close_modal ();
+              Ck_modal.close ();
               M.choose_candidate candidate
             );
             false in
