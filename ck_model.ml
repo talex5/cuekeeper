@@ -233,9 +233,7 @@ module Make(Clock : Ck_clock.S)
     R.schedule r |> List.iter (fun action ->
       match Node.action_state action with
       | `Waiting_until time ->
-          let tm = Unix.localtime time in
-          let date = Unix.(Printf.sprintf "%04d-%02d-%02d (%s)"
-                            (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday (string_of_day tm.tm_wday)) in
+          let date = fmt_date time in
           let group =
             match !day with
             | Some (prev_date, group) when prev_date = date -> group

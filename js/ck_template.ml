@@ -19,26 +19,6 @@ module Gui_tree_data = struct
   type t = Dom_html.element Js.t
 end
 
-let async ~name (fn:unit -> unit Lwt.t) =
-  Lwt_js_events.async (fun () ->
-    Lwt.catch fn (fun ex ->
-      Printf.printf "Async error in '%s'" name;
-      Lwt.fail ex
-    )
-  )
-
-let fmt_date date =
-  let open Unix in
-  let tm = localtime date in
-  Printf.sprintf "%04d-%02d-%02d (%s)"
-    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday (string_of_day tm.tm_wday)
-
-let fmt_timestamp date =
-  let open Unix in
-  let tm = localtime date in
-  Printf.sprintf "%04d-%02d-%02d %02d:%02d (%s)"
-    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min (string_of_day tm.tm_wday)
-
 let show_modal, modal_div =
   let dropdown, set_dropdown = ReactiveData.RList.make [] in
   let dropdown_style, set_dropdown_style = React.S.create "" in
@@ -79,21 +59,6 @@ let () =
     old_hook ex;
     let msg = Printexc.to_string ex in
     set_current_error (Some msg)
-  )
-
-(* Get the index of an item in an assoc list. *)
-let index_of key items =
-  let rec aux i = function
-    | [] -> None
-    | (k, _v) :: _ when k = key -> Some i
-    | _ :: xs -> aux (i + 1) xs in
-  aux 0 items
-
-let auto_focus input =
-  async ~name:"focus" (fun () ->
-    let elem = Tyxml_js.To_dom.of_input input in
-    elem##select ();
-    Lwt.return ()
   )
 
 let (>>?=) = Js.Opt.bind

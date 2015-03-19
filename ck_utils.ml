@@ -54,3 +54,23 @@ let string_of_day = function
   | 5 -> "Fri"
   | 6 -> "Sat"
   | _ -> "XXX"
+
+let fmt_date date =
+  let open Unix in
+  let tm = localtime date in
+  Printf.sprintf "%04d-%02d-%02d (%s)"
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday (string_of_day tm.tm_wday)
+
+let fmt_timestamp date =
+  let open Unix in
+  let tm = localtime date in
+  Printf.sprintf "%04d-%02d-%02d %02d:%02d (%s)"
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min (string_of_day tm.tm_wday)
+
+(* Get the index of an item in an assoc list. *)
+let index_of key items =
+  let rec aux i = function
+    | [] -> None
+    | (k, _v) :: _ when k = key -> Some i
+    | _ :: xs -> aux (i + 1) xs in
+  aux 0 items

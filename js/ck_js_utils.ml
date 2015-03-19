@@ -24,3 +24,18 @@ let pos_from_root (elem : #Dom_html.element Js.t) =
       (fun () -> (x, y))
       (fun parent -> aux x y parent) in
   aux 0 0 (elem :> Dom_html.element Js.t)
+
+let async ~name (fn:unit -> unit Lwt.t) =
+  Lwt_js_events.async (fun () ->
+    Lwt.catch fn (fun ex ->
+      Printf.printf "Async error in '%s'" name;
+      Lwt.fail ex
+    )
+  )
+
+let auto_focus input =
+  async ~name:"focus" (fun () ->
+    let elem = Tyxml_js.To_dom.of_input input in
+    elem##select ();
+    Lwt.return ()
+  )
