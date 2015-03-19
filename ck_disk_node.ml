@@ -111,8 +111,8 @@ let with_starred node s =
 
 let with_context (a, details) context = ({a with context}, details)
 
-let make_action ~state ~name ~description ~parent ~ctime =
-  `Action ({ astate = state; astarred = false; context = None }, make ~name ~description ~parent ~ctime)
+let make_action ~state ?context ~name ~description ~parent ~ctime =
+  `Action ({ astate = state; astarred = false; context }, make ~name ~description ~parent ~ctime)
 
 let make_project ~name ~description ~parent ~ctime =
   `Project ({ pstate = `Active; pstarred = false }, make ~name ~description ~parent ~ctime)

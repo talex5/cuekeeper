@@ -70,6 +70,9 @@ module Make(Clock : Ck_clock.S)
     let add item map =
       map |> Child_map.add (sort_key item) item
 
+    let with_child child parent =
+      {parent with children = parent.children |> add child}
+
     let item t =
       match t.item with
       | `Item node -> `Item (Item.id node, node)
@@ -134,7 +137,7 @@ module Make(Clock : Ck_clock.S)
     Up.add t.master ~parent disk_node >|= fun id ->
     R.get t.r id
 
-  let add_action t ~state = add (Ck_disk_node.make_action ~state) t
+  let add_action t ~state = add (Ck_disk_node.make_action ?context:None ~state) t
   let add_project t = add Ck_disk_node.make_project t
   let add_area t = add Ck_disk_node.make_area t
 
@@ -248,11 +251,32 @@ module Make(Clock : Ck_clock.S)
   let is_someday_project p =
     Node.project_state p = `SomedayMaybe
 
+  let or_existing parent item =
+    try TreeNode.Child_map.find (TreeNode.sort_key item) parent
+    with Not_found -> item
+
   let make_work_tree r =
     let next_actions = ref TreeNode.Child_map.empty in
+    let add_next context parent item =
+      let context_item =
+        match context with
+        | None -> TreeNode.group ~pri:(-1) "(no context)"
+        | Some c -> TreeNode.leaf_of_node (`Context c) in
+      let context_item = or_existing !next_actions context_item in
+      let context_item =
+        match parent with
+        | None ->
+            context_item |> TreeNode.with_child (TreeNode.leaf_of_node item)
+        | Some p ->
+            let group_item =
+              TreeNode.group ~pri:1 (Node.name p)
+              |> or_existing context_item.TreeNode.children
+              |> TreeNode.with_child (TreeNode.leaf_of_node item) in
+            context_item |> TreeNode.with_child group_item in
+      next_actions := !next_actions |> TreeNode.add context_item in
+
     let done_items = ref TreeNode.Child_map.empty in
-    let rec scan ~in_someday nodes =
-      let child_actions = ref TreeNode.Child_map.empty in
+    let rec scan ?parent ~in_someday nodes =
       nodes |> M.iter (fun _k node ->
         match node with
         | `Project project when Node.project_state project = `Done ->
@@ -260,12 +284,12 @@ module Make(Clock : Ck_clock.S)
             done_items := !done_items |> TreeNode.add item
         | `Project parent ->
             let in_someday = in_someday || is_someday_project parent in
-            scan_container ~in_someday node
-        | `Area _ -> scan_container ~in_someday node
+            R.child_nodes node |> scan ~parent:node ~in_someday
+        | `Area _ ->
+            R.child_nodes node |> scan ~parent:node ~in_someday
         | `Action action ->
             let add () =
-              let item = TreeNode.leaf_of_node node in
-              child_actions := !child_actions |> TreeNode.add item in
+              add_next (R.context action) parent node in
             match Node.action_state action with
             | `Next when not in_someday -> add ()
             | `Waiting_until _ when Node.is_due action -> add ()
@@ -273,23 +297,8 @@ module Make(Clock : Ck_clock.S)
                 let item = TreeNode.leaf_of_node node in
                 done_items := !done_items |> TreeNode.add item
             | _ -> ()
-      );
-      !child_actions
-    and scan_container ~in_someday parent =
-      let actions = R.child_nodes parent |> scan ~in_someday in
-      if not (TreeNode.Child_map.is_empty actions) then (
-        let tree_node = { TreeNode.
-          item = `Item (parent :> Item.generic);
-          children = actions;
-        } in
-        next_actions := !next_actions |> TreeNode.add tree_node;
-      )
-    in
-    let root_actions = scan ~in_someday:false (R.roots r) in
-    if not (TreeNode.Child_map.is_empty root_actions) then (
-      let no_project = { TreeNode.item = `Group (0, "(no project)"); children = root_actions } in
-      next_actions := !next_actions |> TreeNode.add no_project;
-    );
+      ) in
+    scan ?parent:None ~in_someday:false (R.roots r);
     TreeNode.Child_map.empty
     |> TreeNode.add {TreeNode.item = `Group (0, "Next actions"); children = !next_actions}
     |> TreeNode.add {TreeNode.item = `Group (0, "Recently completed"); children = !done_items}
@@ -561,11 +570,19 @@ module Make(Clock : Ck_clock.S)
         ~description:"")
     >>= fun switch_to_ck ->
 
+    Up.add_context t.master ~base:t.r ~uuid:(Ck_id.of_string "c6776794-d53e-460a-ada7-7e3b98c2f126")
+      (Ck_disk_node.make_context
+        ~name:"Reading"
+        ~description:"Reading books, web-sites, etc."
+        ~ctime:(Clock.now ()))
+    >>= fun reading ->
+
     add
       ~uuid:"6002ea71-6f1c-4ba9-8728-720f4b4c9845"
       ~parent:switch_to_ck
       (Ck_disk_node.make_action
         ~state:`Next
+        ~context:reading
         ~name:"Read wikipedia page on GTD"
         ~description:"http://en.wikipedia.org/wiki/Getting_Things_Done")
     >>= fun _ ->

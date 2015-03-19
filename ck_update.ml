@@ -253,8 +253,11 @@ module Make(Git : Git_storage_s.S)
       Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
 
-  let add_context t ~base context =
-    let uuid = Ck_id.mint () in
+  let add_context t ?uuid ~base context =
+    let uuid =
+      match uuid with
+      | Some u -> u
+      | None -> Ck_id.mint () in
     assert (not (Ck_id.M.mem uuid (R.contexts base)));
     let s = Ck_disk_node.context_to_string context in
     let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name (`Context context)) in

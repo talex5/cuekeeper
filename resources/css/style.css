@@ -381,7 +381,6 @@ span.ck-group-label {
 
 span.ck-group-label {
 	color: #888;
-	margin-top: 0.2rem;
 	display: block;
 }
 
@@ -495,4 +494,9 @@ div.ck-add-scheduled input {
 
 div.ck-add-scheduled div.pika-single {
 	border: none;
+}
+
+div.ck-next-actions > ul,
+div.ck-next-actions > ul > li > ul > li > ul {
+	margin-left :0;
 }
