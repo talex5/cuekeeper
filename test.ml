@@ -265,15 +265,15 @@ let suite =
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree [
           n "@Next actions" [
-            n "+(no context)" [
-              n "@Work" [
-                n "@Write unit tests" []
-              ]
-            ];
             n "@Reading" [
               n "@Start using CueKeeper" [
                 n "@Read wikipedia page on GTD" []
               ];
+            ];
+            n "+(no context)" [
+              n "@Work" [
+                n "@Write unit tests" []
+              ]
             ];
           ];
           n "@Recently completed" []
@@ -289,15 +289,15 @@ let suite =
         | `Ok () ->
         next_actions |> assert_tree [
           n "@Next actions" [
-            n "-(no context)" [
-              n "@Work" [
-                n "@Write unit tests" []
-              ]
-            ];
             n "-Reading" [
               n "@Start using CueKeeper" [
                 n "@Read wikipedia page on GTD" []
               ];
+            ];
+            n "-(no context)" [
+              n "@Work" [
+                n "@Write unit tests" []
+              ]
             ];
           ];
           n "@Recently completed" [];
@@ -322,12 +322,12 @@ let suite =
         | `Ok () ->
         next_actions |> assert_tree [
           n "Next actions" [
-            n "-(no context)" [
+            n "+Coding" [
               n "@Work" [
                 n "@GC unused signals" [];
               ]
             ];
-            n "+Coding" [
+            n "-(no context)" [
               n "@Work" [
                 n "@GC unused signals" [];
               ]
@@ -344,16 +344,16 @@ let suite =
         M.set_action_state m units `Next >>= fun () ->
         next_actions |> assert_tree [
           n "Next actions" [
-            n "-(no context)" [
-              n "@Work" [
-                n "@GC unused signals" [];
-              ]
-            ];
             n "+Coding" [
               n "@Work" [
                 n "@GC unused signals" [];
                 n "+Write unit tests" []
               ];
+            ];
+            n "-(no context)" [
+              n "@Work" [
+                n "@GC unused signals" [];
+              ]
             ];
           ];
           n "Recently completed" [];
@@ -430,17 +430,17 @@ let suite =
         Test_clock.run_to 7.5;
         next_actions |> assert_tree [
           n "Next actions" [
-            n "+(no context)" [
-              n "@Work" [
-                n "@Implement scheduing" [];
-              ]
-            ];
             n "Coding" [
               n "Work" [
                 n "GC unused signals" [];
                 n "Write unit tests" [];
               ]
-            ]
+            ];
+            n "+(no context)" [
+              n "@Work" [
+                n "@Implement scheduing" [];
+              ]
+            ];
           ];
           n "Recently completed" [];
         ];

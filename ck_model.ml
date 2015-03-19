@@ -38,8 +38,8 @@ module Make(Clock : Ck_clock.S)
       end
       let compare a b =
         match a, b with
-        | Item _, Group _ -> 1
-        | Group _, Item _ -> -1
+        | Item _, Group _ -> -1   (* Items come before groups for non-indented lists *)
+        | Group _, Item _ -> 1
         | Item a, Item b -> Sort_key.compare a b
         | Group a, Group b -> compare a b
       let show = function
@@ -253,9 +253,37 @@ module Make(Clock : Ck_clock.S)
     R.roots r |> M.iter (scan ?parent:None);
     !results
 
+  let make_future_tree r =
+    let projects = ref TreeNode.Child_map.empty in
+    let actions = ref TreeNode.Child_map.empty in
+    let add ~parent item =
+      let group_item =
+        match parent with
+        | None ->
+            TreeNode.leaf_of_node item
+        | Some p ->
+            TreeNode.group ~pri:1 (Node.name p)
+            |> or_existing !actions
+            |> TreeNode.with_child (TreeNode.leaf_of_node item) in
+      actions := !actions |> TreeNode.add group_item in
+    let rec scan ?parent _key = function
+      | `Project p as node when Node.project_state p = `SomedayMaybe ->
+          projects := !projects |> TreeNode.add (TreeNode.leaf_of_node node)
+      | `Area _ | `Project _ as node ->
+          R.child_nodes node |> M.iter (scan ~parent:node)
+      | `Action action as node ->
+          match Node.action_state action with
+          | `Future -> add ~parent node
+          | _ -> () in
+    R.roots r |> M.iter (scan ?parent:None);
+    TreeNode.Child_map.empty
+    |> TreeNode.add {TreeNode.item = `Group (0, "Actions"); children = !actions}
+    |> TreeNode.add {TreeNode.item = `Group (0, "Projects"); children = !projects}
+
   let make_review_tree ~mode r =
     match mode with
     | `Waiting -> make_waiting_tree r
+    | `Future -> make_future_tree r
     | _ -> make_full_tree r
 
   let make_contact_tree r =

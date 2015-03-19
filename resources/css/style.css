@@ -504,6 +504,19 @@ div.ck-next-actions > ul > li > ul > li > ul {
 	margin-left :0;
 }
 
+ul.ck-review-waiting > li,
+ul.ck-review-future > li {
+	padding-top: 1rem
+}
+
+ul.ck-review-waiting > li > span.ck-group-label,
+ul.ck-review-future > li > span.ck-group-label {
+	font-weight: bold;
+	color: black;
+}
+
+ul.ck-review-future,
+ul.ck-review-future > li > ul > li > ul,
 ul.ck-review-waiting,
 ul.ck-review-waiting > li > ul > li > ul {
 	margin-left :0;
