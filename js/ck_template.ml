@@ -430,7 +430,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let attrs = if mode = current then a_checked `Checked :: attrs else attrs in
       input ~a:attrs () in
     form ~a:[a_class ["ck-review-mode"]] [
-      ck_label "Review:";
       item `Done; pcdata "Done";
       item `Waiting; pcdata "Waiting";
       item `Future; pcdata "Future";
@@ -449,9 +448,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     | `Process tree ->
         [R.Html5.ul (ReactiveData.RList.map (make_tree_node_view m ~show_node) tree)]
     | `Review (review_mode, tree) ->
-        [R.Html5.ul ~a:[a_class [class_of_review_mode review_mode]] (
-          ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
-        )]
+        [
+          review_mode_switcher ~current:review_mode m;
+          R.Html5.ul ~a:[a_class [class_of_review_mode review_mode]] (
+            ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
+          );
+        ]
     | `Contact tree -> make_contact_view m ~show_node tree
     | `Work work_tree -> make_work_view m ~show_node work_tree
     | `Schedule tree -> make_schedule_view m ~show_node tree
@@ -481,20 +483,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             cl :: attrs in
       let button = a ~a:attrs [pcdata name] in
       dd ~a:[R.Html5.a_class cl] [button] in
-    let sub_mode =
-      current_tree >|~= (function
-        | `Review (review_mode, _) -> [review_mode_switcher ~current:review_mode m]
-        | _ -> []
-      ) |> rlist_of in
-    div [
-      dl ~a:[a_class ["sub-nav"]] [
-        item "Process" `Process;
-        item "Work" `Work ~alert:(M.alert m);
-        item "Contact" `Contact;
-        item "Schedule" `Schedule;
-        item "Review" `Review;
-      ];
-      R.Html5.div sub_mode
+    dl ~a:[a_class ["sub-nav"]] [
+      item "Process" `Process;
+      item "Work" `Work ~alert:(M.alert m);
+      item "Contact" `Contact;
+      item "Schedule" `Schedule;
+      item "Review" `Review;
     ]
 
   let assume_changed _ _ = false

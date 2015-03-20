@@ -774,7 +774,7 @@ module Make(Clock : Ck_clock.S)
       alert;
       fixed_head; set_fixed_head;
       details = Ck_id.M.empty;
-      review_mode = `Waiting;
+      review_mode = `Done;
       keep_me = []
     } in
     Lwt.wakeup set_on_update (fun r ->

@@ -522,7 +522,7 @@ ul.ck-review-waiting > li > ul > li > ul {
 }
 
 form.ck-review-mode {
-	margin-top: 0.2em;
+	margin-bottom: 1.0em;
 }
 
 form.ck-review-mode span.ck-label {
@@ -532,4 +532,5 @@ form.ck-review-mode span.ck-label {
 form.ck-review-mode input {
 	margin-left: 1em;
 	margin-right: 0.2em;
+	margin-bottom: 0;
 }
