@@ -241,9 +241,8 @@ div.description-form textarea {
 	margin-bottom: 0.5rem;
 }
 
-div.description a.edit {
+div.description div.ck-edit {
 	text-align: right;
-	display: block;
 }
 
 div.description-form div.actions {

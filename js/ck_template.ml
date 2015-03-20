@@ -671,8 +671,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             item >|~= (function
               | None -> []
               | Some item ->
-                  let clicked _ev =
-                    set_editing (Some item);
+                  let edit _ev =
+                    let descr = M.Item.description item in
+                    set_editing (Some (item, descr));
+                    false in
+                  let append_log _ev =
+                    let today = fmt_date (Unix.gettimeofday ()) in
+                    let descr =
+                      match M.Item.description item with
+                      | "" -> ""
+                      | descr -> descr ^ "\n\n" in
+                    set_editing (Some (item, Printf.sprintf "%s**%s**: " descr today));
                     false in
                   let raw_html = M.Item.description item |> Omd.of_string |> Omd.to_html in
                   let description = div [] in
@@ -681,20 +690,29 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                     elem##innerHTML <- Js.string raw_html in
                   [
                     description;
-                    a ~a:[a_class ["edit"]; a_onclick clicked] [pcdata "(edit)"];
+                    div ~a:[a_class ["row"]] [
+                      div ~a:[a_class ["small-6"; "columns"; "ck-add-log"]] [
+                        a ~a:[a_onclick append_log] [pcdata "(add log entry)"];
+                      ];
+                      div ~a:[a_class ["small-6"; "columns"; "ck-edit"]] [
+                        a ~a:[a_onclick edit] [pcdata "(edit)"];
+                      ]
+                    ]
                   ]
             );
-        | Some item ->
+        | Some (item, descr) ->
             let cancel _ev = set_editing None; false in
             let submit_ref = ref (fun _ -> true) in
             let keydown (ev:Dom_html.keyboardEvent Js.t) =
               if ev##keyCode = 13 && Js.to_bool ev##ctrlKey then !submit_ref ev
               else true in
             let value = textarea ~a:[a_rows 5; a_onkeydown keydown]
-              (pcdata (M.Item.description item)) in
+              (pcdata descr) in
             async ~name:"focus" (fun () ->
               let elem = Tyxml_js.To_dom.of_textarea value in
               elem##focus ();
+              let len = String.length descr in
+              (Obj.magic elem)##setSelectionRange (len, len);
               Lwt.return ()
             );
             let submit _ev =
