@@ -16,7 +16,7 @@ module Make(Git : Git_storage_s.S) = struct
         mutable children : apa M.t Ck_id.M.t;
         contexts : context_node Ck_id.M.t ref;
         contacts : contact_node Ck_id.M.t ref;
-        actions_of_contact : (Ck_id.t, action_node) Hashtbl.t;
+        nodes_of_contact : (Ck_id.t, apa) Hashtbl.t;
         actions_of_context : (Ck_id.t, action_node) Hashtbl.t;
         index : (Ck_id.t, apa) Hashtbl.t;
         mutable alert : bool;
@@ -75,6 +75,7 @@ module Make(Git : Git_storage_s.S) = struct
     let rev n = (details n).rev
     let uuid n = (details n).uuid
 
+    let contact t = Ck_disk_node.contact (apa_disk_node t)
     let parent t = Ck_disk_node.parent (apa_disk_node t)
     let name t = Ck_disk_node.name (disk_node t)
     let description t = Ck_disk_node.description (disk_node t)
@@ -119,7 +120,11 @@ module Make(Git : Git_storage_s.S) = struct
     let parent = Node.uuid node in
     try Ck_id.M.find parent t.children with Not_found -> M.empty
 
-  let process_item ~now t = function
+  let process_item ~now t node =
+    begin match Node.contact node with
+    | None -> ()
+    | Some c -> Hashtbl.add t.nodes_of_contact c node end;
+    match node with
     | `Action a as node ->
         begin match Node.context a with
         | None -> ()
@@ -128,10 +133,13 @@ module Make(Git : Git_storage_s.S) = struct
               error "Context '%a' of '%s' not found!" Ck_id.fmt id (Node.name node);
             Hashtbl.add t.actions_of_context id a end;
         begin match Node.action_state a with
-        | `Waiting_for_contact c ->
-            if not (Ck_id.M.mem c !(t.contacts)) then
-              error "Contact '%a' of '%s' not found!" Ck_id.fmt c (Node.name node);
-            Hashtbl.add t.actions_of_contact c a
+        | `Waiting_for_contact ->
+            begin match Node.contact node with
+            | None -> error "Waiting_for_contact but no contact set on '%s'" (Node.name node)
+            | Some c ->
+                if not (Ck_id.M.mem c !(t.contacts)) then
+                  error "Contact '%a' of '%s' not found!" Ck_id.fmt c (Node.name node)
+            end
         | `Waiting_until time ->
             t.schedule <- a :: t.schedule;
             if time <= now then t.alert <- true
@@ -149,10 +157,10 @@ module Make(Git : Git_storage_s.S) = struct
     let contexts = ref Ck_id.M.empty in
     let children = Hashtbl.create 100 in
     let index = Hashtbl.create 100 in
-    let actions_of_contact = Hashtbl.create 10 in
+    let nodes_of_contact = Hashtbl.create 10 in
     let actions_of_context = Hashtbl.create 10 in
     let t = {
-      commit; roots = M.empty; contacts; index; actions_of_contact; children = Ck_id.M.empty;
+      commit; roots = M.empty; contacts; index; nodes_of_contact; children = Ck_id.M.empty;
       contexts; actions_of_context;
       schedule = []; alert = false; valid_from = time; expires = None
     } in
@@ -243,13 +251,19 @@ module Make(Git : Git_storage_s.S) = struct
   let contacts t = !(t.contacts)
   let contexts t = !(t.contexts)
 
-  let actions_of_contact c =
-    Hashtbl.find_all c.rev.actions_of_contact c.uuid
+  let nodes_of_contact c =
+    Hashtbl.find_all c.rev.nodes_of_contact c.uuid
 
   let actions_of_context c =
     Hashtbl.find_all c.rev.actions_of_context c.uuid
 
+  let contact_for node =
+    match Node.contact node with
+    | None -> None
+    | Some id -> get_contact (Node.rev node) id
+
   let disk_node = Node.disk_node
+  let apa_node = Node.apa_disk_node
   let action_node n = n.disk_node
   let project_node n = n.disk_node
   let area_node n = n.disk_node

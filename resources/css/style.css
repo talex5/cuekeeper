@@ -482,9 +482,9 @@ table td.ck-waiting-menu {
 	padding: 0;
 }
 
-table td.ck-or {
+div.ck-or {
 	background: #eee;
-	vertical-align: middle;
+	text-align: center;
 }
 
 div.ck-add-scheduled {
@@ -495,7 +495,7 @@ div.ck-add-scheduled input {
 	width: 100%;
 }
 
-div.ck-add-scheduled div.pika-single {
+div.pika-single {
 	border: none;
 }
 

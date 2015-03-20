@@ -10,11 +10,14 @@ module Make(Git : Git_storage_s.S)
            (Clock : Ck_clock.S)
            (R : sig
              include REV with type commit = Git.Commit.t
+             open Node.Types
              val make : time:float -> Git.Commit.t -> t Lwt.t
              val disk_node : [< Node.generic] -> Ck_disk_node.generic
-             val action_node : Node.Types.action_node -> Ck_disk_node.Types.action_node
-             val project_node : Node.Types.project_node -> Ck_disk_node.Types.project_node
-             val area_node : Node.Types.area_node -> Ck_disk_node.Types.area_node
+             val apa_node : [< area | project | action] ->
+               [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
+             val action_node : action_node -> Ck_disk_node.Types.action_node
+             val project_node : project_node -> Ck_disk_node.Types.project_node
+             val area_node : area_node -> Ck_disk_node.Types.area_node
            end) = struct
   open R.Node.Types
 
@@ -283,21 +286,40 @@ module Make(Git : Git_storage_s.S)
           Some (R.Node.uuid context) in
     let new_node = Ck_disk_node.with_context (R.action_node node) context in
     let node = `Action node in
-    let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
+    let msg = Printf.sprintf "Change context of '%s'" (R.Node.name node) in
     update t ~msg node (`Action new_node)
 
-  let set_action_state t node astate =
-    let astate =
-      match astate with
-      | `Done | `Next | `Waiting | `Waiting_until _ | `Future as s -> s
-      | `Waiting_for_contact contact ->
+  let set_contact t node contact =
+    let contact =
+      match contact with
+      | None -> None
+      | Some contact ->
           let contact = `Contact contact in
-          assert (R.Node.rev (`Action node) == R.Node.rev contact);
-          `Waiting_for_contact (R.Node.uuid contact) in
-    let new_node = Ck_disk_node.with_astate (R.action_node node) astate in
+          assert (R.Node.rev node == R.Node.rev contact);
+          Some (R.Node.uuid contact) in
+    let new_node = Ck_disk_node.with_contact (R.apa_node node) contact in
+    let new_node =
+      match new_node with
+      | `Action a when Ck_disk_node.action_state a = `Waiting_for_contact && contact = None ->
+          `Action (Ck_disk_node.with_astate a `Next)
+      | _ -> new_node in
+    let msg = Printf.sprintf "Change contact of '%s'" (R.Node.name node) in
+    update t ~msg node new_node
+
+  let set_action_state t node astate =
+    let new_node = Ck_disk_node.with_astate (R.action_node node) (astate :> Ck_sigs.action_state) in
     let node = `Action node in
     let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
     update t ~msg node (`Action new_node)
+
+  let set_waiting_for t node contact =
+    let contact = `Contact contact in
+    assert (R.Node.rev (`Action node) == R.Node.rev contact);
+    let new_node = Ck_disk_node.with_astate (R.action_node node) `Waiting_for_contact in
+    let new_node = Ck_disk_node.with_contact (`Action new_node) (Some (R.Node.uuid contact)) in
+    let node = `Action node in
+    let msg = Printf.sprintf "'%s' now waiting for '%s'" (R.Node.name node) (R.Node.name contact) in
+    update t ~msg node new_node
 
   let set_project_state t node pstate =
     let new_node = Ck_disk_node.with_pstate (R.project_node node) pstate in

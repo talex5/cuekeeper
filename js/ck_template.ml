@@ -88,20 +88,24 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let toggle_of_astate = function
     | `Done | `Next | `Waiting | `Future as s -> s
-    | `Waiting_for_contact _ | `Waiting_until _ -> `Waiting
+    | `Waiting_for_contact | `Waiting_until _ -> `Waiting
 
-  let waiting_candidates m item =
-    M.candidate_contacts_for m item |> List.map (fun candidate ->
-      let clicked _ev =
-        Ck_modal.close ();
-        async ~name:"set waiting" (fun () -> M.choose_candidate candidate);
-        true in
-      li [
-        a ~a:[a_onclick clicked] [
-          pcdata (M.candidate_label candidate)
-        ]
-      ]
-    )
+  let waiting_candidates m action =
+    let wait_unspec _ev =
+      async ~name:"waiting" (fun () -> M.set_action_state m action `Waiting);
+      Ck_modal.close ();
+      false in
+    let waiting = li [a ~a:[a_onclick wait_unspec] [pcdata "Waiting (reason unspecified)"]] in
+    match M.Item.contact_node (`Action action) with
+    | None -> [waiting]
+    | Some contact ->
+        let clicked _ev =
+          async ~name:"waiting-for" (fun () -> M.set_action_state m action `Waiting_for_contact);
+          Ck_modal.close ();
+          false in
+        let name = M.Item.name (`Contact contact) in
+        let waiting_for = li [a ~a:[a_onclick clicked] [pcdata ("Waiting for " ^ name)]] in
+        [waiting_for; waiting]
 
   let toggle_label ~set_details ~current ~due details =
     let l =
@@ -146,12 +150,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let current = M.Item.action_state action |> toggle_of_astate in
         let set_details ev n =
           if n = `Waiting then (
-            let content = table [
-              tr [
-                td [wait_until_date m action];
-                td ~a:[a_class ["ck-or"]] [pcdata "or"];
-                td ~a:[a_class ["ck-waiting-menu"]] [ul (waiting_candidates m item)]
-              ]
+            let content = div [
+              wait_until_date m action;
+              div ~a:[a_class ["ck-or"]] [pcdata "or"];
+              ul ~a:[a_class ["ck-waiting-menu"]] (waiting_candidates m action)
             ] in
             show_modal ~parent:(ev##target) [content];
           ) else if current <> n then (
@@ -776,6 +778,41 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     end
     | _ -> false
 
+  let edit_contact m ~show_node item ev =
+    match React.S.value item with
+    | Some (`Area _ | `Project _ | `Action _ as item) -> begin
+        let new_contact_form =
+          let name_input = input ~a:[a_name "name"; a_placeholder "New contact"; a_size 20] () in
+          auto_focus name_input;
+          let add_contact _ev =
+            let input_elem = Tyxml_js.To_dom.of_input name_input in
+            let name = input_elem##value |> Js.to_string |> String.trim in
+            if name <> "" then async ~name:"add contact" (fun () ->
+              M.add_contact m ~name >>= function
+              | None -> print_endline "Added item no longer exists!"; Lwt.return ()
+              | Some (`Contact contact as node) ->
+                  Ck_modal.close ();
+                  show_node node;
+                  M.set_contact m item (Some contact) >|= report_error ~parent:(ev##target)
+            );
+            false in
+          li [form ~a:[a_onsubmit add_contact] [name_input]] in
+        let contacts =
+          M.candidate_contacts_for m item |> List.map (fun candidate ->
+          let select _ev =
+            async ~name:"set contact" (fun () ->
+              Ck_modal.close ();
+              M.choose_candidate candidate
+            );
+            false in
+          li [a ~a:[a_onclick select] [pcdata (M.candidate_label candidate)]]
+        ) in
+        let content = ul (new_contact_form :: contacts) in
+        show_modal ~parent:(ev##target) [content];
+        false
+    end
+    | _ -> false
+
   let make_details_panel m ~set_closed ~show_node details =
     let item = details.M.details_item in
     let title_cl =
@@ -815,6 +852,29 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             end
         | _ -> []
       ) |> rlist_of in
+    let contact =
+      match details.M.details_contact with
+      | None -> []
+      | Some signal ->
+          let label = item >|~= (function
+            | Some (`Action a) when M.Item.action_state a = `Waiting_for_contact -> "Waiting for: "
+            | _ -> "Contact: "
+          ) in
+          let value =
+            signal >|~= (fun opt_contact ->
+              let contact_name =
+                match opt_contact with
+                | None -> pcdata "(no contact)"
+                | Some c -> render_item m ~show_node (c :> M.Item.generic) in
+              [
+                contact_name;
+                a ~a:[a_onclick (edit_contact m ~show_node item)] [pcdata " (change)"]
+              ]
+            ) |> rlist_of in
+          [
+            span ~a:[a_class ["ck-label"]] [R.Html5.pcdata label];
+            R.Html5.span value;
+          ] in
     let context =
       details.M.details_context >|~= (function
         | None -> []            (* Item type doesn't have contexts *)
@@ -830,11 +890,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             ]
       ) |> rlist_of in
     let contents =
-      div [
+      [
         div [
           R.Html5.span (make_parent_details m ~show_node details);
         ];
-        R.Html5.div context;
+        R.Html5.div context
+      ] @ contact @ [
         R.Html5.div waiting_for;
         R.Html5.ul ~a:[a_class ["ck-groups"]] children;
         make_child_adder m ~show_node item;
@@ -844,7 +905,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata " (delete)"];
         ];
       ] in
-    (title, contents)
+    (title, div contents)
 
   let make_toplevel_adders m ~show_node =
     let editing, set_editing = React.S.create ~eq:assume_changed None in

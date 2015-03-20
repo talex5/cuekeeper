@@ -8,12 +8,13 @@ type node_details = {
   name : string;
   description : string;
   ctime : float;
+  contact : Ck_id.t sexp_option;
 } with sexp
 
 type astate =
   [ `Next
   | `Waiting
-  | `Waiting_for_contact of Ck_id.t
+  | `Waiting_for_contact
   | `Waiting_until of float
   | `Future
   | `Done ] with sexp
@@ -65,6 +66,7 @@ let ctime t = (details t).ctime
 let name t = (details t).name
 let description t = (details t).description
 let parent t = (details t).parent
+let contact t = (details t).contact
 
 let of_string s = apa_of_sexp (Sexplib.Sexp.of_string s)
 let to_string t = Sexplib.Sexp.to_string (sexp_of_apa (t :> apa))
@@ -80,18 +82,23 @@ let make ~name ~description ~parent ~ctime = {
   description;
   parent;
   ctime;
+  contact = None;
 }
 
-let map_details fn = function
+let map_apa fn = function
   | `Action (x, d) -> `Action (x, fn d)
   | `Project (x, d) -> `Project (x, fn d)
   | `Area d -> `Area (fn d)
+
+let map_details fn = function
+  | `Action _ | `Project _ | `Area _ as node -> map_apa fn node
   | `Contact d -> `Contact (fn d)
   | `Context d -> `Context (fn d)
 
 let with_name node name = node |> map_details (fun d -> {d with name})
 let with_description node description = node |> map_details (fun d -> {d with description})
 let with_parent node parent = node |> map_details (fun d -> {d with parent})
+let with_contact node contact = node |> map_apa (fun d -> {d with contact})
 let equal = (=)
 
 let context (action_details, _) = action_details.context

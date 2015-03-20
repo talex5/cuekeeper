@@ -9,11 +9,14 @@ module Make(Git : Git_storage_s.S)
            (Clock : Ck_clock.S)
            (R : sig
              include REV with type commit = Git.Commit.t
+             open Node.Types
              val make : time:float -> Git.Commit.t -> t Lwt.t
              val disk_node : [< Node.generic] -> Ck_disk_node.generic
-             val action_node : Node.Types.action_node -> Ck_disk_node.Types.action_node
-             val project_node : Node.Types.project_node -> Ck_disk_node.Types.project_node
-             val area_node : Node.Types.area_node -> Ck_disk_node.Types.area_node
+             val apa_node : [< area | project | action] ->
+               [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
+             val action_node : action_node -> Ck_disk_node.Types.action_node
+             val project_node : project_node -> Ck_disk_node.Types.project_node
+             val area_node : area_node -> Ck_disk_node.Types.area_node
            end) : sig
   type t
   type update_cb = R.t -> unit Lwt.t
@@ -59,9 +62,11 @@ module Make(Git : Git_storage_s.S)
   val set_name : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_description : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_starred : t -> [< action | project] -> bool -> unit Lwt.t
-  val set_action_state : t -> action_node -> [< contact_node action_state ] -> unit Lwt.t
+  val set_action_state : t -> action_node -> [< action_state ] -> unit Lwt.t
+  val set_waiting_for : t -> action_node -> contact_node -> unit Lwt.t
   val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
   val set_context : t -> action_node -> context_node option -> unit Lwt.t
+  val set_contact : t -> [< area | project | action] -> contact_node option -> unit Lwt.t
 
   val set_a_parent : t -> [area] -> [area] -> unit Lwt.t
   val set_pa_parent : t -> [< project | action] -> [< area | project] -> unit Lwt.t
