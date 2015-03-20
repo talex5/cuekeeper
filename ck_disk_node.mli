@@ -28,7 +28,7 @@ val make_context : name:string -> description:string -> ctime:float -> context_n
 
 val with_name : generic -> string -> generic
 val with_description : generic -> string -> generic
-val with_parent : generic -> Ck_id.t -> generic
+val with_parent : [< area | project | action] -> Ck_id.t -> [area | project | action]
 val with_contact : [< area | project | action] -> Ck_id.t option -> [area | project | action]
 val with_astate : action_node -> action_state -> action_node
 val with_pstate : project_node -> [ `Active | `SomedayMaybe | `Done ] -> project_node

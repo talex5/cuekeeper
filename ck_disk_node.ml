@@ -97,7 +97,7 @@ let map_details fn = function
 
 let with_name node name = node |> map_details (fun d -> {d with name})
 let with_description node description = node |> map_details (fun d -> {d with description})
-let with_parent node parent = node |> map_details (fun d -> {d with parent})
+let with_parent node parent = node |> map_apa (fun d -> {d with parent})
 let with_contact node contact = node |> map_apa (fun d -> {d with contact})
 let equal = (=)
 
