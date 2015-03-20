@@ -96,7 +96,7 @@ module Make(Clock : Ck_clock.S)
   module Widget = WidgetTree.Widget
   open Item.Types
 
-  type review_mode = [ `Waiting | `Future | `Areas | `Everything ]
+  type review_mode = [ `Done | `Waiting | `Future | `Areas | `Everything ]
 
   type tree_view =
     [ `Process of Widget.t ReactiveData.RList.t
@@ -293,6 +293,25 @@ module Make(Clock : Ck_clock.S)
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
 
+  let make_done_tree r =
+    let rec aux items =
+      M.fold (fun _key item acc ->
+        match item with
+        | `Area _ ->
+            let children = aux (R.child_nodes item) in
+            if TreeNode.Child_map.is_empty children then acc
+            else acc |> TreeNode.add { TreeNode.item = `Item (item :> Node.generic); children }
+        | `Project p ->
+            let children = aux (R.child_nodes item) in
+            let p_done = Node.project_state p = `Done in
+            if TreeNode.Child_map.is_empty children && not p_done then acc
+            else acc |> TreeNode.add { TreeNode.item = `Item (item :> Node.generic); children }
+        | `Action a ->
+            if Node.action_state a = `Done then acc |> TreeNode.add (TreeNode.leaf_of_node item)
+            else acc
+      ) items TreeNode.Child_map.empty in
+    aux (R.roots r)
+
   let make_everything_tree r =
     let main = make_full_tree r in
     let contexts =
@@ -310,6 +329,7 @@ module Make(Clock : Ck_clock.S)
 
   let make_review_tree ~mode r =
     match mode with
+    | `Done -> make_done_tree r
     | `Waiting -> make_waiting_tree r
     | `Future -> make_future_tree r
     | `Areas -> make_areas_tree r

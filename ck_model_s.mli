@@ -7,7 +7,7 @@ module type MODEL = sig
   type t
   type gui_data
 
-  type review_mode = [ `Waiting | `Future | `Areas | `Everything ]
+  type review_mode = [ `Done | `Waiting | `Future | `Areas | `Everything ]
 
   module Item : sig
     include DISK_NODE

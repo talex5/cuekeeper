@@ -431,6 +431,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       input ~a:attrs () in
     form ~a:[a_class ["ck-review-mode"]] [
       ck_label "Review:";
+      item `Done; pcdata "Done";
       item `Waiting; pcdata "Waiting";
       item `Future; pcdata "Future";
       item `Areas; pcdata "Areas";
@@ -438,6 +439,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ]
 
   let class_of_review_mode = function
+    | `Done -> "ck-review-done"
     | `Waiting -> "ck-review-waiting"
     | `Future -> "ck-review-future"
     | `Areas -> "ck-review-areas"
