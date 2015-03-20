@@ -113,7 +113,7 @@ module Make(Git : Git_storage_s.S) = struct
   type t = rev
 
   let equal a b =
-    a.commit = b.commit
+    Git.Commit.equal a.commit b.commit
 
   let child_nodes node =
     let t = Node.rev node in

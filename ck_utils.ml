@@ -4,6 +4,11 @@
 let (>>~=) x f = React.S.bind x f
 let (>|~=) x f = React.S.map f x
 
+let (>|?=) x f =
+  match x with
+  | None -> None
+  | Some x -> Some (f x)
+
 let error fmt =
   let do_raise msg = raise @@ Failure msg in
   Printf.ksprintf do_raise fmt

@@ -466,7 +466,7 @@ module Make(Clock : Ck_clock.S)
     child_nodes |> M.iter (fun _k v -> add v);
     !tree_nodes
 
-  let deleted_details =
+  let empty_details =
     {
       details_item = React.S.const None;
       details_parent = React.S.const None;
@@ -480,117 +480,106 @@ module Make(Clock : Ck_clock.S)
     | `Area _ | `Project _ | `Action _ as node ->
         (R.get r (Node.uuid node) :> Node.generic option)
     | `Context _ as node ->
-        begin match R.get_context r (Node.uuid node) with
-        | None -> None
-        | Some c -> Some (`Context c) end
+        R.get_context r (Node.uuid node) >|?= (fun c -> `Context c)
     | `Contact _ as node ->
-        match R.get_contact r (Node.uuid node) with
-        | None -> None
-        | Some c -> Some (`Contact c)
+        R.get_contact r (Node.uuid node) >|?= (fun c -> `Contact c)
 
-  let make_details t ~initial_node ~child_nodes ?get_parent ?get_context ?get_contact ~get ~wrap ~ok () =
-    let uuid = Node.uuid initial_node in
-    match get t.r uuid with
-    | None -> deleted_details
-    | Some initial_node ->
-        let parent, update_parent =
-          match get_parent with
-          | None -> React.S.const None, (fun _ _  -> ())
-          | Some get_parent ->
-              let parent, set_parent = React.S.create ~eq:opt_node_equal (get_parent t.r initial_node) in
-              let update r = function
-                | None -> set_parent None
-                | Some node -> set_parent (get_parent r node) in
-              parent, update in
-        let context, update_context =
-          match get_context with
-          | None -> React.S.const None, ignore
-          | Some get_context ->
-              let context, set_context = React.S.create ~eq:opt_opt_node_equal (get_context (Some initial_node)) in
-              let update c = set_context (get_context c) in
-              context, update in
-        let contact, update_contact =
-          match get_contact with
-          | None -> None, ignore
-          | Some get_contact ->
-              let contact, set_contact = React.S.create ~eq:opt_node_equal (get_contact initial_node) in
-              let update = function
-                | None -> set_contact None
-                | Some node -> set_contact (get_contact node) in
-              Some contact, update in
-        let node, set_node = React.S.create ~eq:opt_node_equal (Some (wrap initial_node)) in
-        let children = WidgetTree.make (child_nodes initial_node) in
-        let update r =
-          let node = get r uuid in
-          update_parent r node;
-          update_context node;
-          update_contact node;
-          match node with
-          | None ->
-              set_node None;
-              WidgetTree.update children TreeNode.Child_map.empty ~on_remove:(on_remove r)
-          | Some node ->
-              set_node (Some (wrap node));
-              WidgetTree.update children (child_nodes node) ~on_remove:(on_remove r) in
-        ok ~node ~parent ~context ~contact ~children:(WidgetTree.widgets children) ~update
+  let context_details ~details_stop rs initial_node =
+    let uuid = R.Node.uuid (`Context initial_node) in
+    let child_nodes item =
+      R.actions_of_context item
+      |> List.fold_left (fun acc action ->
+        acc |> TreeNode.add (TreeNode.leaf_of_node (`Action action))
+      ) TreeNode.Child_map.empty in
+    let tree = WidgetTree.make (child_nodes initial_node) in
+    let details_item = rs |> React.S.map ~eq:opt_node_equal (fun r ->
+      let item = R.get_context r uuid in
+      let item, children =
+        match item with
+        | None -> None, TreeNode.Child_map.empty
+        | Some item -> Some (`Context item), child_nodes item in
+      WidgetTree.update tree children ~on_remove:(on_remove r);
+      item
+    ) in
+    { empty_details with
+      details_item;
+      details_children = WidgetTree.widgets tree;
+      details_stop;
+    }
+
+  let contact_details ~details_stop rs initial_node =
+    let uuid = R.Node.uuid (`Contact initial_node) in
+    let child_nodes c =
+      R.nodes_of_contact c
+      |> List.fold_left (fun acc node ->
+        acc |> TreeNode.add (TreeNode.leaf_of_node node)
+      ) TreeNode.Child_map.empty in
+    let tree = WidgetTree.make (child_nodes initial_node) in
+    let details_item = rs |> React.S.map ~eq:opt_node_equal (fun r ->
+      let item = R.get_contact r uuid in
+      let item, children =
+        match item with
+        | None -> None, TreeNode.Child_map.empty
+        | Some item -> Some (`Contact item), child_nodes item in
+      WidgetTree.update tree children ~on_remove:(on_remove r);
+      item
+    ) in
+    { empty_details with
+      details_item;
+      details_children = WidgetTree.widgets tree;
+      details_stop;
+    }
+
+  let apa_details ~details_stop rs initial_node =
+    let uuid = R.Node.uuid initial_node in
+    let child_nodes node =
+      R.child_nodes node
+      |> group_by_type ~parent:node in
+    let tree = WidgetTree.make (child_nodes initial_node) in
+    let all = rs |> React.S.map ~eq:assume_changed (fun r ->
+      let item = R.get r uuid in
+      let item, parent, context, contact, children =
+        match item with
+        | None -> None, None, None, None, TreeNode.Child_map.empty
+        | Some item ->
+            let contact = R.contact_for item >|?= (fun c -> `Contact c) in
+            let context =
+              match item with
+              | `Area _ | `Project _ -> None
+              | `Action action -> Some (R.context action >|?= (fun c -> `Context c)) in
+            Some (item :> Item.generic), R.parent r item, context, contact, child_nodes item in
+      WidgetTree.update tree children ~on_remove:(on_remove r);
+      (item, parent, context, contact)
+    ) in
+    {
+      details_item    = (all |> React.S.map ~eq:opt_node_equal (fun (item, _parent, _context, _contact) -> item));
+      details_parent  = (all |> React.S.map ~eq:opt_node_equal (fun (_item, parent, _context, _contact) -> parent));
+      details_context = (all |> React.S.map ~eq:opt_opt_node_equal (fun (_item, _parent, context, _contact) -> context));
+      details_contact = Some (all |> React.S.map ~eq:opt_node_equal (fun (_item, _parent, _context, contact) -> contact));
+      details_children = WidgetTree.widgets tree;
+      details_stop;
+    }
 
   let details t initial_node =
     let initial_node = (initial_node :> Node.generic) in
     let uuid = Node.uuid initial_node in
     try fst (Ck_id.M.find uuid t.details)
     with Not_found ->
-      let ok ~node ~parent ~context ~contact ~children ~update =
-        let details = {
-          details_item = node;
-          details_parent = parent;
-          details_context = context;
-          details_contact = contact;
-          details_children = children;
-          details_stop = (fun () ->
-            t.details <- t.details |> Ck_id.M.remove uuid;
-            ignore children
-          );
-        } in
-        t.details <- t.details |> Ck_id.M.add uuid (details, update);
-        details in
+      let details_stop () =
+        t.details <- t.details |> Ck_id.M.remove uuid in
       (* Note: initial_node may already be out-of-date *)
-      match initial_node with
-      | `Context _ ->
-          let child_nodes c =
-            R.actions_of_context c
-            |> List.fold_left (fun acc action ->
-              acc |> TreeNode.add (TreeNode.leaf_of_node (`Action action))
-            ) TreeNode.Child_map.empty in
-          let get r id = R.get_context r id in
-          let wrap x = `Context x in
-          make_details t ~initial_node ~child_nodes ~get ~wrap ~ok ()
-      | `Contact _ ->
-          let child_nodes c =
-            R.nodes_of_contact c
-            |> List.fold_left (fun acc node ->
-              acc |> TreeNode.add (TreeNode.leaf_of_node node)
-            ) TreeNode.Child_map.empty in
-          let get r id = R.get_contact r id in
-          let wrap x = `Contact x in
-          make_details t ~initial_node ~child_nodes ~get ~wrap ~ok ()
-      | `Area _ | `Project _ | `Action _ as initial_node ->
-          let child_nodes node =
-            R.child_nodes node
-            |> group_by_type ~parent:node in
-          let wrap x = (x :> Item.generic) in
-          let get = R.get in
-          let get_contact c =
-            match R.contact_for c with
-            | None -> None
-            | Some c -> Some (`Contact c) in
-          let get_context = function
-            | None -> None
-            | Some (`Area _ | `Project _) -> None
-            | Some (`Action action) ->
-                match R.context action with
-                | None -> Some None
-                | Some c -> Some (Some (`Context c)) in
-          make_details t ~initial_node ~child_nodes ~get ~wrap ~get_parent:R.parent ~get_context ~get_contact ~ok ()
+      let (>|>) = function
+        | None -> fun _ -> empty_details, ignore
+        | Some x -> fun f ->
+            let rs, set_r = React.S.create ~eq:R.equal t.r in
+            f ~details_stop rs x, (fun r -> set_r r) in
+      let details, update =
+        match initial_node with
+        | `Context _ -> R.get_context t.r uuid >|> context_details
+        | `Contact _ -> R.get_contact t.r uuid >|> contact_details
+        | `Area _ | `Project _ | `Action _ -> R.get t.r uuid >|> apa_details in
+      t.details <- t.details |> Ck_id.M.add uuid (details, update);
+      details
 
   type candidate = string * (unit -> unit Lwt.t)
   let candidate_label = fst
