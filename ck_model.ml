@@ -289,9 +289,10 @@ module Make(Clock : Ck_clock.S)
   let make_contact_tree r =
     let contacts = R.contacts r in
     Ck_id.M.fold (fun _key item acc ->
-      let value =
-        { TreeNode.item = `Item (`Contact item);
-          children = TreeNode.Child_map.empty } in
+      let children = R.actions_of_contact item |> List.fold_left (fun acc action ->
+        acc |> TreeNode.add (TreeNode.leaf_of_node (`Action action))
+      ) TreeNode.Child_map.empty in
+      let value = { TreeNode.item = `Item (`Contact item); children } in
       acc |> TreeNode.add value
     ) contacts TreeNode.Child_map.empty
 
