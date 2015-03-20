@@ -820,15 +820,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         div [
           R.Html5.span (make_parent_details m ~show_node details);
         ];
-        div [
-          ck_label ("Created " ^ ctime);
-          a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata " (delete)"];
-        ];
         R.Html5.div context;
         R.Html5.div waiting_for;
         R.Html5.ul ~a:[a_class ["ck-groups"]] children;
         make_child_adder m ~show_node item;
         description;
+        div [
+          ck_label ("Created " ^ ctime);
+          a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata " (delete)"];
+        ];
       ] in
     (title, contents)
 

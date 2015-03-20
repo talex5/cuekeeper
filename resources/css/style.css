@@ -193,7 +193,7 @@ div.ck-details {
 	animation-timing-function: linear;
 	animation-name: fade-in-panel;
 	animation-duration: 0.5s;
-	padding: 0.5rem;
+	padding: 0.5rem 0.5rem 0.0rem 0.5rem;
 	border: 1px solid #d8d8d8;
 	margin-bottom: 4px;
 	overflow: hidden;
@@ -345,14 +345,14 @@ div.ck-time-travel-warning.new {
 
 @-webkit-keyframes fade-in-panel {
 	0% { opacity: 0.0; max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0}
-	10% { opacity: 0.1; max-height: 10vh; margin-bottom: 4px; padding: 0.5rem}
-	100% { opacity: 1.0; max-height: 100vh; margin-bottom: 4px; padding: 0.5rem}
+	10% { opacity: 0.1; max-height: 10vh; margin-bottom: 4px; padding-top: 0.5rem}
+	100% { opacity: 1.0; max-height: 100vh; margin-bottom: 4px; padding-top: 0.5rem}
 }
 
 @keyframes fade-in-panel {
 	0% { opacity: 0.0; max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0}
-	10% { opacity: 0.1; max-height: 10vh; margin-bottom: 4px; padding: 0.5rem}
-	100% { opacity: 1.0; max-height: 100vh; margin-bottom: 4px; padding: 0.5rem}
+	10% { opacity: 0.1; max-height: 10vh; margin-bottom: 4px; padding-top: 0.5rem}
+	100% { opacity: 1.0; max-height: 100vh; margin-bottom: 4px; padding-top: 0.5rem}
 }
 
 @-webkit-keyframes fade-in-warning {
