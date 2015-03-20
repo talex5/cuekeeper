@@ -87,7 +87,7 @@ module type MODEL = sig
                   | `Review of review_mode * Widget.t ReactiveData.RList.t
                   | `Schedule of Widget.t ReactiveData.RList.t] React.S.t
 
-  val set_review_mode : t -> [ `Waiting | `Future | `Areas | `Everything ] -> unit
+  val set_review_mode : t -> review_mode -> unit
 
   val details : t -> [< Item.generic] -> details
 

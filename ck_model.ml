@@ -280,11 +280,40 @@ module Make(Clock : Ck_clock.S)
     |> TreeNode.add {TreeNode.item = `Group (0, "Actions"); children = !actions}
     |> TreeNode.add {TreeNode.item = `Group (0, "Projects"); children = !projects}
 
+  let make_areas_tree r =
+    let rec aux items =
+      M.fold (fun key item acc ->
+        match item with
+        | `Area _ as item ->
+            let value =
+              { TreeNode.item = `Item (item :> Node.generic);
+                children = aux (R.child_nodes item) } in
+            acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
+        | `Project _ | `Action _ -> acc
+      ) items TreeNode.Child_map.empty in
+    aux (R.roots r)
+
+  let make_everything_tree r =
+    let main = make_full_tree r in
+    let contexts =
+      Ck_id.M.fold (fun _key item acc ->
+        acc |> TreeNode.add (TreeNode.leaf_of_node (`Context item))
+      ) (R.contexts r) TreeNode.Child_map.empty in
+    let contacts =
+      Ck_id.M.fold (fun _key item acc ->
+        acc |> TreeNode.add (TreeNode.leaf_of_node (`Contact item))
+      ) (R.contacts r) TreeNode.Child_map.empty in
+    TreeNode.Child_map.empty
+    |> TreeNode.add {TreeNode.item = `Group (0, "Areas"); children = main}
+    |> TreeNode.add {TreeNode.item = `Group (1, "Contexts"); children = contexts}
+    |> TreeNode.add {TreeNode.item = `Group (2, "Contacts"); children = contacts}
+
   let make_review_tree ~mode r =
     match mode with
     | `Waiting -> make_waiting_tree r
     | `Future -> make_future_tree r
-    | _ -> make_full_tree r
+    | `Areas -> make_areas_tree r
+    | `Everything -> make_everything_tree r
 
   let make_contact_tree r =
     let contacts = R.contacts r in
