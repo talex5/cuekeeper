@@ -19,11 +19,11 @@ ol.ck-history p {
 }
 
 li.ck-adders  { list-style-type: none; }
-div.ck-adders ul { margin-left: 0; }
-div.ck-adders li { margin-right: 1em; }
-div.ck-adders li:last-child { margin-right: 0; }
-div.ck-adders li,
-div.ck-adders li { display: inline; }
+ul.ck-adders { margin-left: 0; }
+ul.ck-adders li { margin-right: 1em; }
+ul.ck-adders li:last-child { margin-right: 0; }
+ul.ck-adders li,
+ul.ck-adders li { display: inline; }
 
 div.inline {
 	display: inline;
@@ -34,7 +34,7 @@ ul.ck-adders {
 	margin-bottom: 0;
 }
 
-div.ck-adders {
+div.ck-toplevel-adders {
 	text-align: right;
 }
 
@@ -458,6 +458,7 @@ dl.sub-nav dd:first-child {
 }
 div.ck-tree {
 	margin-left: 0;
+	overflow: auto;
 }
 
 ul.vcard {
@@ -504,14 +505,20 @@ div.ck-next-actions > ul > li > ul > li > ul {
 }
 
 ul.ck-review-waiting > li,
+ul.ck-review-everything > li,
 ul.ck-review-future > li {
-	padding-top: 1rem
+	padding-bottom: 1rem
 }
 
 ul.ck-review-waiting > li > span.ck-group-label,
-ul.ck-review-future > li > span.ck-group-label {
+ul.ck-review-future > li > span.ck-group-label,
+ul.ck-review-everything > li > span.ck-group-label {
 	font-weight: bold;
 	color: black;
+}
+
+ul.ck-review-everything > li > span.ck-group-label {
+	font-size: large;
 }
 
 ul.ck-review-future,

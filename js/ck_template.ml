@@ -536,11 +536,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               | Some item ->
                   match item with
                   | `Action _ | `Contact _ | `Context _ -> pcdata ""
-                  | `Project _ as item -> ul ~a:[a_class ["add"]] [
+                  | `Project _ as item -> ul ~a:[a_class ["ck-adders"]] [
                       add_button (M.add_project m ~parent:item) "+sub-project";
                       add_button (M.add_action m ~state:`Next ~parent:item) "+action";
                     ]
-                  | `Area _ as item -> ul ~a:[a_class ["add"]] [
+                  | `Area _ as item -> ul ~a:[a_class ["ck-adders"]] [
                       add_button (M.add_area m ~parent:item) "+sub-area";
                       add_button (M.add_project m ~parent:item) "+project";
                       add_button (M.add_action m ~state:`Next ~parent:item) "+action";
@@ -951,7 +951,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           make_mode_switcher m current_tree;
         ];
         div ~a:[a_class ["medium-4"; "columns"]] [
-          R.Html5.div ~a:[a_class ["ck-adders"]] (
+          R.Html5.div ~a:[a_class ["ck-toplevel-adders"]] (
             make_toplevel_adders m ~show_node
           );
           div ~a:[a_class ["ck-actions"]] [
