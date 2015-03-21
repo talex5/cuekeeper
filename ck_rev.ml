@@ -17,10 +17,10 @@ module Make(Git : Git_storage_s.S) = struct
         contexts : context_node Ck_id.M.t ref;
         contacts : contact_node Ck_id.M.t ref;
         nodes_of_contact : (Ck_id.t, apa) Hashtbl.t;
-        actions_of_context : (Ck_id.t, action_node) Hashtbl.t;
+        actions_of_context : (Ck_id.t, action) Hashtbl.t;
         index : (Ck_id.t, apa) Hashtbl.t;
         mutable alert : bool;
-        mutable schedule : action_node list;
+        mutable schedule : action list;
         mutable expires : float option;
         valid_from : float;
       }
@@ -38,12 +38,11 @@ module Make(Git : Git_storage_s.S) = struct
         [ `Action of action_node
         | `Project of project_node
         | `Area of area_node ]
-
-      type action = [`Action of action_node]
-      type project = [`Project of project_node]
-      type area = [`Area of area_node]
-      type contact = [`Contact of contact_node]
-      type context = [`Context of context_node]
+      and action = [`Action of action_node]
+      and project = [`Project of project_node]
+      and area = [`Area of area_node]
+      and contact = [`Contact of contact_node]
+      and context = [`Context of context_node]
     end
 
     open Types
@@ -80,9 +79,9 @@ module Make(Git : Git_storage_s.S) = struct
     let name t = Ck_disk_node.name (disk_node t)
     let description t = Ck_disk_node.description (disk_node t)
     let ctime t = Ck_disk_node.ctime (disk_node t)
-    let action_state n = Ck_disk_node.action_state n.disk_node
-    let context n = Ck_disk_node.context n.disk_node
-    let project_state n = Ck_disk_node.project_state n.disk_node
+    let action_state (`Action n) = Ck_disk_node.action_state (`Action n.disk_node)
+    let context (`Action n) = Ck_disk_node.context (`Action n.disk_node)
+    let project_state (`Project n) = Ck_disk_node.project_state (`Project n.disk_node)
     let starred = function
       | `Action n -> Ck_disk_node.starred (`Action n.disk_node)
       | `Project n -> Ck_disk_node.starred (`Project n.disk_node)
@@ -94,11 +93,11 @@ module Make(Git : Git_storage_s.S) = struct
 
     let is_due action =
       match action_state action with
-      | `Waiting_until time -> time <= action.rev.valid_from
+      | `Waiting_until time -> time <= (rev action).valid_from
       | _ -> false
 
     let node_due = function
-      | `Action action -> is_due action
+      | `Action _ as action -> is_due action
       | _ -> false
 
     let equal a b =
@@ -125,14 +124,14 @@ module Make(Git : Git_storage_s.S) = struct
     | None -> ()
     | Some c -> Hashtbl.add t.nodes_of_contact c node end;
     match node with
-    | `Action a as node ->
-        begin match Node.context a with
+    | `Action _ as node ->
+        begin match Node.context node with
         | None -> ()
         | Some id ->
             if not (Ck_id.M.mem id !(t.contexts)) then
               error "Context '%a' of '%s' not found!" Ck_id.fmt id (Node.name node);
-            Hashtbl.add t.actions_of_context id a end;
-        begin match Node.action_state a with
+            Hashtbl.add t.actions_of_context id node end;
+        begin match Node.action_state node with
         | `Waiting_for_contact ->
             begin match Node.contact node with
             | None -> error "Waiting_for_contact but no contact set on '%s'" (Node.name node)
@@ -141,7 +140,7 @@ module Make(Git : Git_storage_s.S) = struct
                   error "Contact '%a' of '%s' not found!" Ck_id.fmt c (Node.name node)
             end
         | `Waiting_until time ->
-            t.schedule <- a :: t.schedule;
+            t.schedule <- node :: t.schedule;
             if time <= now then t.alert <- true
             else (
               match t.expires with
@@ -191,7 +190,7 @@ module Make(Git : Git_storage_s.S) = struct
       | ["contact"; uuid] as key ->
           let uuid = Ck_id.of_string uuid in
           Git.Staging.read_exn tree key >|= fun s ->
-          let disk_node = Ck_disk_node.contact_of_string s in
+          let `Contact disk_node = Ck_disk_node.contact_of_string s in
           let contact = {rev = t; uuid; disk_node} in
           contacts := !contacts |> Ck_id.M.add uuid contact;
       | _ -> assert false
@@ -202,7 +201,7 @@ module Make(Git : Git_storage_s.S) = struct
       | ["context"; uuid] as key ->
           let uuid = Ck_id.of_string uuid in
           Git.Staging.read_exn tree key >|= fun s ->
-          let disk_node = Ck_disk_node.context_of_string s in
+          let `Context disk_node = Ck_disk_node.context_of_string s in
           let context = {rev = t; uuid; disk_node} in
           contexts := !contexts |> Ck_id.M.add uuid context;
       | _ -> assert false
@@ -229,32 +228,32 @@ module Make(Git : Git_storage_s.S) = struct
     with Not_found -> None
 
   let get_contact t uuid =
-    try Some (Ck_id.M.find uuid !(t.contacts))
+    try Some (`Contact (Ck_id.M.find uuid !(t.contacts)))
     with Not_found -> None
 
   let get_context t uuid =
-    try Some (Ck_id.M.find uuid !(t.contexts))
+    try Some (`Context (Ck_id.M.find uuid !(t.contexts)))
     with Not_found -> None
 
   let parent t node = get t (Node.parent node)
 
-  let context action =
+  let context (`Action node as action) =
     match Node.context action with
     | None -> None
-    | Some id -> get_context action.rev id
+    | Some id -> get_context node.rev id
 
   let roots t =
     try Ck_id.M.find Ck_id.root t.children
     with Not_found -> M.empty
 
   let commit t = t.commit
-  let contacts t = !(t.contacts)
-  let contexts t = !(t.contexts)
+  let contacts t = !(t.contacts) |> Ck_id.M.map (fun c -> `Contact c)
+  let contexts t = !(t.contexts) |> Ck_id.M.map (fun c -> `Context c)
 
-  let nodes_of_contact c =
+  let nodes_of_contact (`Contact c) =
     Hashtbl.find_all c.rev.nodes_of_contact c.uuid
 
-  let actions_of_context c =
+  let actions_of_context (`Context c) =
     Hashtbl.find_all c.rev.actions_of_context c.uuid
 
   let contact_for node =
@@ -264,9 +263,9 @@ module Make(Git : Git_storage_s.S) = struct
 
   let disk_node = Node.disk_node
   let apa_node = Node.apa_disk_node
-  let action_node n = n.disk_node
-  let project_node n = n.disk_node
-  let area_node n = n.disk_node
+  let action_node (`Action n) = `Action n.disk_node
+  let project_node (`Project n) = `Project n.disk_node
+  let area_node (`Area n) = `Area n.disk_node
 
   let due action =
     match Node.action_state action with

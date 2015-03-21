@@ -14,9 +14,9 @@ module Make(Git : Git_storage_s.S)
              val disk_node : [< Node.generic] -> Ck_disk_node.generic
              val apa_node : [< area | project | action] ->
                [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
-             val action_node : action_node -> Ck_disk_node.Types.action_node
-             val project_node : project_node -> Ck_disk_node.Types.project_node
-             val area_node : area_node -> Ck_disk_node.Types.area_node
+             val action_node : action -> Ck_disk_node.Types.action
+             val project_node : project -> Ck_disk_node.Types.project
+             val area_node : area -> Ck_disk_node.Types.area
            end) : sig
   type t
   type update_cb = R.t -> unit Lwt.t
@@ -55,24 +55,24 @@ module Make(Git : Git_storage_s.S)
     parent:[`Toplevel of R.t | `Node of [< area | project ]] ->
     (parent:Ck_id.t -> ctime:float -> [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action]) ->
     Ck_id.t Lwt.t
-  val add_contact : t -> base:R.t -> Ck_disk_node.Types.contact_node -> Ck_id.t Lwt.t
-  val add_context : t -> ?uuid:Ck_id.t -> base:R.t -> Ck_disk_node.Types.context_node -> Ck_id.t Lwt.t
+  val add_contact : t -> base:R.t -> Ck_disk_node.Types.contact -> Ck_id.t Lwt.t
+  val add_context : t -> ?uuid:Ck_id.t -> base:R.t -> Ck_disk_node.Types.context -> Ck_id.t Lwt.t
   val delete : t -> [< R.Node.generic] -> unit or_error Lwt.t
 
   val set_name : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_description : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_starred : t -> [< action | project] -> bool -> unit Lwt.t
-  val set_action_state : t -> action_node -> [< action_state ] -> unit Lwt.t
-  val set_waiting_for : t -> action_node -> contact_node -> unit Lwt.t
-  val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
-  val set_context : t -> action_node -> context_node option -> unit Lwt.t
-  val set_contact : t -> [< area | project | action] -> contact_node option -> unit Lwt.t
+  val set_action_state : t -> action -> [< action_state ] -> unit Lwt.t
+  val set_waiting_for : t -> action -> contact -> unit Lwt.t
+  val set_project_state : t -> project -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
+  val set_context : t -> action -> context option -> unit Lwt.t
+  val set_contact : t -> [< area | project | action] -> contact option -> unit Lwt.t
 
   val set_a_parent : t -> [area] -> [area] -> unit Lwt.t
   val set_pa_parent : t -> [< project | action] -> [< area | project] -> unit Lwt.t
   val remove_parent : t -> [< area | project | action] -> unit Lwt.t
 
-  val convert_to_area : t -> project_node -> unit or_error Lwt.t
+  val convert_to_area : t -> project -> unit or_error Lwt.t
   val convert_to_project : t -> [< action | area] -> unit or_error Lwt.t
-  val convert_to_action : t -> project_node -> unit or_error Lwt.t
+  val convert_to_action : t -> project -> unit or_error Lwt.t
 end

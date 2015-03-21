@@ -149,20 +149,16 @@ module Make(Clock : Ck_clock.S)
   let add_contact t ~name =
     let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Clock.now ()) in
     Up.add_contact t.master ~base:t.r disk_node >|= fun id ->
-    match R.get_contact t.r id with
-    | None -> None
-    | Some x -> Some (`Contact x)
+    R.get_contact t.r id
 
   let add_context t ~name =
     let disk_node = Ck_disk_node.make_context ~name ~description:"" ~ctime:(Clock.now ()) in
     Up.add_context t.master ~base:t.r disk_node >|= fun id ->
-    match R.get_context t.r id with
-    | None -> None
-    | Some x -> Some (`Context x)
+    R.get_context t.r id
 
   let set_context t item context =
-    match R.get t.r (Node.uuid (`Action item)), R.get_context t.r (Node.uuid (`Context context)) with
-    | Some (`Action action), Some context -> Up.set_context t.master action (Some context) >|= fun () -> `Ok ()
+    match R.get t.r (Node.uuid item), R.get_context t.r (Node.uuid context) with
+    | Some (`Action _ as action), Some context -> Up.set_context t.master action (Some context) >|= fun () -> `Ok ()
     | _, None -> `Error "Context no longer exists!" |> return
     | _, _ -> `Error "Action no longer exists!" |> return
 
@@ -170,7 +166,7 @@ module Make(Clock : Ck_clock.S)
     match contact with
     | None -> Up.set_contact t.master item None >|= fun () -> `Ok ()
     | Some contact ->
-        match R.get t.r (Node.uuid item), R.get_contact t.r (Node.uuid (`Contact contact)) with
+        match R.get t.r (Node.uuid item), R.get_contact t.r (Node.uuid contact) with
         | Some node, Some contact -> Up.set_contact t.master node (Some contact) >|= fun () -> `Ok ()
         | _, None -> `Error "Contact no longer exists!" |> return
         | _, _ -> `Error "Item no longer exists!" |> return
@@ -253,12 +249,12 @@ module Make(Clock : Ck_clock.S)
     let rec scan ?parent _key = function
       | `Area _ | `Project _ as node ->
           R.child_nodes node |> M.iter (scan ~parent:node)
-      | `Action action as node ->
-          match Node.action_state action with
+      | `Action _ as node ->
+          match Node.action_state node with
           | `Waiting -> add ~group:waiting ~parent node
           | `Waiting_for_contact ->
               begin match R.contact_for node with
-              | Some contact -> add ~group:(TreeNode.leaf_of_node (`Contact contact)) ~parent node
+              | Some contact -> add ~group:(TreeNode.leaf_of_node contact) ~parent node
               | None -> add ~group:waiting ~parent node (* Shouldn't happen *)
               end
           | _ -> () in
@@ -279,12 +275,12 @@ module Make(Clock : Ck_clock.S)
             |> TreeNode.with_child (TreeNode.leaf_of_node item) in
       actions := !actions |> TreeNode.add group_item in
     let rec scan ?parent _key = function
-      | `Project p as node when Node.project_state p = `SomedayMaybe ->
+      | `Project _ as node when Node.project_state node = `SomedayMaybe ->
           projects := !projects |> TreeNode.add (TreeNode.leaf_of_node node)
       | `Area _ | `Project _ as node ->
           R.child_nodes node |> M.iter (scan ~parent:node)
-      | `Action action as node ->
-          match Node.action_state action with
+      | `Action _ as node ->
+          match Node.action_state node with
           | `Future -> add ~parent node
           | _ -> () in
     R.roots r |> M.iter (scan ?parent:None);
@@ -313,12 +309,12 @@ module Make(Clock : Ck_clock.S)
             let children = aux (R.child_nodes item) in
             if TreeNode.Child_map.is_empty children then acc
             else acc |> TreeNode.add { TreeNode.item = `Item (item :> Node.generic); children }
-        | `Project p ->
+        | `Project _ as p ->
             let children = aux (R.child_nodes item) in
             let p_done = Node.project_state p = `Done in
             if TreeNode.Child_map.is_empty children && not p_done then acc
             else acc |> TreeNode.add { TreeNode.item = `Item (item :> Node.generic); children }
-        | `Action a ->
+        | `Action _ as a ->
             if Node.action_state a = `Done then acc |> TreeNode.add (TreeNode.leaf_of_node item)
             else acc
       ) items TreeNode.Child_map.empty in
@@ -328,11 +324,11 @@ module Make(Clock : Ck_clock.S)
     let main = make_full_tree r in
     let contexts =
       Ck_id.M.fold (fun _key item acc ->
-        acc |> TreeNode.add (TreeNode.leaf_of_node (`Context item))
+        acc |> TreeNode.add (TreeNode.leaf_of_node item)
       ) (R.contexts r) TreeNode.Child_map.empty in
     let contacts =
       Ck_id.M.fold (fun _key item acc ->
-        acc |> TreeNode.add (TreeNode.leaf_of_node (`Contact item))
+        acc |> TreeNode.add (TreeNode.leaf_of_node item)
       ) (R.contacts r) TreeNode.Child_map.empty in
     TreeNode.Child_map.empty
     |> TreeNode.add {TreeNode.item = `Group (0, "Areas"); children = main}
@@ -353,7 +349,7 @@ module Make(Clock : Ck_clock.S)
       let children = R.nodes_of_contact item |> List.fold_left (fun acc node ->
         acc |> TreeNode.add (TreeNode.leaf_of_node node)
       ) TreeNode.Child_map.empty in
-      let value = { TreeNode.item = `Item (`Contact item); children } in
+      let value = { TreeNode.item = `Item (item :> Item.generic); children } in
       acc |> TreeNode.add value
     ) contacts TreeNode.Child_map.empty
 
@@ -368,7 +364,7 @@ module Make(Clock : Ck_clock.S)
             match !day with
             | Some (prev_date, group) when prev_date = date -> group
             | _ -> TreeNode.group ~pri:0 date in
-          let node = TreeNode.leaf_of_node (`Action action) in
+          let node = TreeNode.leaf_of_node action in
           let group = {group with TreeNode.children = TreeNode.add node group.TreeNode.children} in
           day := Some (date, group);
           results := TreeNode.add group !results
@@ -385,7 +381,7 @@ module Make(Clock : Ck_clock.S)
       let context_item =
         match context with
         | None -> TreeNode.group ~pri:(-1) "(no context)"
-        | Some c -> TreeNode.leaf_of_node (`Context c) in
+        | Some c -> TreeNode.leaf_of_node c in
       let context_item = or_existing !next_actions context_item in
       let context_item =
         match parent with
@@ -403,15 +399,15 @@ module Make(Clock : Ck_clock.S)
     let rec scan ?parent ~in_someday nodes =
       nodes |> M.iter (fun _k node ->
         match node with
-        | `Project project when Node.project_state project = `Done ->
+        | `Project _ as project when Node.project_state project = `Done ->
             let item = TreeNode.leaf_of_node node in
             done_items := !done_items |> TreeNode.add item
-        | `Project parent ->
+        | `Project _ as parent ->
             let in_someday = in_someday || is_someday_project parent in
             R.child_nodes node |> scan ~parent:node ~in_someday
         | `Area _ ->
             R.child_nodes node |> scan ~parent:node ~in_someday
-        | `Action action ->
+        | `Action _ as action ->
             let add () =
               add_next (R.context action) parent node in
             match Node.action_state action with
@@ -446,7 +442,7 @@ module Make(Clock : Ck_clock.S)
       | _, `Area _ -> (0, "Sub-areas")
       | `Area _, `Project _ -> (1, "Projects")
       | _, `Project _ -> (1, "Sub-projects")
-      | _, (`Action a) ->
+      | _, (`Action _ as a) ->
           match Node.action_state a with
           | `Next -> (2, "Next actions")
           | `Waiting | `Waiting_for_contact | `Waiting_until _ -> (3, "Waiting actions")
@@ -480,24 +476,24 @@ module Make(Clock : Ck_clock.S)
     | `Area _ | `Project _ | `Action _ as node ->
         (R.get r (Node.uuid node) :> Node.generic option)
     | `Context _ as node ->
-        R.get_context r (Node.uuid node) >|?= (fun c -> `Context c)
+        R.get_context r (Node.uuid node)
     | `Contact _ as node ->
-        R.get_contact r (Node.uuid node) >|?= (fun c -> `Contact c)
+        R.get_contact r (Node.uuid node)
 
   let context_details ~details_stop rs initial_node =
-    let uuid = R.Node.uuid (`Context initial_node) in
+    let uuid = R.Node.uuid initial_node in
     let child_nodes item =
       R.actions_of_context item
       |> List.fold_left (fun acc action ->
-        acc |> TreeNode.add (TreeNode.leaf_of_node (`Action action))
+        acc |> TreeNode.add (TreeNode.leaf_of_node action)
       ) TreeNode.Child_map.empty in
     let tree = WidgetTree.make (child_nodes initial_node) in
     let details_item = rs |> React.S.map ~eq:opt_node_equal (fun r ->
       let item = R.get_context r uuid in
-      let item, children =
+      let children =
         match item with
-        | None -> None, TreeNode.Child_map.empty
-        | Some item -> Some (`Context item), child_nodes item in
+        | None -> TreeNode.Child_map.empty
+        | Some item -> child_nodes item in
       WidgetTree.update tree children ~on_remove:(on_remove r);
       item
     ) in
@@ -508,7 +504,7 @@ module Make(Clock : Ck_clock.S)
     }
 
   let contact_details ~details_stop rs initial_node =
-    let uuid = R.Node.uuid (`Contact initial_node) in
+    let uuid = R.Node.uuid initial_node in
     let child_nodes c =
       R.nodes_of_contact c
       |> List.fold_left (fun acc node ->
@@ -517,10 +513,10 @@ module Make(Clock : Ck_clock.S)
     let tree = WidgetTree.make (child_nodes initial_node) in
     let details_item = rs |> React.S.map ~eq:opt_node_equal (fun r ->
       let item = R.get_contact r uuid in
-      let item, children =
+      let children =
         match item with
-        | None -> None, TreeNode.Child_map.empty
-        | Some item -> Some (`Contact item), child_nodes item in
+        | None -> TreeNode.Child_map.empty
+        | Some item -> child_nodes item in
       WidgetTree.update tree children ~on_remove:(on_remove r);
       item
     ) in
@@ -542,11 +538,11 @@ module Make(Clock : Ck_clock.S)
         match item with
         | None -> None, None, None, None, TreeNode.Child_map.empty
         | Some item ->
-            let contact = R.contact_for item >|?= (fun c -> `Contact c) in
+            let contact = R.contact_for item in
             let context =
               match item with
               | `Area _ | `Project _ -> None
-              | `Action action -> Some (R.context action >|?= (fun c -> `Context c)) in
+              | `Action _ as action -> Some (R.context action) in
             Some (item :> Item.generic), R.parent r item, context, contact, child_nodes item in
       WidgetTree.update tree children ~on_remove:(on_remove r);
       (item, parent, context, contact)
@@ -633,7 +629,7 @@ module Make(Clock : Ck_clock.S)
     | Some node ->
         let contacts =
           R.contacts t.r |> Ck_id.M.bindings |> List.map (fun (_id, contact) ->
-            (Node.name (`Contact contact), fun () -> Up.set_contact t.master node (Some contact))
+            (Node.name contact, fun () -> Up.set_contact t.master node (Some contact))
           )
           |> List.sort (fun a b -> compare (fst a) (fst b)) in
         let none = ("(no contact)", fun () -> Up.set_contact t.master node None) in
@@ -644,10 +640,10 @@ module Make(Clock : Ck_clock.S)
     match R.get t.r (Item.uuid item) with
     | None -> []    (* Item has been deleted *)
     | Some (`Area _ | `Project _) -> []   (* Action has been converted to something else *)
-    | Some (`Action action) ->
+    | Some (`Action _ as action) ->
         let contexts =
           R.contexts t.r |> Ck_id.M.bindings |> List.map (fun (_id, context) ->
-            (Node.name (`Context context), fun () -> Up.set_context t.master action (Some context))
+            (Node.name context, fun () -> Up.set_context t.master action (Some context))
           )
           |> List.sort (fun a b -> compare (fst a) (fst b)) in
         let none = ("(no context)", fun () -> Up.set_context t.master action None) in

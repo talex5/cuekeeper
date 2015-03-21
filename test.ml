@@ -135,7 +135,7 @@ let run_with_exn fn =
 
 let expect_action item =
   match item with
-  | `Action x -> x
+  | `Action _ as x -> x
   | _ -> assert_failure "Not an action!"
 
 let suite = 
@@ -310,10 +310,10 @@ let suite =
 
         M.add_action ~state:`Next ~parent:work ~name:"GC unused signals" ~description:"" m >>= function
         | None | Some (`Area _ | `Project _) -> assert false
-        | Some (`Action gc) ->
+        | Some (`Action _ as gc) ->
         M.add_context m ~name:"Coding" >>= function
         | None -> assert false
-        | Some (`Context coding) ->
+        | Some coding ->
         M.set_context m gc coding >>= function
         | `Error msg -> assert_failure msg
         | `Ok () ->
@@ -337,7 +337,7 @@ let suite =
         ];
 
         (* Get the updated units. *)
-        let live_units = M.details m (`Action units) in
+        let live_units = M.details m units in
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         assert (M.Item.action_state units <> `Next);
         (* Changing back to Next makes it reappear *)

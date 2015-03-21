@@ -12,29 +12,29 @@ open Types
 val of_string : string -> [ area | project | action ]
 val to_string : [< area | project | action ] -> string
 
-val contact_of_string : string -> contact_node
-val contact_to_string : contact_node -> string
+val contact_of_string : string -> contact
+val contact_to_string : contact -> string
 
-val context_of_string : string -> context_node
-val context_to_string : context_node -> string
+val context_of_string : string -> context
+val context_to_string : context -> string
 
 val equal : ([< generic] as 'a) -> 'a -> bool
 
 val make_action : state:action_state -> ?context:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> action]
 val make_project : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> project]
 val make_area : name:string -> description:string -> parent:Ck_id.t -> ctime:float -> [> area]
-val make_contact : name:string -> description:string -> ctime:float -> contact_node
-val make_context : name:string -> description:string -> ctime:float -> context_node
+val make_contact : name:string -> description:string -> ctime:float -> contact
+val make_context : name:string -> description:string -> ctime:float -> context
 
 val with_name : generic -> string -> generic
 val with_description : generic -> string -> generic
 val with_parent : [< area | project | action] -> Ck_id.t -> [area | project | action]
 val with_contact : [< area | project | action] -> Ck_id.t option -> [area | project | action]
-val with_astate : action_node -> action_state -> action_node
-val with_pstate : project_node -> [ `Active | `SomedayMaybe | `Done ] -> project_node
+val with_astate : action -> action_state -> action
+val with_pstate : project -> [ `Active | `SomedayMaybe | `Done ] -> project
 val with_starred : [< project | action] -> bool -> [project | action]
-val with_context : action_node -> Ck_id.t option -> action_node
+val with_context : action -> Ck_id.t option -> action
 
-val as_area : project_node -> area_node
-val as_project : [< area | action] -> project_node
-val as_action : project_node -> action_node
+val as_area : project -> area
+val as_project : [< area | action] -> project
+val as_action : project -> action

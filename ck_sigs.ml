@@ -30,10 +30,10 @@ module type DISK_NODE = sig
   val description : [< generic] -> string
   val ctime : [< generic ] -> float
   val starred : [< project | action] -> bool
-  val action_state : action_node -> action_state
-  val project_state : project_node -> [ `Active | `SomedayMaybe | `Done ]
+  val action_state : action -> action_state
+  val project_state : project -> [ `Active | `SomedayMaybe | `Done ]
   val is_done : [< project | action] -> bool
-  val context : action_node -> Ck_id.t option
+  val context : action -> Ck_id.t option
   val contact : [< area | project | action ] -> Ck_id.t option
 end
 
@@ -84,7 +84,7 @@ module type REV = sig
     (** Note that the rev field is ignored, so nodes from different commits can
      * be equal. *)
 
-    val is_due : Types.action_node -> bool
+    val is_due : Types.action -> bool
     (** [true] if this is a waiting action due at or before the time
      * this revision was loaded. *)
   end
@@ -98,21 +98,21 @@ module type REV = sig
   val roots : t -> [ area | project | action ] M.t
   val commit : t -> commit
 
-  val contacts : t -> contact_node Ck_id.M.t
-  val nodes_of_contact : contact_node -> [ area | project | action ] list
-  val contact_for : [< area | project | action ] -> contact_node option
+  val contacts : t -> contact Ck_id.M.t
+  val nodes_of_contact : contact -> [ area | project | action ] list
+  val contact_for : [< area | project | action ] -> contact option
 
-  val contexts : t -> context_node Ck_id.M.t
-  val actions_of_context : context_node -> action_node list
+  val contexts : t -> context Ck_id.M.t
+  val actions_of_context : context -> action list
 
   val get : t -> Ck_id.t -> [ area | project | action ] option
-  val get_contact : t -> Ck_id.t -> contact_node option
-  val get_context : t -> Ck_id.t -> context_node option
+  val get_contact : t -> Ck_id.t -> [> contact] option
+  val get_context : t -> Ck_id.t -> [> context] option
 
   val parent : t -> [< area | project | action] -> [ area | project | action ] option
-  val context : action_node -> context_node option
+  val context : action -> context option
 
-  val schedule : t -> Node.Types.action_node list
+  val schedule : t -> action list
   (** The ([`Waiting_until time] actions, earliest first. *)
 
   val alert : t -> bool

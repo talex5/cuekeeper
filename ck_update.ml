@@ -15,9 +15,9 @@ module Make(Git : Git_storage_s.S)
              val disk_node : [< Node.generic] -> Ck_disk_node.generic
              val apa_node : [< area | project | action] ->
                [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
-             val action_node : action_node -> Ck_disk_node.Types.action_node
-             val project_node : project_node -> Ck_disk_node.Types.project_node
-             val area_node : area_node -> Ck_disk_node.Types.area_node
+             val action_node : action -> Ck_disk_node.Types.action
+             val project_node : project -> Ck_disk_node.Types.project
+             val area_node : area -> Ck_disk_node.Types.area
            end) = struct
   open R.Node.Types
 
@@ -210,11 +210,11 @@ module Make(Git : Git_storage_s.S)
             Ck_utils.error "Parent '%a' does not exist!" Ck_id.fmt parent;
           let s = Ck_disk_node.to_string new_disk_node in
           Git.Staging.update view ["db"; Ck_id.to_string uuid] s
-      | `Contact new_disk_node ->
+      | `Contact _ as new_disk_node ->
           assert (Ck_id.M.mem uuid (R.contacts base));
           let s = Ck_disk_node.contact_to_string new_disk_node in
           Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
-      | `Context new_disk_node ->
+      | `Context _ as new_disk_node ->
           assert (Ck_id.M.mem uuid (R.contexts base));
           let s = Ck_disk_node.context_to_string new_disk_node in
           Git.Staging.update view ["context"; Ck_id.to_string uuid] s
@@ -251,7 +251,7 @@ module Make(Git : Git_storage_s.S)
     let uuid = Ck_id.mint () in
     assert (not (Ck_id.M.mem uuid (R.contacts base)));
     let s = Ck_disk_node.contact_to_string contact in
-    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name (`Contact contact)) in
+    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name contact) in
     merge_to_master t ~base ~msg (fun view ->
       Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
@@ -263,7 +263,7 @@ module Make(Git : Git_storage_s.S)
       | None -> Ck_id.mint () in
     assert (not (Ck_id.M.mem uuid (R.contexts base)));
     let s = Ck_disk_node.context_to_string context in
-    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name (`Context context)) in
+    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name context) in
     merge_to_master t ~base ~msg (fun view ->
       Git.Staging.update view ["context"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
@@ -281,57 +281,51 @@ module Make(Git : Git_storage_s.S)
       match context with
       | None -> None
       | Some context ->
-          let context = `Context context in
-          assert (R.Node.rev (`Action node) == R.Node.rev context);
+          assert (R.Node.rev node == R.Node.rev context);
           Some (R.Node.uuid context) in
     let new_node = Ck_disk_node.with_context (R.action_node node) context in
-    let node = `Action node in
     let msg = Printf.sprintf "Change context of '%s'" (R.Node.name node) in
-    update t ~msg node (`Action new_node)
+    update t ~msg node new_node
 
   let set_contact t node contact =
     let contact =
       match contact with
       | None -> None
       | Some contact ->
-          let contact = `Contact contact in
           assert (R.Node.rev node == R.Node.rev contact);
           Some (R.Node.uuid contact) in
     let new_node = Ck_disk_node.with_contact (R.apa_node node) contact in
     let new_node =
       match new_node with
-      | `Action a when Ck_disk_node.action_state a = `Waiting_for_contact && contact = None ->
-          `Action (Ck_disk_node.with_astate a `Next)
+      | `Action _ as a when Ck_disk_node.action_state a = `Waiting_for_contact && contact = None ->
+          let open Ck_disk_node.Types in
+          (Ck_disk_node.with_astate a `Next :> [area | project | action])
       | _ -> new_node in
     let msg = Printf.sprintf "Change contact of '%s'" (R.Node.name node) in
     update t ~msg node new_node
 
   let set_action_state t node astate =
     let new_node = Ck_disk_node.with_astate (R.action_node node) (astate :> Ck_sigs.action_state) in
-    let node = `Action node in
     let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
-    update t ~msg node (`Action new_node)
+    update t ~msg node new_node
 
   let set_waiting_for t node contact =
-    let contact = `Contact contact in
-    assert (R.Node.rev (`Action node) == R.Node.rev contact);
+    assert (R.Node.rev node == R.Node.rev contact);
     let new_node = Ck_disk_node.with_astate (R.action_node node) `Waiting_for_contact in
-    let new_node = Ck_disk_node.with_contact (`Action new_node) (Some (R.Node.uuid contact)) in
-    let node = `Action node in
+    let new_node = Ck_disk_node.with_contact new_node (Some (R.Node.uuid contact)) in
     let msg = Printf.sprintf "'%s' now waiting for '%s'" (R.Node.name node) (R.Node.name contact) in
     update t ~msg node new_node
 
   let set_project_state t node pstate =
     let new_node = Ck_disk_node.with_pstate (R.project_node node) pstate in
-    let node = `Project node in
     let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
-    update t ~msg node (`Project new_node)
+    update t ~msg node new_node
 
   let set_starred t node s =
     let new_node =
       match node with
-      | `Action a -> Ck_disk_node.with_starred (`Action (R.action_node a)) s
-      | `Project p -> Ck_disk_node.with_starred (`Project (R.project_node p)) s in
+      | `Action _ as a -> Ck_disk_node.with_starred (R.action_node a) s
+      | `Project _ as p -> Ck_disk_node.with_starred (R.project_node p) s in
     let action = if s then "Add" else "Remove" in
     let msg = Printf.sprintf "%s star for '%s'" action (R.Node.name node) in
     update t ~msg node new_node
@@ -363,10 +357,10 @@ module Make(Git : Git_storage_s.S)
   let convert_to_project t node =
     let new_details =
       match node with
-      | `Action a -> `Ok (Ck_disk_node.as_project (`Action (R.action_node a)))
-      | `Area a ->
+      | `Action _ as a -> `Ok (Ck_disk_node.as_project (R.action_node a))
+      | `Area _ as a ->
           match find_example_child is_area node with
-          | None -> `Ok (Ck_disk_node.as_project (`Area (R.area_node a)))
+          | None -> `Ok (Ck_disk_node.as_project (R.area_node a))
           | Some subarea ->
               error "Can't convert to a project because it has a sub-area (%s)" (R.Node.name subarea)
     in
@@ -374,12 +368,11 @@ module Make(Git : Git_storage_s.S)
     | `Error _ as e -> return e
     | `Ok new_details ->
     let msg = Printf.sprintf "Convert %s to project" (R.Node.name node) in
-    update t ~msg node (`Project new_details) >|= fun () ->
+    update t ~msg node new_details >|= fun () ->
     `Ok ()
 
   let convert_to_area t node =
-    let new_details = `Area (Ck_disk_node.as_area (R.project_node node)) in
-    let node = `Project node in
+    let new_details = Ck_disk_node.as_area (R.project_node node) in
     match R.parent (R.Node.rev node) node with
     | Some p when not (is_area p) ->
         return (error "Can't convert to area because parent (%s) is not an area" (R.Node.name p))
@@ -389,8 +382,7 @@ module Make(Git : Git_storage_s.S)
     `Ok ()
 
   let convert_to_action t node =
-    let new_details = `Action (Ck_disk_node.as_action (R.project_node node)) in
-    let node = `Project node in
+    let new_details = Ck_disk_node.as_action (R.project_node node) in
     try
       let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
       error "Can't convert to an action because it has a child (%s)" (R.Node.name child) |> return

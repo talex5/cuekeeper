@@ -71,11 +71,11 @@ let contact t = (details t).contact
 let of_string s = apa_of_sexp (Sexplib.Sexp.of_string s)
 let to_string t = Sexplib.Sexp.to_string (sexp_of_apa (t :> apa))
 
-let contact_of_string s = node_details_of_sexp (Sexplib.Sexp.of_string s)
-let contact_to_string t = Sexplib.Sexp.to_string (sexp_of_node_details t)
+let contact_of_string s = `Contact (node_details_of_sexp (Sexplib.Sexp.of_string s))
+let contact_to_string (`Contact t) = Sexplib.Sexp.to_string (sexp_of_node_details t)
 
-let context_of_string s = node_details_of_sexp (Sexplib.Sexp.of_string s)
-let context_to_string t = Sexplib.Sexp.to_string (sexp_of_node_details t)
+let context_of_string s = `Context (node_details_of_sexp (Sexplib.Sexp.of_string s))
+let context_to_string (`Context t) = Sexplib.Sexp.to_string (sexp_of_node_details t)
 
 let make ~name ~description ~parent ~ctime = {
   name;
@@ -101,22 +101,22 @@ let with_parent node parent = node |> map_apa (fun d -> {d with parent})
 let with_contact node contact = node |> map_apa (fun d -> {d with contact})
 let equal = (=)
 
-let context (action_details, _) = action_details.context
-let action_state ({ astate; _ }, _) = astate
-let project_state ({ pstate; _ }, _) = pstate
+let context (`Action (action_details, _)) = action_details.context
+let action_state (`Action ({ astate; _ }, _)) = astate
+let project_state (`Project ({ pstate; _ }, _)) = pstate
 let starred = function
   | `Project ({ pstarred; _ }, _ ) -> pstarred
   | `Action ({ astarred; _ }, _) -> astarred
 
-let with_astate (a, details) astate = ({a with astate}, details)
-let with_pstate (p, details) pstate = ({p with pstate}, details)
+let with_astate (`Action (a, details)) astate = `Action ({a with astate}, details)
+let with_pstate (`Project (p, details)) pstate = `Project ({p with pstate}, details)
 
 let with_starred node s =
   match node with
   | `Action (a, d) -> `Action ({a with astarred = s}, d)
   | `Project (p, d) -> `Project ({p with pstarred = s}, d)
 
-let with_context (a, details) context = ({a with context}, details)
+let with_context (`Action (a, details)) context = `Action ({a with context}, details)
 
 let make_action ~state ?context ~name ~description ~parent ~ctime =
   `Action ({ astate = state; astarred = false; context }, make ~name ~description ~parent ~ctime)
@@ -128,19 +128,19 @@ let make_area ~name ~description ~parent ~ctime =
   `Area (make ~name ~description ~parent ~ctime)
 
 let make_contact ~name ~description ~ctime =
-  make ~name ~description ~parent:Ck_id.root ~ctime
+  `Contact (make ~name ~description ~parent:Ck_id.root ~ctime)
 
 let make_context ~name ~description ~ctime =
-  make ~name ~description ~parent:Ck_id.root ~ctime
+  `Context (make ~name ~description ~parent:Ck_id.root ~ctime)
 
 let is_done = function
   | `Action ({ astate; _}, _) -> astate = `Done
   | `Project ({ pstate; _}, _) -> pstate = `Done
 
 let as_project = function
-  | `Action ({ astarred; _}, d) -> ({pstate = `Active; pstarred = astarred}, d)
-  | `Area d -> ({pstate = `Active; pstarred = false}, d)
+  | `Action ({ astarred; _}, d) -> `Project ({pstate = `Active; pstarred = astarred}, d)
+  | `Area d -> `Project ({pstate = `Active; pstarred = false}, d)
 
-let as_area (_, d) = d
+let as_area (`Project (_, d)) = `Area d
 
-let as_action ({ pstarred; _}, d) = ({astate = `Next; astarred = pstarred; context = None}, d)
+let as_action (`Project ({ pstarred; _}, d)) = `Action ({astate = `Next; astarred = pstarred; context = None}, d)

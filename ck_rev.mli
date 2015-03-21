@@ -14,7 +14,7 @@ module Make(Git : Git_storage_s.S) : sig
   val apa_node : [< area | project | action] ->
     [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
 
-  val action_node : action_node -> Ck_disk_node.Types.action_node
-  val project_node : project_node -> Ck_disk_node.Types.project_node
-  val area_node : area_node -> Ck_disk_node.Types.area_node
+  val action_node : action -> Ck_disk_node.Types.action
+  val project_node : project -> Ck_disk_node.Types.project
+  val area_node : area -> Ck_disk_node.Types.area
 end

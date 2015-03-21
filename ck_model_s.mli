@@ -15,10 +15,10 @@ module type MODEL = sig
 
     val uuid : [< generic] -> Ck_id.t
 
-    val is_due : Types.action_node -> bool
+    val is_due : Types.action -> bool
     (** Whether a [`Waiting_until] action is due. *)
 
-    val contact_node : [< area | project | action] -> contact_node option
+    val contact_node : [< area | project | action] -> contact option
   end
 
   open Item.Types
@@ -51,10 +51,10 @@ module type MODEL = sig
   val add_area : t -> ?parent:[< area] -> name:string -> description:string -> [area | project | action] option Lwt.t
 
   val add_contact : t -> name:string -> [> contact] option Lwt.t
-  val set_contact : t -> [< area | project | action] -> contact_node option -> unit or_error Lwt.t
+  val set_contact : t -> [< area | project | action] -> contact option -> unit or_error Lwt.t
 
   val add_context : t -> name:string -> [> context] option Lwt.t
-  val set_context : t -> action_node -> context_node -> unit or_error Lwt.t
+  val set_context : t -> action -> context -> unit or_error Lwt.t
 
   val add_child : t -> [< area | project] -> string -> [area | project | action] option Lwt.t
 
@@ -63,12 +63,12 @@ module type MODEL = sig
   val set_name : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_description : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_starred : t -> [< project | action] -> bool -> unit Lwt.t
-  val set_action_state : t -> action_node -> [< action_state] -> unit Lwt.t
-  val set_project_state : t -> project_node -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
+  val set_action_state : t -> action -> [< action_state] -> unit Lwt.t
+  val set_project_state : t -> project -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
 
-  val convert_to_area : t -> project_node -> unit or_error Lwt.t
+  val convert_to_area : t -> project -> unit or_error Lwt.t
   val convert_to_project : t -> [< action | area] -> unit or_error Lwt.t
-  val convert_to_action : t -> project_node -> unit or_error Lwt.t
+  val convert_to_action : t -> project -> unit or_error Lwt.t
 
   type candidate
 

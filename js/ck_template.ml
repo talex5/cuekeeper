@@ -96,14 +96,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       Ck_modal.close ();
       false in
     let waiting = li [a ~a:[a_onclick wait_unspec] [pcdata "Waiting (reason unspecified)"]] in
-    match M.Item.contact_node (`Action action) with
+    match M.Item.contact_node action with
     | None -> [waiting]
     | Some contact ->
         let clicked _ev =
           async ~name:"waiting-for" (fun () -> M.set_action_state m action `Waiting_for_contact);
           Ck_modal.close ();
           false in
-        let name = M.Item.name (`Contact contact) in
+        let name = M.Item.name contact in
         let waiting_for = li [a ~a:[a_onclick clicked] [pcdata ("Waiting for " ^ name)]] in
         [waiting_for; waiting]
 
@@ -146,25 +146,25 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     Pikaday.make ?initial:(due action) ~on_select ()
 
   let toggles_for_type m = function
-    | `Action action as item ->
-        let current = M.Item.action_state action |> toggle_of_astate in
+    | `Action _ as item ->
+        let current = M.Item.action_state item |> toggle_of_astate in
         let set_details ev n =
           if n = `Waiting then (
             let content = div [
-              wait_until_date m action;
+              wait_until_date m item;
               div ~a:[a_class ["ck-or"]] [pcdata "or"];
-              ul ~a:[a_class ["ck-waiting-menu"]] (waiting_candidates m action)
+              ul ~a:[a_class ["ck-waiting-menu"]] (waiting_candidates m item)
             ] in
             show_modal ~parent:(ev##target) [content];
           ) else if current <> n then (
-            async ~name:"set_action_state" (fun () -> M.set_action_state m action n)
+            async ~name:"set_action_state" (fun () -> M.set_action_state m item n)
           ) in
-        let due = M.Item.is_due action in
+        let due = M.Item.is_due item in
         make_toggles ~m ~set_details ~item ~due current [`Done; `Next; `Waiting; `Future]
-    | `Project project as item ->
+    | `Project _ as item ->
         let set_details _ev n =
-          async ~name:"set_project_state" (fun () -> M.set_project_state m project n) in
-        make_toggles ~m ~set_details ~item (M.Item.project_state project) [`Done; `Active; `SomedayMaybe]
+          async ~name:"set_project_state" (fun () -> M.set_project_state m item n) in
+        make_toggles ~m ~set_details ~item (M.Item.project_state item) [`Done; `Active; `SomedayMaybe]
     | `Area _ | `Contact _ | `Context _ -> []
 
   let make_state_toggles m item =
@@ -622,8 +622,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let content = ul (
       match item with
       | `Action _ as item -> [make "Convert to project" M.convert_to_project item]
-      | `Project p -> [make "Convert to action" M.convert_to_action p;
-                       make "Convert to area" M.convert_to_area p]
+      | `Project _ as p -> [make "Convert to action" M.convert_to_action p;
+                            make "Convert to area" M.convert_to_area p]
       | `Area _ as item -> [make "Convert to project" M.convert_to_project item]
     ) in
     show_modal ~parent:button [content]
@@ -745,7 +745,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let edit_context m ~show_node item ev =
     match React.S.value item with
-    | Some (`Action action) -> begin
+    | Some (`Action _ as action) -> begin
         let new_contact_form =
           let name_input = input ~a:[a_name "name"; a_placeholder "New context"; a_size 20] () in
           auto_focus name_input;
@@ -755,15 +755,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             if name <> "" then async ~name:"add context" (fun () ->
               M.add_context m ~name >>= function
               | None -> print_endline "Added item no longer exists!"; Lwt.return ()
-              | Some (`Context context as node) ->
+              | Some (`Context _ as node) ->
                   Ck_modal.close ();
                   show_node node;
-                  M.set_context m action context >|= report_error ~parent:(ev##target)
+                  M.set_context m action node >|= report_error ~parent:(ev##target)
             );
             false in
           li [form ~a:[a_onsubmit add_context] [name_input]] in
         let contexts =
-          M.candidate_contexts_for m (`Action action) |> List.map (fun candidate ->
+          M.candidate_contexts_for m action |> List.map (fun candidate ->
           let select _ev =
             async ~name:"set context" (fun () ->
               Ck_modal.close ();
@@ -790,10 +790,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             if name <> "" then async ~name:"add contact" (fun () ->
               M.add_contact m ~name >>= function
               | None -> print_endline "Added item no longer exists!"; Lwt.return ()
-              | Some (`Contact contact as node) ->
+              | Some (`Contact _ as node) ->
                   Ck_modal.close ();
                   show_node node;
-                  M.set_contact m item (Some contact) >|= report_error ~parent:(ev##target)
+                  M.set_contact m item (Some node) >|= report_error ~parent:(ev##target)
             );
             false in
           li [form ~a:[a_onsubmit add_contact] [name_input]] in
@@ -843,7 +843,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ] in
     let waiting_for =
       item >|~= (function
-        | Some (`Action action) ->
+        | Some (`Action _ as action) ->
             begin match M.Item.action_state action with
             | `Waiting_until time ->
                 let clicked ev = edit_date ~ev m action; false in
@@ -857,7 +857,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | None -> []
       | Some signal ->
           let label = item >|~= (function
-            | Some (`Action a) when M.Item.action_state a = `Waiting_for_contact -> "Waiting for: "
+            | Some (`Action _ as a) when M.Item.action_state a = `Waiting_for_contact -> "Waiting for: "
             | _ -> "Contact: "
           ) in
           let value =
