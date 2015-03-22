@@ -1,9 +1,12 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-(* [config prefix] store all values with keys starting "prefix." *)
-val config : string -> Irmin.config
+type t
+type key = string
 
-module AO: Irmin.AO_MAKER
-module RW: Irmin.RW_MAKER
-module Make: Irmin.S_MAKER
+val make : unit -> t
+val get : t -> key -> string option
+val set : t -> key -> string -> unit
+val remove : t -> key -> unit
+
+val watch : t -> prefix:string -> (key -> string option -> unit) -> Dom.event_listener_id

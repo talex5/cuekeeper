@@ -37,14 +37,14 @@ module Contents = struct
                      (show old) (show t1) (show t2)
 end
 
-module Git = Git_storage.Make(Irmin.Basic(Html_storage.Make)(Contents))
+module Git = Git_storage.Make(Irmin.Basic(Irmin_IDB.Make)(Contents))
 module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)
 module T = Ck_template.Make(M)
 
 let start (main:#Dom.node Js.t) =
   Lwt.catch
     (fun () ->
-      let config = Html_storage.config "CueKeeper" in
+      let config = Irmin_IDB.config "CueKeeper" in
       let task s =
         let date = Unix.time () |> Int64.of_float in
         Irmin.Task.create ~date ~owner:"User" s in
