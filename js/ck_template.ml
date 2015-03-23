@@ -230,7 +230,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       Ck_modal.close ();
       false in
     let content =
-      form ~a:[a_onsubmit submit_clicked; a_action "#"] [
+      form ~a:[a_onsubmit submit_clicked] [
         name_input;
         input ~a:[a_input_type `Submit; a_value "Add"] ();
       ] in
@@ -247,13 +247,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         show_modal ~parent [content]
 
   let render_item m ~show_node (item : [< M.Item.generic]) =
-    let clicked _ev = show_node (item :> M.Item.generic); true in
+    let clicked _ev = show_node (item :> M.Item.generic); false in
     let delete ev = async ~name:"delete" (fun () -> M.delete m item >|= report_error ~parent:ev##target); true in
     let item_cl = class_of_time_and_type (M.Item.ctime item) item in
     span ~a:[a_class item_cl] [
       span ~a:[a_class ["ck-toggles"]] (toggles_for_type m item);
       span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
-        a ~a:[a_class ["ck-title"]; a_href "#"; a_onclick clicked] [pcdata (M.Item.name item)];
+        a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name item)];
       ];
       begin match item with
       | `Contact _ -> pcdata ""
@@ -380,7 +380,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       Ck_modal.close ();
       false in
     let content =
-      form ~a:[a_onsubmit submit_clicked; a_action "#"] [
+      form ~a:[a_onsubmit submit_clicked] [
         name_input;
         input ~a:[a_input_type `Submit; a_value "Add"] ();
       ] in
