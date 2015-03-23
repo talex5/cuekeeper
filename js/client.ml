@@ -42,15 +42,24 @@ module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)
 module T = Ck_template.Make(M)
 
 let start (main:#Dom.node Js.t) =
-  let config = Html_storage.config "CueKeeper" in
-  let task s =
-    let date = Unix.time () |> Int64.of_float in
-    Irmin.Task.create ~date ~owner:"User" s in
-  let repo = Git.make config task in
-  M.make repo >>= fun m ->
-  T.make_top m
-  |> List.iter (fun child -> main##appendChild (Tyxml_js.To_dom.of_node child) |> ignore);
-  return ()
+  Lwt.catch
+    (fun () ->
+      let config = Html_storage.config "CueKeeper" in
+      let task s =
+        let date = Unix.time () |> Int64.of_float in
+        Irmin.Task.create ~date ~owner:"User" s in
+      let repo = Git.make config task in
+      M.make repo >>= fun m ->
+      T.make_top m
+      |> List.iter (fun child -> main##appendChild (Tyxml_js.To_dom.of_node child) |> ignore);
+      return ()
+    )
+    (fun ex ->
+      let open Tyxml_js.Html5 in
+      let error = div ~a:[a_class ["alert-box"; "alert"]] [pcdata (Printexc.to_string ex)] in
+      main##appendChild (Tyxml_js.To_dom.of_node error) |> ignore;
+      raise ex
+    )
 
 let () =
   match Dom_html.tagged (Dom_html.getElementById "ck_main") with
