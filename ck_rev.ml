@@ -150,7 +150,7 @@ module Make(Git : Git_storage_s.S) = struct
         | _ -> () end
     | _ -> ()
 
-  let make ~time commit =
+  let make_no_cache ~time commit =
     Git.Commit.checkout commit >>= fun tree ->
     let contacts = ref Ck_id.M.empty in
     let contexts = ref Ck_id.M.empty in
@@ -222,6 +222,19 @@ module Make(Git : Git_storage_s.S) = struct
         acc |> Ck_id.M.add uuid child_map
       ) children Ck_id.M.empty;
     return t
+
+  let last = ref None
+  let make ~time commit =
+    let reload () =
+      make_no_cache ~time commit >|= fun r ->
+      last := Some r;
+      r in
+    match !last with
+    | Some last when Git.Commit.equal last.commit commit ->
+        begin match last.expires with
+        | Some etime when time >= etime -> reload ()
+        | _ -> return {last with valid_from = time} end
+    | _ -> reload ()
 
   let get t uuid =
     try Some (Hashtbl.find t.index uuid)
