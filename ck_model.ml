@@ -218,6 +218,7 @@ module Make(Clock : Ck_clock.S)
       M.fold (fun key item acc ->
         match item with
         | `Action _ -> acc
+        | `Project _ as p when Node.project_state p = `SomedayMaybe -> acc
         | `Area _ | `Project _ ->
             let value =
               { TreeNode.item = `Item (item :> Item.generic);
