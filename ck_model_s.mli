@@ -34,6 +34,9 @@ module type MODEL = sig
     val children : t -> t ReactiveData.RList.t
     val state : t -> Slow_set.state React.S.t
     val gui_data : t -> gui_data option ref
+    val unique : t -> bool
+    (** Unique items occur at most once in the tree (and are often leaves).
+     * Non-unique items are used for grouping, and are typically rendered as headings. *)
   end
 
   type details = {

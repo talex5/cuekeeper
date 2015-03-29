@@ -376,6 +376,7 @@ a.ck-add-child {
 	padding-left: 0.5em;
 }
 
+a.ck-group-label,
 span.ck-label,
 span.ck-group-label {
 	color: #888;

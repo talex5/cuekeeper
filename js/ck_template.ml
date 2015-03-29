@@ -267,6 +267,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       end;
     ]
 
+  let render_group_item ~show_node item =
+    let clicked _ev = show_node (item :> M.Item.generic); false in
+    a ~a:[a_onclick clicked; a_class ["ck-group-label"]] [pcdata (M.Item.name item)]
+
   let group_label s =
     span ~a:[a_class ["ck-group-label"]] [pcdata s]
 
@@ -279,7 +283,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       match item with
       | `Item item ->
           ReactiveData.RList.singleton_s item
-          |> ReactiveData.RList.map (render_item m ~show_node)
+          |> ReactiveData.RList.map (fun item ->
+            if W.unique widget then render_item m ~show_node item
+            else render_group_item ~show_node item
+          )
           |> R.Html5.span
       | `Group label -> group_label label in
     animated widget [

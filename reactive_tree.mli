@@ -21,10 +21,15 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) : sig
   module Widget : sig
     (** An object visible on the screen. *)
     type t
-    val item : t -> [`Item of M.Item.generic React.S.t | `Group of string]
+    val item : t ->
+      [ `Item of M.Item.generic React.S.t
+      | `Group of string]
     val children : t -> t ReactiveData.RList.t
     val state : t -> Slow_set.state React.S.t
     val gui_data : t -> G.t option ref
+    val unique : t -> bool
+    (** Unique items occur at most once in the tree (and are often leaves).
+     * Non-unique items are used for grouping, and are typically rendered as headings. *)
   end
 
   val make : M.t M.Child_map.t -> t

@@ -22,18 +22,18 @@ module Make(Clock : Ck_clock.S)
   type gui_data = G.t
 
   module TreeNode = struct
-    type group_id = int * string    (* int is the sort order *)
+    type group = int * string    (* int is the sort order *)
     let group_label (_, s) = s
 
     module Id_map = Ck_id.M
     module Sort_key = struct
       type t =
         | Item of Sort_key.t
-        | Group of group_id
+        | Group of group
       module Id = struct
         type t =
           | Item of Ck_id.t
-          | Group of group_id
+          | Group of group
         let compare = compare
       end
       let compare a b =
@@ -59,13 +59,16 @@ module Make(Clock : Ck_clock.S)
     end
 
     type t = {
-      item : [`Item of Node.generic | `Group of group_id];
+      item :
+        [ `UniqueItem of Item.generic   (* ID is unique in tree *)
+        | `GroupItem of Item.generic    (* ID is unique within parent *)
+        | `Group of group ];            (* Label is unique within parent *)
       children : t Child_map.t;
     }
 
     let sort_key t =
       match t.item with
-      | `Item i -> Sort_key.Item (R.Node.key i)
+      | `UniqueItem i | `GroupItem i -> Sort_key.Item (R.Node.key i)
       | `Group g -> Sort_key.Group g
 
     let add item map =
@@ -76,7 +79,8 @@ module Make(Clock : Ck_clock.S)
 
     let item t =
       match t.item with
-      | `Item node -> `Item (Item.id node, node)
+      | `UniqueItem node -> `UniqueItem (Item.id node, node)
+      | `GroupItem node -> `GroupItem (Item.id node, node)
       | `Group _ as g -> g
 
     let children t = t.children
@@ -86,9 +90,14 @@ module Make(Clock : Ck_clock.S)
       children;
     }
 
-    let leaf_of_node n = {
-      item = `Item (n :> Item.generic);
-      children = Child_map.empty;
+    let unique_of_node ?(children=Child_map.empty) n = {
+      item = `UniqueItem (n :> Item.generic);
+      children;
+    }
+
+    let group_of_node ?(children=Child_map.empty) n = {
+      item = `GroupItem (n :> Item.generic);
+      children;
     }
   end
   module WidgetTree = Reactive_tree.Make(Clock)(TreeNode)(G)
@@ -205,25 +214,21 @@ module Make(Clock : Ck_clock.S)
 
   let make_full_tree r =
     let rec aux items =
-      M.fold (fun key item acc ->
-        let value =
-          { TreeNode.item = `Item (item :> Node.generic);
-            children = aux (R.child_nodes item) } in
-        acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
+      M.fold (fun _key item acc ->
+        let children = aux (R.child_nodes item) in
+        acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
 
   let make_process_tree r =
     let rec aux items =
-      M.fold (fun key item acc ->
+      M.fold (fun _key item acc ->
         match item with
         | `Action _ -> acc
         | `Project _ as p when Node.project_state p = `SomedayMaybe -> acc
         | `Area _ | `Project _ ->
-            let value =
-              { TreeNode.item = `Item (item :> Item.generic);
-                children = aux (R.child_nodes item) } in
-            acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
+            let children = aux (R.child_nodes item) in
+            acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
 
@@ -239,12 +244,12 @@ module Make(Clock : Ck_clock.S)
       let group_item =
         match parent with
         | None ->
-            group_item |> TreeNode.with_child (TreeNode.leaf_of_node item)
+            group_item |> TreeNode.with_child (TreeNode.unique_of_node item)
         | Some p ->
             let parent_item =
               TreeNode.group ~pri:1 (Node.name p)
               |> or_existing group_item.TreeNode.children
-              |> TreeNode.with_child (TreeNode.leaf_of_node item) in
+              |> TreeNode.with_child (TreeNode.unique_of_node item) in
             group_item |> TreeNode.with_child parent_item in
       results := !results |> TreeNode.add group_item in
     let rec scan ?parent _key = function
@@ -255,7 +260,7 @@ module Make(Clock : Ck_clock.S)
           | `Waiting -> add ~group:waiting ~parent node
           | `Waiting_for_contact ->
               begin match R.contact_for node with
-              | Some contact -> add ~group:(TreeNode.leaf_of_node contact) ~parent node
+              | Some contact -> add ~group:(TreeNode.unique_of_node contact) ~parent node
               | None -> add ~group:waiting ~parent node (* Shouldn't happen *)
               end
           | _ -> () in
@@ -269,15 +274,15 @@ module Make(Clock : Ck_clock.S)
       let group_item =
         match parent with
         | None ->
-            TreeNode.leaf_of_node item
+            TreeNode.unique_of_node item
         | Some p ->
             TreeNode.group ~pri:1 (Node.name p)
             |> or_existing !actions
-            |> TreeNode.with_child (TreeNode.leaf_of_node item) in
+            |> TreeNode.with_child (TreeNode.unique_of_node item) in
       actions := !actions |> TreeNode.add group_item in
     let rec scan ?parent _key = function
       | `Project _ as node when Node.project_state node = `SomedayMaybe ->
-          projects := !projects |> TreeNode.add (TreeNode.leaf_of_node node)
+          projects := !projects |> TreeNode.add (TreeNode.unique_of_node node)
       | `Area _ | `Project _ as node ->
           R.child_nodes node |> M.iter (scan ~parent:node)
       | `Action _ as node ->
@@ -291,13 +296,11 @@ module Make(Clock : Ck_clock.S)
 
   let make_areas_tree r =
     let rec aux items =
-      M.fold (fun key item acc ->
+      M.fold (fun _key item acc ->
         match item with
         | `Area _ as item ->
-            let value =
-              { TreeNode.item = `Item (item :> Node.generic);
-                children = aux (R.child_nodes item) } in
-            acc |> TreeNode.Child_map.add (TreeNode.Sort_key.Item key) value
+            let children = aux (R.child_nodes item) in
+            acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
         | `Project _ | `Action _ -> acc
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
@@ -309,14 +312,14 @@ module Make(Clock : Ck_clock.S)
         | `Area _ ->
             let children = aux (R.child_nodes item) in
             if TreeNode.Child_map.is_empty children then acc
-            else acc |> TreeNode.add { TreeNode.item = `Item (item :> Node.generic); children }
+            else acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
         | `Project _ as p ->
             let children = aux (R.child_nodes item) in
             let p_done = Node.project_state p = `Done in
             if TreeNode.Child_map.is_empty children && not p_done then acc
-            else acc |> TreeNode.add { TreeNode.item = `Item (item :> Node.generic); children }
+            else acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
         | `Action _ as a ->
-            if Node.action_state a = `Done then acc |> TreeNode.add (TreeNode.leaf_of_node item)
+            if Node.action_state a = `Done then acc |> TreeNode.add (TreeNode.unique_of_node item)
             else acc
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
@@ -325,11 +328,11 @@ module Make(Clock : Ck_clock.S)
     let main = make_full_tree r in
     let contexts =
       Ck_id.M.fold (fun _key item acc ->
-        acc |> TreeNode.add (TreeNode.leaf_of_node item)
+        acc |> TreeNode.add (TreeNode.unique_of_node item)
       ) (R.contexts r) TreeNode.Child_map.empty in
     let contacts =
       Ck_id.M.fold (fun _key item acc ->
-        acc |> TreeNode.add (TreeNode.leaf_of_node item)
+        acc |> TreeNode.add (TreeNode.unique_of_node item)
       ) (R.contacts r) TreeNode.Child_map.empty in
     TreeNode.Child_map.empty
     |> TreeNode.(add (group ~pri:0 ~children:main "Areas"))
@@ -348,10 +351,9 @@ module Make(Clock : Ck_clock.S)
     let contacts = R.contacts r in
     Ck_id.M.fold (fun _key item acc ->
       let children = R.nodes_of_contact item |> List.fold_left (fun acc node ->
-        acc |> TreeNode.add (TreeNode.leaf_of_node node)
+        acc |> TreeNode.add (TreeNode.unique_of_node node)
       ) TreeNode.Child_map.empty in
-      let value = { TreeNode.item = `Item (item :> Item.generic); children } in
-      acc |> TreeNode.add value
+      acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
     ) contacts TreeNode.Child_map.empty
 
   let make_schedule_tree r =
@@ -365,7 +367,7 @@ module Make(Clock : Ck_clock.S)
             match !day with
             | Some (prev_date, group) when prev_date = date -> group
             | _ -> TreeNode.group ~pri:0 date in
-          let node = TreeNode.leaf_of_node action in
+          let node = TreeNode.unique_of_node action in
           let group = {group with TreeNode.children = TreeNode.add node group.TreeNode.children} in
           day := Some (date, group);
           results := TreeNode.add group !results
@@ -382,17 +384,17 @@ module Make(Clock : Ck_clock.S)
       let context_item =
         match context with
         | None -> TreeNode.group ~pri:(-1) "(no context)"
-        | Some c -> TreeNode.leaf_of_node c in
+        | Some c -> TreeNode.unique_of_node c in
       let context_item = or_existing !next_actions context_item in
       let context_item =
         match parent with
         | None ->
-            context_item |> TreeNode.with_child (TreeNode.leaf_of_node item)
+            context_item |> TreeNode.with_child (TreeNode.unique_of_node item)
         | Some p ->
             let group_item =
-              TreeNode.group ~pri:1 (Node.name p)
+              TreeNode.group_of_node p
               |> or_existing context_item.TreeNode.children
-              |> TreeNode.with_child (TreeNode.leaf_of_node item) in
+              |> TreeNode.with_child (TreeNode.unique_of_node item) in
             context_item |> TreeNode.with_child group_item in
       next_actions := !next_actions |> TreeNode.add context_item in
 
@@ -401,7 +403,7 @@ module Make(Clock : Ck_clock.S)
       nodes |> M.iter (fun _k node ->
         match node with
         | `Project _ as project when Node.project_state project = `Done ->
-            let item = TreeNode.leaf_of_node node in
+            let item = TreeNode.unique_of_node node in
             done_items := !done_items |> TreeNode.add item
         | `Project _ as parent ->
             let in_someday = in_someday || is_someday_project parent in
@@ -415,7 +417,7 @@ module Make(Clock : Ck_clock.S)
             | `Next when not in_someday -> add ()
             | `Waiting_until _ when Node.is_due action -> add ()
             | `Done ->
-                let item = TreeNode.leaf_of_node node in
+                let item = TreeNode.unique_of_node node in
                 done_items := !done_items |> TreeNode.add item
             | _ -> ()
       ) in
@@ -458,7 +460,7 @@ module Make(Clock : Ck_clock.S)
           let p = {TreeNode.item = `Group group_name; children = TreeNode.Child_map.empty} in
           tree_nodes := !tree_nodes |> TreeNode.add p;
           p in
-      let children = parent.TreeNode.children |> TreeNode.add (TreeNode.leaf_of_node node) in
+      let children = parent.TreeNode.children |> TreeNode.add (TreeNode.unique_of_node node) in
       tree_nodes := !tree_nodes |> TreeNode.add {parent with TreeNode.children} in
     child_nodes |> M.iter (fun _k v -> add v);
     !tree_nodes
@@ -486,7 +488,7 @@ module Make(Clock : Ck_clock.S)
     let child_nodes item =
       R.actions_of_context item
       |> List.fold_left (fun acc action ->
-        acc |> TreeNode.add (TreeNode.leaf_of_node action)
+        acc |> TreeNode.add (TreeNode.unique_of_node action)
       ) TreeNode.Child_map.empty in
     let tree = WidgetTree.make (child_nodes initial_node) in
     let details_item = rs |> React.S.map ~eq:opt_node_equal (fun r ->
@@ -509,7 +511,7 @@ module Make(Clock : Ck_clock.S)
     let child_nodes c =
       R.nodes_of_contact c
       |> List.fold_left (fun acc node ->
-        acc |> TreeNode.add (TreeNode.leaf_of_node node)
+        acc |> TreeNode.add (TreeNode.unique_of_node node)
       ) TreeNode.Child_map.empty in
     let tree = WidgetTree.make (child_nodes initial_node) in
     let details_item = rs |> React.S.map ~eq:opt_node_equal (fun r ->

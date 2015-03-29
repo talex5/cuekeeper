@@ -445,6 +445,25 @@ let suite =
           n "Recently completed" [];
         ];
 
+        (* Renaming a group *)
+        M.set_name m work "Dev" >>= fun () ->
+        next_actions |> assert_tree [
+          n "Next actions" [
+            n "Coding" [
+              n "Dev" [
+                n "GC unused signals" [];
+                n "Write unit tests" [];
+              ]
+            ];
+            n "+(no context)" [
+              n "Dev" [
+                n "@Implement scheduing" [];
+              ]
+            ];
+          ];
+          n "Recently completed" [];
+        ];
+
 (*
         (* Rename conflict (e.g. two edits in different tabs *)
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in

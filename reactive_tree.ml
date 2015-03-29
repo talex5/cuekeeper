@@ -26,20 +26,21 @@ open Ck_sigs
 module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
   module Slow = Slow_set.Make(C)(M.Sort_key)(M.Child_map)
 
-  type id =
-    | Root_id
-    | Item_id of Ck_id.t
-    | Group_id of M.group_id * id     (* Path of group relative to ancestor with UUID *)
-
-  module Id_map = Map.Make(struct
-    type t = id
+  module Id = struct
+    type t =
+      | Root
+      | Unique_item of Ck_id.t
+      | Group_item of Ck_id.t * t (* Path of group relative to ancestor with UUID *)
+      | Group of M.group * t      (* Path of group relative to ancestor with UUID *)
     let compare = compare
-  end)
+  end
+
+  module Id_map = Map.Make(Id)
 
   module W = struct
     type item =
-      [ `Item of M.Item.generic React.S.t * (?step:React.step -> M.Item.generic -> unit)
-      | `Group of M.group_id ]
+      [ `Item of M.Item.generic React.S.t * (?step:React.step -> M.Item.generic -> unit) * bool (* (unique) *)
+      | `Group of M.group ]
 
     type t = {
       item : item;
@@ -50,7 +51,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
 
     let item t =
       match t.item with
-      | `Item (item, _) -> `Item item
+      | `Item (item, _, _) -> `Item item
       | `Group gid -> `Group (M.group_label gid)
 
     let children t = t.children
@@ -72,6 +73,10 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
     let children t = W.children (Slow_set.data t)
     let state = Slow_set.state
     let gui_data t = (Slow_set.data t).W.gui_data
+    let unique (t:t) =
+      match (Slow_set.data t).W.item with
+      | `Item (_, _, unique) -> unique
+      | `Group _ -> false
 
     let equal a b =
       W.equal (Slow_set.data a) (Slow_set.data b)
@@ -83,10 +88,13 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
     (* Printf.printf "make_widget(%s)\n" (M.Item.show (M.item node)); *)
     let item, id =
       match M.item node with
-      | `Item (id, item) ->
+      | `UniqueItem (id, item) ->
           let item, set_item = React.S.create ~eq:M.Item.equal item in
-          `Item (item, set_item), Item_id id
-      | `Group label as g -> g, (Group_id (label, parent_id)) in
+          `Item (item, set_item, true), Id.Unique_item id
+      | `GroupItem (id, item) ->
+          let item, set_item = React.S.create ~eq:M.Item.equal item in
+          `Item (item, set_item, false), Id.Group_item (id, parent_id)
+      | `Group label as g -> g, (Id.Group (label, parent_id)) in
     let children, set_child_widgets =
       make_widgets ~get_child ~parent_id:id (M.children node) in
     let widget = { W.
@@ -120,14 +128,15 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
     let rec make_or_update ~parent_id node =
       let id, new_item =
         match M.item node with
-        | `Item (id, new_item) -> (Item_id id, Some new_item)
-        | `Group s -> (Group_id (s, parent_id), None) in
+        | `UniqueItem (id, new_item) -> (Id.Unique_item id, Some new_item)
+        | `GroupItem (id, new_item) -> (Id.Group_item (id, parent_id), Some new_item)
+        | `Group s -> (Id.Group (s, parent_id), None) in
       try
         let existing = Id_map.find id old_widgets in
         M.children node |> M.Child_map.map (make_or_update ~parent_id:id) |> existing.W.set_child_widgets;
         t.widgets := !(t.widgets) |> Id_map.add id existing;
         begin match existing.W.item, new_item with
-        | `Item (_, set_item), Some new_item -> set_item new_item
+        | `Item (_, set_item, _), Some new_item -> set_item new_item
         | `Group _, None -> ()
         | _ -> assert false end;
         existing
@@ -140,7 +149,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
     let widgets = ref Id_map.empty in
     let rec get_child ~parent_id node =
       make_widget ~widgets ~get_child ~parent_id node in
-    let root_widgets, set_root_widgets = make_widgets ~get_child ~parent_id:Root_id nodes in
+    let root_widgets, set_root_widgets = make_widgets ~get_child ~parent_id:Id.Root nodes in
     {
       widgets;
       root_widgets;
@@ -151,13 +160,13 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
     (* print_endline "\n== update ==\n"; *)
     let old_widgets = !(t.widgets) in
     t.widgets := Id_map.empty;
-    update t ~old_widgets ~parent_id:Root_id nodes |> t.set_root_widgets;
+    update t ~old_widgets ~parent_id:Id.Root nodes |> t.set_root_widgets;
 
     old_widgets |> Id_map.iter (fun k old ->
       if not (Id_map.mem k !(t.widgets)) then (
         match old.W.item with
         | `Group _ -> ()
-        | `Item (old_item, set_item) ->
+        | `Item (old_item, set_item, _) ->
             match on_remove (React.S.value old_item) with
             | None -> ()
             | Some update -> set_item update

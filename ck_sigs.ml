@@ -57,9 +57,12 @@ module type TREE_MODEL = sig
   (** Ordered list of child nodes. *)
 
   type t
-  type group_id
-  val group_label : group_id -> string
-  val item : t -> [ `Item of Ck_id.t * Item.generic | `Group of group_id ]
+  type group
+  val group_label : group -> string
+  val item : t ->
+    [ `UniqueItem of Ck_id.t * Item.generic   (* ID is unique in tree *)
+    | `GroupItem of Ck_id.t * Item.generic    (* ID is unique within parent *)
+    | `Group of group ]                       (* Label is unique within parent *)
   val children : t -> t Child_map.t
 end
 
