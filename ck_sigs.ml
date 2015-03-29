@@ -118,9 +118,13 @@ module type REV = sig
   val schedule : t -> action list
   (** The ([`Waiting_until time] actions, earliest first. *)
 
+  val problems : t -> (Node.generic * string) list
+  (** A list of nodes and problems to report. *)
+
   val alert : t -> bool
   (** Alert the user that action is required.
-   * Currently, this is true when a [`Waiting_until] action is due. *)
+   * Currently, this is true when a [`Waiting_until] action is due, or
+   * [problems t] is non-empty. *)
 
   val expires : t -> float option
   (** Will need to reload at this time (this is when the next scheduled action becomes due). *)

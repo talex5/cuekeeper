@@ -275,16 +275,16 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     span ~a:[a_class ["ck-group-label"]] [pcdata s]
 
   (* A <li>[toggles] name x [children]</li> element *)
-  let rec make_tree_node_view m ~show_node widget : _ Html5.elt =
+  let rec make_tree_node_view m ?(always_full=false) ~show_node widget : _ Html5.elt =
     let item = W.item widget in
     let children = W.children widget
-      |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
+      |> ReactiveData.RList.map (make_tree_node_view m ~always_full ~show_node) in
     let item_html =
       match item with
       | `Item item ->
           ReactiveData.RList.singleton_s item
           |> ReactiveData.RList.map (fun item ->
-            if W.unique widget then render_item m ~show_node item
+            if always_full || W.unique widget then render_item m ~show_node item
             else render_group_item ~show_node item
           )
           |> R.Html5.span
@@ -311,9 +311,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ReactiveData.RList.map (make_tree_node_view m ~show_node) (W.children group)
         )
       ] in
-    match ReactiveData.RList.value top with
-    | [] | [_] | _::_::_::_ -> assert false
-    | [groups; done_actions] ->
+    let problems, groups, done_actions =
+      match ReactiveData.RList.value top with
+      | [problems; groups; done_actions] -> (problems, groups, done_actions)
+      | _ -> assert false in
     let heading widget =
       match W.item widget with
       | `Item _ -> pcdata "ERROR: not a heading!"
@@ -321,6 +322,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let next_children = W.children groups |> ReactiveData.RList.map make_work_actions in
     let done_children = W.children done_actions |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
     [
+      div ~a:[a_class ["ck-problems"]] [
+        R.Html5.ul (W.children problems |> ReactiveData.RList.map (make_tree_node_view m ~always_full:true ~show_node));
+      ];
       div ~a:[a_class ["ck-next-actions"]] [
         heading groups;
         R.Html5.ul next_children;

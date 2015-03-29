@@ -12,7 +12,6 @@ module Make(Git : Git_storage_s.S) = struct
     module Types = struct
       type rev = {
         commit : Git.Commit.t;
-        mutable roots : apa M.t;
         mutable children : apa M.t Ck_id.M.t;
         contexts : context_node Ck_id.M.t ref;
         contacts : contact_node Ck_id.M.t ref;
@@ -23,6 +22,7 @@ module Make(Git : Git_storage_s.S) = struct
         mutable schedule : action list;
         mutable expires : float option;
         valid_from : float;
+        mutable problems : (Ck_id.t, string) Hashtbl.t
       }
       and 'a node_details = {
         rev : rev;
@@ -150,6 +150,43 @@ module Make(Git : Git_storage_s.S) = struct
         | _ -> () end
     | _ -> ()
 
+  type active = In_progress | Idle
+
+  let is_area = function
+    | `Area _ -> true
+    | _ -> false
+
+  let roots t =
+    try Ck_id.M.find Ck_id.root t.children
+    with Not_found -> M.empty
+
+  let check_for_problems t =
+    let rec scan node =
+      let add problem =
+        Hashtbl.add t.problems (Node.uuid node) problem in
+      let error problem =
+        Ck_utils.error "Bad item '%s': %s" (Node.name node) problem in
+      let reduce_progress _ child acc =
+        match scan child with
+        | Idle -> acc
+        | In_progress -> In_progress in
+      let child_nodes = child_nodes node in
+      match node with
+      | `Project _ as node ->
+          if (M.exists (fun _k -> is_area) child_nodes) then error "Project with area child!";
+          let children_status = M.fold reduce_progress child_nodes Idle in
+          if children_status = Idle && Node.project_state node = `Active then add "Active project with no next action";
+          children_status
+      | `Area _ ->
+          M.fold reduce_progress child_nodes Idle
+      | `Action _ as node ->
+          if not (M.is_empty child_nodes) then error "Action with children!";
+          begin match Node.action_state node with
+          | `Next | `Waiting_for_contact | `Waiting_until _ | `Waiting -> In_progress
+          | `Future | `Done -> Idle end
+      in
+    roots t |> M.iter (fun _k n -> ignore (scan n))
+
   let make_no_cache ~time commit =
     Git.Commit.checkout commit >>= fun tree ->
     let contacts = ref Ck_id.M.empty in
@@ -159,9 +196,10 @@ module Make(Git : Git_storage_s.S) = struct
     let nodes_of_contact = Hashtbl.create 10 in
     let actions_of_context = Hashtbl.create 10 in
     let t = {
-      commit; roots = M.empty; contacts; index; nodes_of_contact; children = Ck_id.M.empty;
+      commit; contacts; index; nodes_of_contact; children = Ck_id.M.empty;
       contexts; actions_of_context;
-      schedule = []; alert = false; valid_from = time; expires = None
+      schedule = []; alert = false; valid_from = time; expires = None;
+      problems = Hashtbl.create 0;
     } in
     (* Load areas, projects and actions *)
     Git.Staging.list tree ["db"] >>=
@@ -221,6 +259,8 @@ module Make(Git : Git_storage_s.S) = struct
         ) M.empty in
         acc |> Ck_id.M.add uuid child_map
       ) children Ck_id.M.empty;
+    check_for_problems t;
+    if Hashtbl.length t.problems > 0 then t.alert <- true;
     return t
 
   let last = ref None
@@ -255,10 +295,6 @@ module Make(Git : Git_storage_s.S) = struct
     | None -> None
     | Some id -> get_context node.rev id
 
-  let roots t =
-    try Ck_id.M.find Ck_id.root t.children
-    with Not_found -> M.empty
-
   let commit t = t.commit
   let contacts t = !(t.contacts) |> Ck_id.M.map (fun c -> `Contact c)
   let contexts t = !(t.contexts) |> Ck_id.M.map (fun c -> `Context c)
@@ -291,4 +327,12 @@ module Make(Git : Git_storage_s.S) = struct
   let schedule t = List.sort by_due_time t.schedule
   let alert t = t.alert
   let expires t = t.expires
+
+  let problems t =
+    let problems = ref [] in
+    t.problems |> Hashtbl.iter (fun uuid msg ->
+      let node = Hashtbl.find t.index uuid in
+      problems := ((node :> Node.generic), msg) :: !problems
+    );
+    !problems
 end

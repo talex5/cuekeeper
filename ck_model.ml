@@ -378,6 +378,17 @@ module Make(Clock : Ck_clock.S)
   let is_someday_project p =
     Node.project_state p = `SomedayMaybe
 
+  let get_problems xs =
+    let parent = ref TreeNode.Child_map.empty in
+    xs |> List.iter (fun (node, msg) ->
+      let group =
+        TreeNode.group ~pri:0 msg
+        |> or_existing !parent
+        |> TreeNode.with_child (TreeNode.group_of_node node) in
+      parent := !parent |> TreeNode.add group
+    );
+    !parent
+
   let make_work_tree r =
     let next_actions = ref TreeNode.Child_map.empty in
     let add_next context parent item =
@@ -423,6 +434,7 @@ module Make(Clock : Ck_clock.S)
       ) in
     scan ?parent:None ~in_someday:false (R.roots r);
     TreeNode.Child_map.empty
+    |> TreeNode.(add (group ~pri:(-1) ~children:(get_problems (R.problems r)) "Problems"))
     |> TreeNode.(add (group ~pri:0 ~children:!next_actions "Next actions"))
     |> TreeNode.(add (group ~pri:1 ~children:!done_items "Recently completed"))
 

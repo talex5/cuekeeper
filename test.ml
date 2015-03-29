@@ -101,12 +101,16 @@ let expect_some = function
   | None -> assert false
   | Some x -> x
 
-let assert_tree expected actual =
+let assert_tree ?label expected actual =
   let rec printer items = items
     |> List.map (fun (N (name, children)) -> name ^ "(" ^ printer children ^ ")")
     |> String.concat ", " in
   debug "Expecting: %s\n" (printer expected);
-  assert_equal ~printer expected (get_tree actual)
+  let actual =
+    match get_tree actual with
+    | N (("Problems" | "@Problems"), []) :: xs -> xs   (* Remove Problems if empty, as the GUI does *)
+    | xs ->xs in
+  assert_equal ?msg:label ~printer expected actual
 
 let rec lookup path widgets =
   match path with
@@ -137,6 +141,11 @@ let expect_action item =
   match item with
   | `Action _ as x -> x
   | _ -> assert_failure "Not an action!"
+
+let expect_project item =
+  match item with
+  | `Project _ as x -> x
+  | _ -> assert_failure "Not a project!"
 
 let suite = 
   "cue-keeper">:::[
@@ -263,7 +272,7 @@ let suite =
         M.add_action ~state:`Next ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun _ ->
 
         (* Initially, we have a single Next action *)
-        next_actions |> assert_tree [
+        next_actions |> assert_tree ~label:"start" [
           n "@Next actions" [
             n "@Reading" [
               n "@Start using CueKeeper" [
@@ -280,6 +289,7 @@ let suite =
         ];
 
         let read = lookup ["Next actions"; "Reading"; "Start using CueKeeper"; "Read wikipedia page on GTD"] next_actions in
+        let start_using_ck = lookup ["Next actions"; "Reading"; "Start using CueKeeper"] next_actions |> expect_project in
         let units = lookup ["Next actions"; "(no context)"; "Work"; "Write unit tests"] next_actions |> expect_action in
 
         (* After changing it to Waiting, it disappears from the list. *)
@@ -287,7 +297,12 @@ let suite =
         M.delete m read >>= function
         | `Error x -> failwith x
         | `Ok () ->
-        next_actions |> assert_tree [
+        next_actions |> assert_tree ~label:"waiting" [
+          n "@Problems" [
+            n "+Active project with no next action" [
+              n "@Start using CueKeeper" []
+            ];
+          ];
           n "@Next actions" [
             n "-Reading" [
               n "@Start using CueKeeper" [
@@ -302,8 +317,9 @@ let suite =
           ];
           n "@Recently completed" [];
         ];
+        M.set_project_state m start_using_ck `SomedayMaybe >>= fun () ->
         Test_clock.run_to 2.0;
-        next_actions |> assert_tree [
+        next_actions |> assert_tree ~label:"empty" [
           n "Next actions" [];
           n "Recently completed" [];
         ];

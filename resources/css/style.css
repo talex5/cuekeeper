@@ -500,9 +500,14 @@ div.pika-single {
 	border: none;
 }
 
+div.ck-problems > ul,
 div.ck-next-actions > ul,
 div.ck-next-actions > ul > li > ul > li > ul {
 	margin-left :0;
+}
+
+div.ck-problems > ul > li > span.ck-group-label  {
+	color: #f00;
 }
 
 ul.ck-review-waiting > li,
