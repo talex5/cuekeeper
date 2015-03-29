@@ -81,9 +81,9 @@ module Make(Clock : Ck_clock.S)
 
     let children t = t.children
 
-    let group ~pri label = {
+    let group ~pri ?(children=Child_map.empty) label = {
       item = `Group (pri, label);
-      children = Child_map.empty;
+      children;
     }
 
     let leaf_of_node n = {
@@ -286,8 +286,8 @@ module Make(Clock : Ck_clock.S)
           | _ -> () in
     R.roots r |> M.iter (scan ?parent:None);
     TreeNode.Child_map.empty
-    |> TreeNode.add {TreeNode.item = `Group (0, "Actions"); children = !actions}
-    |> TreeNode.add {TreeNode.item = `Group (0, "Projects"); children = !projects}
+    |> TreeNode.add (TreeNode.group ~pri:0 ~children:!actions "Actions")
+    |> TreeNode.add (TreeNode.group ~pri:0 ~children:!projects"Projects")
 
   let make_areas_tree r =
     let rec aux items =
@@ -332,9 +332,9 @@ module Make(Clock : Ck_clock.S)
         acc |> TreeNode.add (TreeNode.leaf_of_node item)
       ) (R.contacts r) TreeNode.Child_map.empty in
     TreeNode.Child_map.empty
-    |> TreeNode.add {TreeNode.item = `Group (0, "Areas"); children = main}
-    |> TreeNode.add {TreeNode.item = `Group (1, "Contexts"); children = contexts}
-    |> TreeNode.add {TreeNode.item = `Group (2, "Contacts"); children = contacts}
+    |> TreeNode.(add (group ~pri:0 ~children:main "Areas"))
+    |> TreeNode.(add (group ~pri:1 ~children:contexts "Contexts"))
+    |> TreeNode.(add (group ~pri:2 ~children:contacts "Contacts"))
 
   let make_review_tree ~mode r =
     match mode with
@@ -421,8 +421,8 @@ module Make(Clock : Ck_clock.S)
       ) in
     scan ?parent:None ~in_someday:false (R.roots r);
     TreeNode.Child_map.empty
-    |> TreeNode.add {TreeNode.item = `Group (0, "Next actions"); children = !next_actions}
-    |> TreeNode.add {TreeNode.item = `Group (0, "Recently completed"); children = !done_items}
+    |> TreeNode.(add (group ~pri:0 ~children:!next_actions "Next actions"))
+    |> TreeNode.(add (group ~pri:1 ~children:!done_items "Recently completed"))
 
   let opt_node_equal a b =
     match a, b with
