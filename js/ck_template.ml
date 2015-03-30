@@ -214,15 +214,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     React.S.retain li_state (fun () -> ignore animate) |> ignore;
     li_elem
 
-  let show_add_modal m ~show_node ~button item =
+  (** Display a floating box for a name, over [button]. If a non-empty name is entered,
+   * call [adder name] and display the resulting item. *)
+  let show_add_modal ~show_node ~button adder =
     let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 25] () in
     auto_focus name_input;
     let submit_clicked _ev =
       let input_elem = Tyxml_js.To_dom.of_input name_input in
       let name = input_elem##value |> Js.to_string |> String.trim in
       if name <> "" then (
-        async ~name:"add child" (fun () ->
-          M.add_child m item name >|= function
+        async ~name:"add" (fun () ->
+          adder name >|= function
           | None -> ()
           | Some node -> show_node (node :> M.Item.generic)
         );
@@ -261,7 +263,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | `Action _ -> a ~a:[a_class ["delete"]; a_onclick delete] [entity "cross"]
       | `Area _ | `Project _ as item ->
           let add_child ev =
-            show_add_modal m ~show_node ~button:(ev##target) item;
+            show_add_modal ~show_node ~button:(ev##target) (M.add_child m item);
             true in
           a ~a:[a_class ["ck-add-child"]; a_onclick add_child] [pcdata "+"]
       end;
@@ -315,10 +317,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       match ReactiveData.RList.value top with
       | [problems; groups; done_actions] -> (problems, groups, done_actions)
       | _ -> assert false in
-    let heading widget =
-      match W.item widget with
-      | `Item _ -> pcdata "ERROR: not a heading!"
-      | `Group label -> h4 [pcdata label] in
+    let heading ?adder widget =
+      match W.item widget, adder with
+      | `Item _, _ -> pcdata "ERROR: not a heading!"
+      | `Group label, None -> h4 [pcdata label]
+      | `Group label, Some adder ->
+          let add_clicked ev =
+            show_add_modal ~show_node ~button:(ev##target) adder;
+            false in
+          h4 [pcdata label; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]] in
     let next_children = W.children groups |> ReactiveData.RList.map make_work_actions in
     let done_children = W.children done_actions |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
     [
@@ -326,7 +333,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         R.Html5.ul (W.children problems |> ReactiveData.RList.map (make_tree_node_view m ~always_full:true ~show_node));
       ];
       div ~a:[a_class ["ck-next-actions"]] [
-        heading groups;
+        heading groups ~adder:(fun name -> M.add_action m ~state:`Next ?parent:None ~name ~description:"");
         R.Html5.ul next_children;
       ];
       div ~a:[a_class ["ck-done-actions"]] [
