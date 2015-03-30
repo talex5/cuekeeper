@@ -121,8 +121,8 @@ let with_context (`Action (a, details)) context = `Action ({a with context}, det
 let make_action ~state ?context ?contact ~name ~description ~parent ~ctime () =
   `Action ({ astate = state; astarred = false; context }, make ~name ~description ~parent ~ctime ~contact)
 
-let make_project ~name ~description ~parent ~ctime () =
-  `Project ({ pstate = `Active; pstarred = false }, make ~name ~description ~parent ~ctime ~contact:None)
+let make_project ~state ~name ~description ~parent ~ctime () =
+  `Project ({ pstate = state; pstarred = false }, make ~name ~description ~parent ~ctime ~contact:None)
 
 let make_area ~name ~description ~parent ~ctime () =
   `Area (make ~name ~description ~parent ~ctime ~contact:None)

@@ -53,7 +53,7 @@ module type MODEL = sig
 
   val add_action : t -> state:action_state -> ?context:context -> ?contact:contact -> ?parent:[< area | project] ->
                    name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
-  val add_project : t -> ?parent:[< area | project] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
+  val add_project : t -> ?state:project_state -> ?parent:[< area | project] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
   val add_area : t -> ?parent:[< area] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
 
   val add_contact : t -> name:string -> [> contact] option Lwt.t

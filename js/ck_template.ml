@@ -583,12 +583,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   match item with
                   | `Action _ | `Contact _ | `Context _ -> pcdata ""
                   | `Project _ as item -> ul ~a:[a_class ["ck-adders"]] [
-                      add_button (M.add_project m ~parent:item) "+sub-project";
+                      add_button (M.add_project m ~state:`Active ~parent:item) "+sub-project";
                       add_button (M.add_action m ~state:`Next ~parent:item ?context:None ?contact:None) "+action";
                     ]
                   | `Area _ as item -> ul ~a:[a_class ["ck-adders"]] [
                       add_button (M.add_area m ~parent:item) "+sub-area";
-                      add_button (M.add_project m ~parent:item) "+project";
+                      add_button (M.add_project m ~state:`Active ~parent:item) "+project";
                       add_button (M.add_action m ~state:`Next ~parent:item ?context:None ?contact:None) "+action";
                     ]
             )
@@ -963,7 +963,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | None ->
           ul ~a:[a_class ["ck-adders"]] [
             make (M.add_area m ?parent:None) "+area";
-            make (M.add_project m ?parent:None) "+project";
+            make (M.add_project m ~state:`Active ?parent:None) "+project";
             make (M.add_action m ~state:`Next ?parent:None ?context:None ?contact:None) "+action";
           ]
       | Some adder ->

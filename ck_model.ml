@@ -66,6 +66,7 @@ module Make(Clock : Ck_clock.S)
     open Item.Types
     type adder =
       | Add_action of [area | project] option * context option * contact option * action_state
+      | Add_project of [area | project] option * project_state
 
     type t = {
       item :
@@ -187,7 +188,7 @@ module Make(Clock : Ck_clock.S)
     let context = context >|?= Node.uuid in
     let contact = contact >|?= Node.uuid in
     add (Ck_disk_node.make_action ?context ?contact ~state) t
-  let add_project t = add Ck_disk_node.make_project t
+  let add_project t ?(state=`Active) = add (Ck_disk_node.make_project ~state) t
   let add_area t = add Ck_disk_node.make_area t
 
   let add_contact t ~name =
@@ -224,6 +225,7 @@ module Make(Clock : Ck_clock.S)
   let apply_adder t adder name =
     match adder with
     | TreeNode.Add_action (parent, context, contact, state) -> add_action t ~state ?parent ?context ?contact ~name ()
+    | TreeNode.Add_project (parent, state) -> add_project t ~state ?parent ~name ()
 
   let delete t node =
     Up.delete t.master node
@@ -326,7 +328,8 @@ module Make(Clock : Ck_clock.S)
         | None ->
             TreeNode.unique_of_node item
         | Some p ->
-            TreeNode.group ~pri:1 (Node.name p)
+            let adder = TreeNode.Add_action (parent, None, None, `Future) in
+            TreeNode.group ~adder ~pri:1 (Node.name p)
             |> or_existing !actions
             |> TreeNode.with_child (TreeNode.unique_of_node item) in
       actions := !actions |> TreeNode.add group_item in
@@ -340,9 +343,11 @@ module Make(Clock : Ck_clock.S)
           | `Future -> add ~parent node
           | _ -> () in
     R.roots r |> M.iter (scan ?parent:None);
+    let add_action = TreeNode.Add_action (None, None, None, `Future) in
+    let add_project = TreeNode.Add_project (None, `SomedayMaybe) in
     TreeNode.Child_map.empty
-    |> TreeNode.add (TreeNode.group ~pri:0 ~children:!actions "Actions")
-    |> TreeNode.add (TreeNode.group ~pri:0 ~children:!projects"Projects")
+    |> TreeNode.add (TreeNode.group ~pri:0 ~adder:add_action ~children:!actions "Actions")
+    |> TreeNode.add (TreeNode.group ~pri:0 ~adder:add_project ~children:!projects"Projects")
 
   let make_areas_tree r =
     let rec aux items =
@@ -738,7 +743,8 @@ module Make(Clock : Ck_clock.S)
       ~parent:personal
       (Ck_disk_node.make_project
         ~name:"Start using CueKeeper"
-        ~description:"")
+        ~description:""
+        ~state:`Active)
     >>= fun switch_to_ck ->
 
     Up.add_context t.master ~base:t.r ~uuid:(Ck_id.of_string "c6776794-d53e-460a-ada7-7e3b98c2f126")
