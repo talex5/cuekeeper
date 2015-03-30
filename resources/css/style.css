@@ -170,7 +170,7 @@ div.ck-tree span.ck-toggles a.ck-active-alert {
 	-webkit-animation-iteration-count: infinite;
 	-webkit-animation-duration: 2.0s;
 	animation-name: alert;
-	animation-iteration-count: infinite;
+	animation-iteration-count: 3;
 	animation-duration: 2.0s;
 }
 
