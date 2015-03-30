@@ -29,6 +29,7 @@ module Make(Clock : Ck_clock.S)
     module Sort_key = struct
       type t =
         | Item of Sort_key.t
+        | ItemGroup of Sort_key.t
         | Group of group
       module Id = struct
         type t =
@@ -38,15 +39,19 @@ module Make(Clock : Ck_clock.S)
       end
       let compare a b =
         match a, b with
-        | Item _, Group _ -> -1   (* Items come before groups for non-indented lists *)
-        | Group _, Item _ -> 1
         | Item a, Item b -> Sort_key.compare a b
+        | Item _, _ -> -1
+        | _, Item _ -> 1
+        (* Items come before groups for non-indented lists *)
+        | ItemGroup a, ItemGroup b -> Sort_key.compare a b
+        | ItemGroup _, Group _ -> 1
+        | Group _, ItemGroup _ -> -1
         | Group a, Group b -> compare a b
       let show = function
-        | Item a -> Sort_key.show a
+        | Item a | ItemGroup a -> Sort_key.show a
         | Group (_, s) -> s
       let id = function
-        | Item a -> Id.Item (Sort_key.id a)
+        | Item a | ItemGroup a -> Id.Item (Sort_key.id a)
         | Group s -> Id.Group s
     end
     module Child_map = Map.Make(Sort_key)
@@ -73,7 +78,8 @@ module Make(Clock : Ck_clock.S)
 
     let sort_key t =
       match t.item with
-      | `UniqueItem i | `GroupItem i -> Sort_key.Item (R.Node.key i)
+      | `UniqueItem i -> Sort_key.Item (R.Node.key i)
+      | `GroupItem i -> Sort_key.ItemGroup (R.Node.key i)
       | `Group g -> Sort_key.Group g
 
     let add item map =
