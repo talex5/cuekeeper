@@ -67,6 +67,7 @@ module Make(Clock : Ck_clock.S)
     type adder =
       | Add_action of [area | project] option * context option * contact option * action_state
       | Add_project of [area | project] option * project_state
+      | Add_area of [area] option
 
     type t = {
       item :
@@ -226,6 +227,7 @@ module Make(Clock : Ck_clock.S)
     match adder with
     | TreeNode.Add_action (parent, context, contact, state) -> add_action t ~state ?parent ?context ?contact ~name ()
     | TreeNode.Add_project (parent, state) -> add_project t ~state ?parent ~name ()
+    | TreeNode.Add_area parent -> add_area t ?parent ~name ()
 
   let delete t node =
     Up.delete t.master node
@@ -506,25 +508,27 @@ module Make(Clock : Ck_clock.S)
   let group_by_type ~parent child_nodes =
     let tree_nodes = ref TreeNode.Child_map.empty in
     let group_for node =
+      let open TreeNode in
       match parent, node with
-      | _, `Area _ -> (0, "Sub-areas")
-      | `Area _, `Project _ -> (1, "Projects")
-      | _, `Project _ -> (1, "Sub-projects")
-      | _, (`Action _ as a) ->
-          match Node.action_state a with
-          | `Next -> (2, "Next actions")
-          | `Waiting | `Waiting_for_contact | `Waiting_until _ -> (3, "Waiting actions")
-          | `Future -> (4, "Future actions")
-          | `Done -> (5, "Completed actions") in
+      | `Area _ as parent, `Area _ -> group ~pri:0 "Sub-areas" ~adder:(Add_area (Some parent))
+      | `Action _, _
+      | _, `Area _ -> group ~pri:(-1) "Invalid"
+      | `Area _ as parent, `Project _ -> group ~pri:1 "Projects" ~adder:(Add_project (Some parent, `Active))
+      | `Project _ as parent, `Project _ -> group ~pri:1 "Sub-projects" ~adder:(Add_project (Some parent, `Active))
+      | (`Area _ | `Project _ as parent), (`Action _ as a) ->
+          let state = Node.action_state a in
+          let adder = Add_action (Some parent, None, None, state) in
+          match state with
+          | `Next -> group ~pri:2 "Next actions" ~adder
+          | `Waiting | `Waiting_for_contact | `Waiting_until _ ->
+              group ~pri:3 "Waiting actions" ~adder:(Add_action (Some parent, None, None, `Waiting))
+          | `Future -> group ~pri:4 "Future actions" ~adder
+          | `Done -> group ~pri:5 "Completed actions" in
     let add node =
-      let group_name = group_for node in
-      let key = TreeNode.Sort_key.Group group_name in
       let parent =
-        try TreeNode.Child_map.find key !tree_nodes
-        with Not_found ->
-          let p = {TreeNode.item = `Group group_name; children = TreeNode.Child_map.empty; adder = None} in
-          tree_nodes := !tree_nodes |> TreeNode.add p;
-          p in
+        group_for node
+        |> or_existing !tree_nodes in
+      tree_nodes := !tree_nodes |> TreeNode.add parent;
       let children = parent.TreeNode.children |> TreeNode.add (TreeNode.unique_of_node node) in
       tree_nodes := !tree_nodes |> TreeNode.add {parent with TreeNode.children} in
     child_nodes |> M.iter (fun _k v -> add v);
