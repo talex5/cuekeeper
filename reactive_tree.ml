@@ -47,6 +47,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
       children : t Slow_set.item ReactiveData.RList.t;
       set_child_widgets : ?step:React.step -> t M.Child_map.t -> unit;
       gui_data : G.t option ref;
+      mutable adder : M.adder option;
     }
 
     let item t =
@@ -68,6 +69,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
 
   module Widget = struct
     type t = W.t Slow_set.item
+    type adder = M.adder
 
     let item t = W.item (Slow_set.data t)
     let children t = W.children (Slow_set.data t)
@@ -80,6 +82,8 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
 
     let equal a b =
       W.equal (Slow_set.data a) (Slow_set.data b)
+
+    let adder t = (Slow_set.data t).W.adder
   end
 
   module Delta = Delta_RList.Make(M.Sort_key)(Widget)(M.Child_map)
@@ -102,6 +106,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
       children;
       set_child_widgets;
       gui_data = ref None;
+      adder = M.adder node;
     } in
     (* todo: check for duplicates? *)
     widgets := !widgets |> Id_map.add id widget;
@@ -134,6 +139,7 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) = struct
       try
         let existing = Id_map.find id old_widgets in
         M.children node |> M.Child_map.map (make_or_update ~parent_id:id) |> existing.W.set_child_widgets;
+        existing.W.adder <- M.adder node;
         t.widgets := !(t.widgets) |> Id_map.add id existing;
         begin match existing.W.item, new_item with
         | `Item (_, set_item, _), Some new_item -> set_item new_item

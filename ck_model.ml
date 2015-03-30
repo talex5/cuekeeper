@@ -58,12 +58,17 @@ module Make(Clock : Ck_clock.S)
       let contact_node = R.contact_for
     end
 
+    open Item.Types
+    type adder =
+      | Add_action of [area | project] option * context option
+
     type t = {
       item :
         [ `UniqueItem of Item.generic   (* ID is unique in tree *)
         | `GroupItem of Item.generic    (* ID is unique within parent *)
         | `Group of group ];            (* Label is unique within parent *)
       children : t Child_map.t;
+      adder : adder option;
     }
 
     let sort_key t =
@@ -84,20 +89,24 @@ module Make(Clock : Ck_clock.S)
       | `Group _ as g -> g
 
     let children t = t.children
+    let adder t = t.adder
 
-    let group ~pri ?(children=Child_map.empty) label = {
+    let group ~pri ?(children=Child_map.empty) ?adder label = {
       item = `Group (pri, label);
       children;
+      adder;
     }
 
-    let unique_of_node ?(children=Child_map.empty) n = {
+    let unique_of_node ?(children=Child_map.empty) ?adder n = {
       item = `UniqueItem (n :> Item.generic);
       children;
+      adder;
     }
 
-    let group_of_node ?(children=Child_map.empty) n = {
+    let group_of_node ?(children=Child_map.empty) ?adder n = {
       item = `GroupItem (n :> Item.generic);
       children;
+      adder;
     }
   end
   module WidgetTree = Reactive_tree.Make(Clock)(TreeNode)(G)
@@ -187,6 +196,10 @@ module Make(Clock : Ck_clock.S)
     | `Area _ as a -> add_project t ~parent:a ~name ~description:"" ()
     | `Project _ as p -> add_action t ~state:`Next ~parent:p ~name ~description:"" ()
     | `Context _ as context -> add_action t ~state:`Next ~context ~name ~description:"" ()
+
+  let apply_adder t adder name =
+    match adder with
+    | TreeNode.Add_action (parent, context) -> add_action t ~state:`Next ?parent ?context ~name ()
 
   let delete t node =
     Up.delete t.master node
@@ -406,7 +419,7 @@ module Make(Clock : Ck_clock.S)
             context_item |> TreeNode.with_child (TreeNode.unique_of_node item)
         | Some p ->
             let group_item =
-              TreeNode.group_of_node p
+              TreeNode.group_of_node ~adder:(TreeNode.Add_action (Some p, context)) p
               |> or_existing context_item.TreeNode.children
               |> TreeNode.with_child (TreeNode.unique_of_node item) in
             context_item |> TreeNode.with_child group_item in
@@ -419,10 +432,10 @@ module Make(Clock : Ck_clock.S)
         | `Project _ as project when Node.project_state project = `Done ->
             let item = TreeNode.unique_of_node node in
             done_items := !done_items |> TreeNode.add item
-        | `Project _ as parent ->
-            let in_someday = in_someday || is_someday_project parent in
+        | `Project _ as node ->
+            let in_someday = in_someday || is_someday_project node in
             R.child_nodes node |> scan ~parent:node ~in_someday
-        | `Area _ ->
+        | `Area _ as node ->
             R.child_nodes node |> scan ~parent:node ~in_someday
         | `Action _ as action ->
             let add () =
@@ -472,7 +485,7 @@ module Make(Clock : Ck_clock.S)
       let parent =
         try TreeNode.Child_map.find key !tree_nodes
         with Not_found ->
-          let p = {TreeNode.item = `Group group_name; children = TreeNode.Child_map.empty} in
+          let p = {TreeNode.item = `Group group_name; children = TreeNode.Child_map.empty; adder = None} in
           tree_nodes := !tree_nodes |> TreeNode.add p;
           p in
       let children = parent.TreeNode.children |> TreeNode.add (TreeNode.unique_of_node node) in

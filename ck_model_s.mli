@@ -37,6 +37,9 @@ module type MODEL = sig
     val unique : t -> bool
     (** Unique items occur at most once in the tree (and are often leaves).
      * Non-unique items are used for grouping, and are typically rendered as headings. *)
+
+    type adder
+    val adder : t -> adder option
   end
 
   type details = {
@@ -60,6 +63,7 @@ module type MODEL = sig
   val set_context : t -> action -> context -> unit or_error Lwt.t
 
   val add_child : t -> [< area | project | context] -> string -> [area | project | action] option Lwt.t
+  val apply_adder : t -> Widget.adder -> string -> [area | project | action] option Lwt.t
 
   val delete : t -> [< Item.generic] -> unit or_error Lwt.t
 

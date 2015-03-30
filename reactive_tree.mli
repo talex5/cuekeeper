@@ -30,6 +30,9 @@ module Make (C : Ck_clock.S) (M : TREE_MODEL) (G : GUI_DATA) : sig
     val unique : t -> bool
     (** Unique items occur at most once in the tree (and are often leaves).
      * Non-unique items are used for grouping, and are typically rendered as headings. *)
+
+    type adder = M.adder
+    val adder : t -> adder option
   end
 
   val make : M.t M.Child_map.t -> t

@@ -269,9 +269,16 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       end;
     ]
 
-  let render_group_item ~show_node item =
+  let render_group_item m ?adder ~show_node item =
     let clicked _ev = show_node (item :> M.Item.generic); false in
-    a ~a:[a_onclick clicked; a_class ["ck-group-label"]] [pcdata (M.Item.name item)]
+    let item_span = a ~a:[a_onclick clicked; a_class ["ck-group-label"]] [pcdata (M.Item.name item)] in
+    match adder with
+    | Some adder ->
+        let add_clicked ev =
+          show_add_modal ~show_node ~button:(ev##target) (M.apply_adder m adder);
+          false in
+        span [item_span; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]]
+    | _ -> item_span
 
   let group_label s =
     span ~a:[a_class ["ck-group-label"]] [pcdata s]
@@ -287,7 +294,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ReactiveData.RList.singleton_s item
           |> ReactiveData.RList.map (fun item ->
             if always_full || W.unique widget then render_item m ~show_node item
-            else render_group_item ~show_node item
+            else render_group_item m ~show_node ?adder:(W.adder widget) item
           )
           |> R.Html5.span
       | `Group label -> group_label label in

@@ -58,7 +58,9 @@ module type TREE_MODEL = sig
 
   type t
   type group
+  type adder
   val group_label : group -> string
+  val adder : t -> adder option
   val item : t ->
     [ `UniqueItem of Ck_id.t * Item.generic   (* ID is unique in tree *)
     | `GroupItem of Ck_id.t * Item.generic    (* ID is unique within parent *)
