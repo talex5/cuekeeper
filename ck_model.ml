@@ -114,6 +114,23 @@ module Make(Clock : Ck_clock.S)
       children;
       adder;
     }
+
+    let of_id_map_f fn m =
+      Ck_id.M.fold (fun _key item acc ->
+        match fn item with
+        | None -> acc
+        | Some item -> acc |> add item
+      ) m Child_map.empty
+
+    let of_list_f fn =
+      List.fold_left (fun acc item ->
+        match fn item with
+        | None -> acc
+        | Some item -> acc |> add item
+      ) Child_map.empty
+
+    let of_list fn = of_list_f (fun x -> Some (fn x))
+    let of_id_map fn = of_id_map_f (fun x -> Some (fn x))
   end
   module WidgetTree = Reactive_tree.Make(Clock)(TreeNode)(G)
 
@@ -370,13 +387,10 @@ module Make(Clock : Ck_clock.S)
     | `Everything -> make_everything_tree r
 
   let make_contact_tree r =
-    let contacts = R.contacts r in
-    Ck_id.M.fold (fun _key item acc ->
-      let children = R.nodes_of_contact item |> List.fold_left (fun acc node ->
-        acc |> TreeNode.add (TreeNode.unique_of_node node)
-      ) TreeNode.Child_map.empty in
-      acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
-    ) contacts TreeNode.Child_map.empty
+    R.contacts r |> TreeNode.of_id_map (fun item ->
+      let children = R.nodes_of_contact item |> TreeNode.(of_list unique_of_node) in
+      TreeNode.unique_of_node ~children item
+    )
 
   let make_schedule_tree r =
     let day = ref None in
