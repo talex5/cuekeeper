@@ -112,7 +112,8 @@ module Make(Git : Git_storage_s.S) = struct
   type t = rev
 
   let equal a b =
-    Git.Commit.equal a.commit b.commit
+    Git.Commit.equal a.commit b.commit &&
+    a.expires = b.expires
 
   let child_nodes node =
     let t = Node.rev node in
