@@ -77,12 +77,12 @@ let contact_to_string (`Contact t) = Sexplib.Sexp.to_string (sexp_of_node_detail
 let context_of_string s = `Context (node_details_of_sexp (Sexplib.Sexp.of_string s))
 let context_to_string (`Context t) = Sexplib.Sexp.to_string (sexp_of_node_details t)
 
-let make ~name ~description ~parent ~ctime = {
+let make ~name ~description ~parent ~ctime ~contact = {
   name;
   description;
   parent;
   ctime;
-  contact = None;
+  contact;
 }
 
 let map_apa fn = function
@@ -118,20 +118,20 @@ let with_starred node s =
 
 let with_context (`Action (a, details)) context = `Action ({a with context}, details)
 
-let make_action ~state ?context ~name ~description ~parent ~ctime () =
-  `Action ({ astate = state; astarred = false; context }, make ~name ~description ~parent ~ctime)
+let make_action ~state ?context ?contact ~name ~description ~parent ~ctime () =
+  `Action ({ astate = state; astarred = false; context }, make ~name ~description ~parent ~ctime ~contact)
 
 let make_project ~name ~description ~parent ~ctime () =
-  `Project ({ pstate = `Active; pstarred = false }, make ~name ~description ~parent ~ctime)
+  `Project ({ pstate = `Active; pstarred = false }, make ~name ~description ~parent ~ctime ~contact:None)
 
 let make_area ~name ~description ~parent ~ctime () =
-  `Area (make ~name ~description ~parent ~ctime)
+  `Area (make ~name ~description ~parent ~ctime ~contact:None)
 
 let make_contact ~name ~description ~ctime () =
-  `Contact (make ~name ~description ~parent:Ck_id.root ~ctime)
+  `Contact (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)
 
 let make_context ~name ~description ~ctime () =
-  `Context (make ~name ~description ~parent:Ck_id.root ~ctime)
+  `Context (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)
 
 let is_done = function
   | `Action ({ astate; _}, _) -> astate = `Done

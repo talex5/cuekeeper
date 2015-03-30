@@ -65,7 +65,7 @@ module Make(Clock : Ck_clock.S)
 
     open Item.Types
     type adder =
-      | Add_action of [area | project] option * context option
+      | Add_action of [area | project] option * context option * contact option
 
     type t = {
       item :
@@ -183,9 +183,10 @@ module Make(Clock : Ck_clock.S)
     Up.add t.master ~parent disk_node >|= fun id ->
     R.get t.r id
 
-  let add_action t ~state ?context =
+  let add_action t ~state ?context ?contact =
     let context = context >|?= Node.uuid in
-    add (Ck_disk_node.make_action ?context ~state) t
+    let contact = contact >|?= Node.uuid in
+    add (Ck_disk_node.make_action ?context ?contact ~state) t
   let add_project t = add Ck_disk_node.make_project t
   let add_area t = add Ck_disk_node.make_area t
 
@@ -222,7 +223,7 @@ module Make(Clock : Ck_clock.S)
 
   let apply_adder t adder name =
     match adder with
-    | TreeNode.Add_action (parent, context) -> add_action t ~state:`Next ?parent ?context ~name ()
+    | TreeNode.Add_action (parent, context, contact) -> add_action t ~state:`Next ?parent ?context ?contact ~name ()
 
   let delete t node =
     Up.delete t.master node
@@ -389,7 +390,8 @@ module Make(Clock : Ck_clock.S)
   let make_contact_tree r =
     R.contacts r |> TreeNode.of_id_map (fun item ->
       let children = R.nodes_of_contact item |> TreeNode.(of_list unique_of_node) in
-      TreeNode.unique_of_node ~children item
+      let adder = TreeNode.Add_action (None, None, Some item) in
+      TreeNode.unique_of_node ~children ~adder item
     )
 
   let make_schedule_tree r =
@@ -439,7 +441,7 @@ module Make(Clock : Ck_clock.S)
             context_item |> TreeNode.with_child (TreeNode.unique_of_node item)
         | Some p ->
             let group_item =
-              TreeNode.group_of_node ~adder:(TreeNode.Add_action (Some p, context)) p
+              TreeNode.group_of_node ~adder:(TreeNode.Add_action (Some p, context, None)) p
               |> or_existing context_item.TreeNode.children
               |> TreeNode.with_child (TreeNode.unique_of_node item) in
             context_item |> TreeNode.with_child group_item in
@@ -743,6 +745,7 @@ module Make(Clock : Ck_clock.S)
       (Ck_disk_node.make_action
         ~state:`Next
         ~context:reading
+        ?contact:None
         ~name:"Read wikipedia page on GTD"
         ~description:"http://en.wikipedia.org/wiki/Getting_Things_Done")
     >>= fun _ ->

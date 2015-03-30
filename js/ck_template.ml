@@ -248,7 +248,20 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ] in
         show_modal ~parent [content]
 
-  let render_item m ~show_node (item : [< M.Item.generic]) =
+  let with_adder m ?adder ~show_node item_span =
+    match adder with
+    | Some adder ->
+        let add_clicked ev =
+          show_add_modal ~show_node ~button:(ev##target) (M.apply_adder m adder);
+          false in
+        let item_span = (item_span :> Html5_types.span_content_fun Html5.elt) in
+        span [
+          item_span;
+          a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]
+        ]
+    | _ -> item_span
+
+  let render_item m ?adder ~show_node (item : [< M.Item.generic]) =
     let clicked _ev = show_node (item :> M.Item.generic); false in
     let delete ev = async ~name:"delete" (fun () -> M.delete m item >|= report_error ~parent:ev##target); true in
     let item_cl = class_of_time_and_type (M.Item.ctime item) item in
@@ -268,17 +281,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           a ~a:[a_class ["ck-add-child"]; a_onclick add_child] [pcdata "+"]
       end;
     ]
+    |> with_adder m ?adder ~show_node
 
   let render_group_item m ?adder ~show_node item =
     let clicked _ev = show_node (item :> M.Item.generic); false in
-    let item_span = a ~a:[a_onclick clicked; a_class ["ck-group-label"]] [pcdata (M.Item.name item)] in
-    match adder with
-    | Some adder ->
-        let add_clicked ev =
-          show_add_modal ~show_node ~button:(ev##target) (M.apply_adder m adder);
-          false in
-        span [item_span; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]]
-    | _ -> item_span
+    a ~a:[a_onclick clicked; a_class ["ck-group-label"]] [pcdata (M.Item.name item)]
+    |> with_adder m ?adder ~show_node
 
   let group_label s =
     span ~a:[a_class ["ck-group-label"]] [pcdata s]
@@ -293,8 +301,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | `Item item ->
           ReactiveData.RList.singleton_s item
           |> ReactiveData.RList.map (fun item ->
-            if always_full || W.unique widget then render_item m ~show_node item
-            else render_group_item m ~show_node ?adder:(W.adder widget) item
+            let adder = W.adder widget in
+            if always_full || W.unique widget then render_item m ~show_node ?adder item
+            else render_group_item m ~show_node ?adder item
           )
           |> R.Html5.span
       | `Group label -> group_label label in
@@ -575,12 +584,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   | `Action _ | `Contact _ | `Context _ -> pcdata ""
                   | `Project _ as item -> ul ~a:[a_class ["ck-adders"]] [
                       add_button (M.add_project m ~parent:item) "+sub-project";
-                      add_button (M.add_action m ~state:`Next ~parent:item ?context:None) "+action";
+                      add_button (M.add_action m ~state:`Next ~parent:item ?context:None ?contact:None) "+action";
                     ]
                   | `Area _ as item -> ul ~a:[a_class ["ck-adders"]] [
                       add_button (M.add_area m ~parent:item) "+sub-area";
                       add_button (M.add_project m ~parent:item) "+project";
-                      add_button (M.add_action m ~state:`Next ~parent:item ?context:None) "+action";
+                      add_button (M.add_action m ~state:`Next ~parent:item ?context:None ?contact:None) "+action";
                     ]
             )
         (* When we are editing, display the form. *)
@@ -920,7 +929,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               | Some c -> render_item m ~show_node (c :> M.Item.generic) in
             [
               ck_label "Context: ";
-              context_name;
+              (context_name :> Html5_types.div_content_fun Html5.elt);
               a ~a:[a_onclick (edit_context m ~show_node item)] [pcdata " (change)"]
             ]
       ) |> rlist_of in
@@ -955,7 +964,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ul ~a:[a_class ["ck-adders"]] [
             make (M.add_area m ?parent:None) "+area";
             make (M.add_project m ?parent:None) "+project";
-            make (M.add_action m ~state:`Next ?parent:None ?context:None) "+action";
+            make (M.add_action m ~state:`Next ?parent:None ?context:None ?contact:None) "+action";
           ]
       | Some adder ->
           let close () = set_editing None in
