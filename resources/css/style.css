@@ -382,7 +382,7 @@ span.ck-group-label {
 	color: #888;
 }
 
-span.ck-group-label {
+div.ck-details span.ck-group-label {
 	color: #888;
 	display: block;
 }
@@ -516,14 +516,14 @@ ul.ck-review-future > li {
 	padding-bottom: 1rem
 }
 
-ul.ck-review-waiting > li > span.ck-group-label,
-ul.ck-review-future > li > span.ck-group-label,
-ul.ck-review-everything > li > span.ck-group-label {
+ul.ck-review-waiting > li > span span.ck-group-label,
+ul.ck-review-future > li > span span.ck-group-label,
+ul.ck-review-everything > li > span span.ck-group-label {
 	font-weight: bold;
 	color: black;
 }
 
-ul.ck-review-everything > li > span.ck-group-label {
+ul.ck-review-everything > li > span span.ck-group-label {
 	font-size: large;
 }
 

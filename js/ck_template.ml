@@ -254,12 +254,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let add_clicked ev =
           show_add_modal ~show_node ~button:(ev##target) (M.apply_adder m adder);
           false in
-        let item_span = (item_span :> Html5_types.span_content_fun Html5.elt) in
         span [
           item_span;
           a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]
         ]
-    | _ -> item_span
+    | _ -> span [item_span]
 
   let render_item m ?adder ~show_node (item : [< M.Item.generic]) =
     let clicked _ev = show_node (item :> M.Item.generic); false in
@@ -288,8 +287,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     a ~a:[a_onclick clicked; a_class ["ck-group-label"]] [pcdata (M.Item.name item)]
     |> with_adder m ?adder ~show_node
 
-  let group_label s =
+  let group_label m ?adder ~show_node s =
     span ~a:[a_class ["ck-group-label"]] [pcdata s]
+    |> with_adder m ?adder ~show_node
 
   (* A <li>[toggles] name x [children]</li> element *)
   let rec make_tree_node_view m ?(always_full=false) ~show_node widget : _ Html5.elt =
@@ -306,7 +306,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             else render_group_item m ~show_node ?adder item
           )
           |> R.Html5.span
-      | `Group label -> group_label label in
+      | `Group label -> group_label m ?adder:(W.adder widget) ~show_node label in
     animated widget [
       item_html;
       R.Html5.ul children;
@@ -332,7 +332,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.pcdata name];
               a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"];
             ]
-        | `Group label -> group_label label in
+        | `Group label -> group_label m ?adder:(W.adder group) ~show_node label in
       animated group [
         item_html;
         R.Html5.ul (
@@ -929,7 +929,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               | Some c -> render_item m ~show_node (c :> M.Item.generic) in
             [
               ck_label "Context: ";
-              (context_name :> Html5_types.div_content_fun Html5.elt);
+              context_name;
               a ~a:[a_onclick (edit_context m ~show_node item)] [pcdata " (change)"]
             ]
       ) |> rlist_of in

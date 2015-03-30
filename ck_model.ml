@@ -65,7 +65,7 @@ module Make(Clock : Ck_clock.S)
 
     open Item.Types
     type adder =
-      | Add_action of [area | project] option * context option * contact option
+      | Add_action of [area | project] option * context option * contact option * action_state
 
     type t = {
       item :
@@ -223,7 +223,7 @@ module Make(Clock : Ck_clock.S)
 
   let apply_adder t adder name =
     match adder with
-    | TreeNode.Add_action (parent, context, contact) -> add_action t ~state:`Next ?parent ?context ?contact ~name ()
+    | TreeNode.Add_action (parent, context, contact, state) -> add_action t ~state ?parent ?context ?contact ~name ()
 
   let delete t node =
     Up.delete t.master node
@@ -277,17 +277,25 @@ module Make(Clock : Ck_clock.S)
     with Not_found -> item
 
   let make_waiting_tree r =
-    let waiting = TreeNode.group ~pri:(-1) "(unspecified reason)" in
+    let waiting =
+      let adder = TreeNode.Add_action (None, None, None, `Waiting) in
+      TreeNode.group ~adder ~pri:(-1) "(unspecified reason)" in
     let results = ref TreeNode.Child_map.empty in
     let add ~group ~parent item =
+      (* group is the contact, if any *)
       let group_item = or_existing !results group in
       let group_item =
         match parent with
         | None ->
             group_item |> TreeNode.with_child (TreeNode.unique_of_node item)
         | Some p ->
+            let adder =
+              match group.TreeNode.adder with
+              | Some (TreeNode.Add_action (None, ctx, contact, state)) ->
+                  Some (TreeNode.Add_action (parent, ctx, contact, state))
+              | _ -> None in
             let parent_item =
-              TreeNode.group ~pri:1 (Node.name p)
+              TreeNode.group ?adder ~pri:1 (Node.name p)
               |> or_existing group_item.TreeNode.children
               |> TreeNode.with_child (TreeNode.unique_of_node item) in
             group_item |> TreeNode.with_child parent_item in
@@ -300,7 +308,9 @@ module Make(Clock : Ck_clock.S)
           | `Waiting -> add ~group:waiting ~parent node
           | `Waiting_for_contact ->
               begin match R.contact_for node with
-              | Some contact -> add ~group:(TreeNode.unique_of_node contact) ~parent node
+              | Some contact ->
+                  let adder = TreeNode.Add_action (None, None, Some contact, `Waiting_for_contact) in
+                  add ~group:(TreeNode.unique_of_node ~adder contact) ~parent node
               | None -> add ~group:waiting ~parent node (* Shouldn't happen *)
               end
           | _ -> () in
@@ -390,7 +400,7 @@ module Make(Clock : Ck_clock.S)
   let make_contact_tree r =
     R.contacts r |> TreeNode.of_id_map (fun item ->
       let children = R.nodes_of_contact item |> TreeNode.(of_list unique_of_node) in
-      let adder = TreeNode.Add_action (None, None, Some item) in
+      let adder = TreeNode.Add_action (None, None, Some item, `Next) in
       TreeNode.unique_of_node ~children ~adder item
     )
 
@@ -441,7 +451,7 @@ module Make(Clock : Ck_clock.S)
             context_item |> TreeNode.with_child (TreeNode.unique_of_node item)
         | Some p ->
             let group_item =
-              TreeNode.group_of_node ~adder:(TreeNode.Add_action (Some p, context, None)) p
+              TreeNode.group_of_node ~adder:(TreeNode.Add_action (Some p, context, None, `Next)) p
               |> or_existing context_item.TreeNode.children
               |> TreeNode.with_child (TreeNode.unique_of_node item) in
             context_item |> TreeNode.with_child group_item in
