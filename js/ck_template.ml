@@ -304,8 +304,18 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             let show_group _ev =
               React.S.value item |> show_node;
               true in
+            let add_clicked ev =
+              show_add_modal ~show_node ~button:(ev##target) (fun name ->
+                match React.S.value item with
+                | `Context _ as item -> M.add_child m item name
+                | _ -> assert false
+              );
+              false in
             let name = item >|~= M.Item.name in
-            a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.pcdata name];
+            span [
+              a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.pcdata name];
+              a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"];
+            ]
         | `Group label -> group_label label in
       animated group [
         item_html;
@@ -333,7 +343,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         R.Html5.ul (W.children problems |> ReactiveData.RList.map (make_tree_node_view m ~always_full:true ~show_node));
       ];
       div ~a:[a_class ["ck-next-actions"]] [
-        heading groups ~adder:(fun name -> M.add_action m ~state:`Next ?parent:None ~name ~description:"");
+        heading groups ~adder:(fun name -> M.add_action m ~state:`Next ~name ());
         R.Html5.ul next_children;
       ];
       div ~a:[a_class ["ck-done-actions"]] [
@@ -424,7 +434,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let name = input_elem##value |> Js.to_string |> String.trim in
         if name <> "" then (
           async ~name:"add to schedule" (fun () ->
-            M.add_action m ~state:(`Waiting_until date) ?parent:None ~name ~description:"" >|= function
+            M.add_action m ~state:(`Waiting_until date) ~name () >|= function
             | None -> print_endline "Added item no longer exists!"
             | Some item -> show_node (item :> M.Item.generic)
           );
@@ -521,7 +531,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let name = List.assoc "name" f |> String.trim in
         if name <> "" then (
           async ~name:"add" (fun () ->
-            adder ~name ~description:"" >|= function
+            adder ~name ?description:None () >|= function
             | None -> print_endline "Added item no longer exists!"
             | Some item -> show_node (item :> M.Item.generic)
           )
@@ -558,12 +568,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   | `Action _ | `Contact _ | `Context _ -> pcdata ""
                   | `Project _ as item -> ul ~a:[a_class ["ck-adders"]] [
                       add_button (M.add_project m ~parent:item) "+sub-project";
-                      add_button (M.add_action m ~state:`Next ~parent:item) "+action";
+                      add_button (M.add_action m ~state:`Next ~parent:item ?context:None) "+action";
                     ]
                   | `Area _ as item -> ul ~a:[a_class ["ck-adders"]] [
                       add_button (M.add_area m ~parent:item) "+sub-area";
                       add_button (M.add_project m ~parent:item) "+project";
-                      add_button (M.add_action m ~state:`Next ~parent:item) "+action";
+                      add_button (M.add_action m ~state:`Next ~parent:item ?context:None) "+action";
                     ]
             )
         (* When we are editing, display the form. *)
@@ -938,7 +948,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ul ~a:[a_class ["ck-adders"]] [
             make (M.add_area m ?parent:None) "+area";
             make (M.add_project m ?parent:None) "+project";
-            make (M.add_action m ~state:`Next ?parent:None) "+action";
+            make (M.add_action m ~state:`Next ?parent:None ?context:None) "+action";
           ]
       | Some adder ->
           let close () = set_editing None in

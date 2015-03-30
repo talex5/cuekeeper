@@ -244,7 +244,7 @@ module Make(Git : Git_storage_s.S)
       | `Toplevel rev -> (rev, Ck_id.root)
       | `Node p -> (R.Node.rev p, R.Node.uuid p) in
     let disk_node =
-      maker ~parent ~ctime:(Unix.gettimeofday ()) in
+      maker ~parent ~ctime:(Unix.gettimeofday ()) () in
     create t ?uuid ~base disk_node
 
   let add_contact t ~base contact =

@@ -48,10 +48,10 @@ module type MODEL = sig
     details_stop : stop;
   }
 
-  val add_action : t -> state:action_state -> ?parent:[< area | project] ->
-                   name:string -> description:string -> [area | project | action] option Lwt.t
-  val add_project : t -> ?parent:[< area | project] -> name:string -> description:string -> [area | project | action] option Lwt.t
-  val add_area : t -> ?parent:[< area] -> name:string -> description:string -> [area | project | action] option Lwt.t
+  val add_action : t -> state:action_state -> ?context:context -> ?parent:[< area | project] ->
+                   name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
+  val add_project : t -> ?parent:[< area | project] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
+  val add_area : t -> ?parent:[< area] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
 
   val add_contact : t -> name:string -> [> contact] option Lwt.t
   val set_contact : t -> [< area | project | action] -> contact option -> unit or_error Lwt.t
@@ -59,7 +59,7 @@ module type MODEL = sig
   val add_context : t -> name:string -> [> context] option Lwt.t
   val set_context : t -> action -> context -> unit or_error Lwt.t
 
-  val add_child : t -> [< area | project] -> string -> [area | project | action] option Lwt.t
+  val add_child : t -> [< area | project | context] -> string -> [area | project | action] option Lwt.t
 
   val delete : t -> [< Item.generic] -> unit or_error Lwt.t
 

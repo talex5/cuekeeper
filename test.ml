@@ -269,7 +269,7 @@ let suite =
         M.set_mode m `Work;
         let next_actions = M.tree m |> expect_tree in
 
-        M.add_action ~state:`Next ~parent:work ~name:"Write unit tests" ~description:"" m >>= fun _ ->
+        M.add_action m ~state:`Next ~parent:work ~name:"Write unit tests" () >>= fun _ ->
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree ~label:"start" [
@@ -324,7 +324,7 @@ let suite =
           n "Recently completed" [];
         ];
 
-        M.add_action ~state:`Next ~parent:work ~name:"GC unused signals" ~description:"" m >>= function
+        M.add_action m ~state:`Next ~parent:work ~name:"GC unused signals" () >>= function
         | None | Some (`Area _ | `Project _) -> assert false
         | Some (`Action _ as gc) ->
         M.add_context m ~name:"Coding" >>= function
@@ -417,7 +417,7 @@ let suite =
 
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         M.set_action_state m units (`Waiting_until 6.0) >>= fun () ->
-        M.add_action ~state:(`Waiting_until 7.0) ~parent:work ~name:"Implement scheduing" ~description:"" m >>= fun _ ->
+        M.add_action m ~state:(`Waiting_until 7.0) ~parent:work ~name:"Implement scheduing" () >>= fun _ ->
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [

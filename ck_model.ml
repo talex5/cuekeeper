@@ -142,7 +142,7 @@ module Make(Clock : Ck_clock.S)
 
   let assume_changed _ _ = false
 
-  let add maker t ?parent ~name ~description =
+  let add maker t ?parent ~name ?(description="") () =
     let parent =
       match parent with
       | None -> `Toplevel t.r
@@ -151,17 +151,19 @@ module Make(Clock : Ck_clock.S)
     Up.add t.master ~parent disk_node >|= fun id ->
     R.get t.r id
 
-  let add_action t ~state = add (Ck_disk_node.make_action ?context:None ~state) t
+  let add_action t ~state ?context =
+    let context = context >|?= Node.uuid in
+    add (Ck_disk_node.make_action ?context ~state) t
   let add_project t = add Ck_disk_node.make_project t
   let add_area t = add Ck_disk_node.make_area t
 
   let add_contact t ~name =
-    let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Clock.now ()) in
+    let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Clock.now ()) () in
     Up.add_contact t.master ~base:t.r disk_node >|= fun id ->
     R.get_contact t.r id
 
   let add_context t ~name =
-    let disk_node = Ck_disk_node.make_context ~name ~description:"" ~ctime:(Clock.now ()) in
+    let disk_node = Ck_disk_node.make_context ~name ~description:"" ~ctime:(Clock.now ()) () in
     Up.add_context t.master ~base:t.r disk_node >|= fun id ->
     R.get_context t.r id
 
@@ -182,8 +184,9 @@ module Make(Clock : Ck_clock.S)
 
   let add_child t parent name =
     match parent with
-    | `Area _ as a -> add_project t ~parent:a ~name ~description:""
-    | `Project _ as p -> add_action t ~state:`Next ~parent:p ~name ~description:""
+    | `Area _ as a -> add_project t ~parent:a ~name ~description:"" ()
+    | `Project _ as p -> add_action t ~state:`Next ~parent:p ~name ~description:"" ()
+    | `Context _ as context -> add_action t ~state:`Next ~context ~name ~description:"" ()
 
   let delete t node =
     Up.delete t.master node
@@ -697,7 +700,8 @@ module Make(Clock : Ck_clock.S)
       (Ck_disk_node.make_context
         ~name:"Reading"
         ~description:"Reading books, web-sites, etc."
-        ~ctime:(Clock.now ()))
+        ~ctime:(Clock.now ())
+        ())
     >>= fun reading ->
 
     add
