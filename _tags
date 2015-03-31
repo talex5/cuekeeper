@@ -5,3 +5,5 @@ true: syntax(camlp4o)
 <js/*>: package(js_of_ocaml.syntax,js_of_ocaml,js_of_ocaml.tyxml)
 true: debug
 <js>: include
+<lib>: include
+<utils>: include
