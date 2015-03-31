@@ -1,6 +1,6 @@
 true: strict_sequence, bin_annot, warn(A-4-44)
-true: package(lwt.syntax,irmin,lwt,sexplib.syntax,uuidm,irmin.mem,base64,ocamlgraph,reactiveData,omd)
-true: syntax(camlp4o)
+true: package(irmin,lwt,sexplib.syntax,uuidm,irmin.mem,base64,ocamlgraph,reactiveData,omd)
+<js/*> or <lib/ck_id.*> or <lib/ck_disk_node.*>: syntax(camlp4o)
 <test.*>: package(oUnit, lwt.unix)
 <js/*>: package(js_of_ocaml.syntax,js_of_ocaml,js_of_ocaml.tyxml)
 true: debug

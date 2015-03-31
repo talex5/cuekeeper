@@ -68,7 +68,7 @@ module Make(Git : Git_storage_s.S)
   val set_context : t -> action -> context option -> unit Lwt.t
   val set_contact : t -> [< area | project | action] -> contact option -> unit Lwt.t
 
-  val set_a_parent : t -> [area] -> [area] -> unit Lwt.t
+  val set_a_parent : t -> area -> area -> unit Lwt.t
   val set_pa_parent : t -> [< project | action] -> [< area | project] -> unit Lwt.t
   val remove_parent : t -> [< area | project | action] -> unit Lwt.t
 
