@@ -10,7 +10,7 @@ Installation
 
 Install the dependencies:
 
-    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd
+    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64
 
 Build:
 
