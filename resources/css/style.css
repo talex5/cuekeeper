@@ -505,7 +505,7 @@ div.ck-next-actions > ul > li > ul > li > ul {
 	margin-left :0;
 }
 
-div.ck-problems > ul > li > span.ck-group-label  {
+div.ck-problems > ul > li > span > span.ck-group-label  {
 	color: #f00;
 }
 
