@@ -148,24 +148,24 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
     let head t = t.head
 
     let fast_forward_to t commit =
+      (* Note: can't use [I.fast_forward_head] because it can sometimes return [false] on success
+       * (when already up-to-date). *)
+      let store = t.store "Fast-forward" in
       let commit_id = Commit.id commit in
+      let old_head = !(t.head_id) in
       let do_ff () =
-        (* XXX: race *)
-        I.update_head (t.store "Fast-forward") commit_id >>= fun () ->
-        return `Ok in
-      match !(t.head_id) with
+        I.compare_and_set_head store ~test:old_head ~set:(Some commit_id) >|= function
+        | true -> `Ok
+        | false -> `Not_fast_forward in   (* (concurrent update) *)
+      match old_head with
       | None -> do_ff ()
       | Some expected ->
-          I.lcas_head (t.store "Check fast-forward") commit_id >>= function
-          | `Max_depth_reached ->
-              Log.warn "WARNING: Max_depth_reached - can't check FF is safe";
-              do_ff ()
-          | `Too_many_lcas ->
-              Log.warn "WARNING: Too_many_lcas - can't check FF is safe";
-              do_ff ()
+          I.lcas_head store commit_id >>= function
           | `Ok lcas ->
               if List.mem expected lcas then do_ff ()
               else return `Not_fast_forward
+          (* These shouldn't happen, because we didn't set any limits *)
+          | `Max_depth_reached | `Too_many_lcas -> assert false
   end
 
   module Repository = struct
