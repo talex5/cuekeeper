@@ -725,11 +725,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                       | descr -> descr ^ "\n\n" in
                     set_editing (Some (item, Printf.sprintf "%s**%s**: " descr today));
                     false in
-                  let raw_html = M.Item.description item |> Omd.of_string |> Omd.to_html in
-                  let description = div [] in
-                  let () =
-                    let elem = Tyxml_js.To_dom.of_div description in
-                    elem##innerHTML <- Js.string raw_html in
+                  let description =
+                    try
+                      let raw_html = M.Item.description item |> Omd.of_string |> Omd.to_html in
+                      let description = div [] in
+                      let elem = Tyxml_js.To_dom.of_div description in
+                      elem##innerHTML <- Js.string raw_html;
+                      description
+                    with ex ->
+                      div [pcdata (Printexc.to_string ex)] in
                   [
                     description;
                     div ~a:[a_class ["row"]] [
