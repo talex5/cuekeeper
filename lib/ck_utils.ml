@@ -9,14 +9,18 @@ let (>|?=) x f =
   | None -> None
   | Some x -> Some (f x)
 
-let error fmt =
+let default d = function
+  | None -> d
+  | Some x -> x
+
+let bug fmt =
   let do_raise msg = raise @@ Failure msg in
   Printf.ksprintf do_raise fmt
 
 module StringMap = struct
   include Map.Make(String)
   let find_nf = find
-  let find_safe key map = try find key map with Not_found -> error "BUG: Key '%s' not found in StringMap!" key
+  let find_safe key map = try find key map with Not_found -> bug "BUG: Key '%s' not found in StringMap!" key
   let find key map = try Some (find key map) with Not_found -> None
   let map_bindings fn map = fold (fun key value acc -> fn key value :: acc) map []
 end

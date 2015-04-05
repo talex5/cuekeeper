@@ -13,3 +13,4 @@ let fmt () t = t
 let compare = String.compare
 
 module M = Map.Make(String)
+module S = Set.Make(String)

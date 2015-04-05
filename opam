@@ -12,6 +12,7 @@ build: [
 ]
 build-test: [
   [make "test"]
+  [make "slow_test"]
 ]
 depends: [
   "base64"

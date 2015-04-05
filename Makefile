@@ -12,6 +12,11 @@ build-byte:
 
 _build/js/client.js: build-byte
 	js_of_ocaml +weak.js js/helpers.js _build/js/client.byte
+	#js_of_ocaml --pretty --noinline +weak.js js/helpers.js _build/js/client.byte
+
+slow_test:
+	ocamlbuild -cflag -g -no-links -use-ocamlfind test.native
+	env CK_TEST_ITERS=10000 ./_build/test.native
 
 clean:
 	ocamlbuild -clean

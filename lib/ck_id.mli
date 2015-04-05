@@ -11,3 +11,4 @@ val fmt : unit -> t -> string
 val compare : t -> t -> int
 
 module M : Map.S with type key = t
+module S : Set.S with type elt = t

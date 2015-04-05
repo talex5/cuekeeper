@@ -985,3 +985,14 @@ ul.ck-mode-selector li.active:hover a {
 html {
 	overflow-y: scroll;
 }
+
+div.ck-conflicts {
+	background: #f88;
+	color: white;
+	padding: 0.3rem;
+}
+
+div.ck-details div.ck-conflicts ul {
+	margin-left: 0;
+	padding-left: 1.1rem;
+}

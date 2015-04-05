@@ -7,17 +7,7 @@ open Ck_sigs
 
 module Make(Git : Git_storage_s.S)
            (Clock : Ck_clock.S)
-           (R : sig
-             include REV with type commit = Git.Commit.t
-             open Node.Types
-             val make : time:Ck_time.user_date -> Git.Commit.t -> t Lwt.t
-             val disk_node : [< Node.generic] -> Ck_disk_node.generic
-             val apa_node : [< area | project | action] ->
-               [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
-             val action_node : action -> Ck_disk_node.Types.action
-             val project_node : project -> Ck_disk_node.Types.project
-             val area_node : area -> Ck_disk_node.Types.area
-           end) : sig
+           (R : Ck_rev.S with type commit = Git.Commit.t) : sig
   type t
   type update_cb = R.t -> unit Lwt.t
 
@@ -58,6 +48,7 @@ module Make(Git : Git_storage_s.S)
   val add_contact : t -> base:R.t -> Ck_disk_node.Types.contact -> Ck_id.t Lwt.t
   val add_context : t -> ?uuid:Ck_id.t -> base:R.t -> Ck_disk_node.Types.context -> Ck_id.t Lwt.t
   val delete : t -> [< R.Node.generic] -> unit or_error Lwt.t
+  val clear_conflicts : t -> [< R.Node.generic] -> unit Lwt.t
 
   val set_name : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_description : t -> [< R.Node.generic ] -> string -> unit Lwt.t

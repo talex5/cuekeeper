@@ -24,6 +24,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
     let read_exn t = V.read_exn t.view
     let update t = V.update t.view
     let remove t = V.remove t.view
+    let mem t = V.mem t.view
   end
 
   module Commit = struct
@@ -101,17 +102,6 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       | None, None -> true
       | _ -> false
 
-    let initialise repo store fn =
-      V.empty () >>= wrap1 (Staging.of_view repo) >>= fun staging ->
-      fn staging >>= fun () ->
-      Commit.commit staging ~msg:"Initialise repository" >>= fun commit ->
-      let new_id = Commit.id commit in
-      I.compare_and_set_head (store "Initialise repository") ~test:None ~set:(Some new_id) >>= function
-      | true -> return new_id
-      | false ->
-          Log.warn "Concurrent attempt to initialise new branch; discarding our attempt";
-          I.head_exn (store "Read new head")
-
     let of_store repo store ~if_new =
       match I.branch (store "Get branch name") with
       | `Head _ | `Empty -> failwith "Not a tag!"
@@ -122,8 +112,15 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       (* Start watching for updates (must do this BEFORE getting the initial commit) *)
       let watch_tags = I.watch_tags (store "Watch branch") in
       I.head (store "Get latest commit") >>= (function
-        | None -> initialise repo store if_new
         | Some id -> return id
+        | None ->
+            Lazy.force if_new >>= fun commit ->
+            let new_id = Commit.id commit in
+            I.compare_and_set_head (store "Initialise repository") ~test:None ~set:(Some new_id) >>= function
+            | true -> return new_id
+            | false ->
+                Log.warn "Concurrent attempt to initialise new branch; discarding our attempt";
+                I.head_exn (store "Read new head")
       ) >>= fun initial_head_id ->
       let head_id = ref (Some initial_head_id) in
       Commit.of_id repo initial_head_id >>= fun initial_head ->

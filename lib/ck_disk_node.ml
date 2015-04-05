@@ -2,6 +2,7 @@
  * See the README file for details. *)
 
 open Sexplib.Conv
+open Ck_utils
 
 type node_details = {
   parent : Ck_id.t;
@@ -9,6 +10,7 @@ type node_details = {
   description : string;
   ctime : float;
   contact : Ck_id.t sexp_option;
+  conflicts : string sexp_list;
 } with sexp
 
 type astate =
@@ -68,6 +70,7 @@ let name t = (details t).name
 let description t = (details t).description
 let parent t = (details t).parent
 let contact t = (details t).contact
+let conflicts t = (details t).conflicts
 
 let of_string s = apa_of_sexp (Sexplib.Sexp.of_string s)
 let to_string t = Sexplib.Sexp.to_string (sexp_of_apa (t :> apa))
@@ -84,6 +87,7 @@ let make ~name ~description ~parent ~ctime ~contact = {
   parent;
   ctime;
   contact;
+  conflicts = [];
 }
 
 let map_apa fn = function
@@ -124,11 +128,11 @@ let with_context (`Action (a, details)) context = `Action ({a with context}, det
 let make_action ~state ?context ?contact ~name ~description ~parent ~ctime () =
   `Action ({ astate = state; astarred = false; context; repeat = None }, make ~name ~description ~parent ~ctime ~contact)
 
-let make_project ~state ~name ~description ~parent ~ctime () =
-  `Project ({ pstate = state; pstarred = false }, make ~name ~description ~parent ~ctime ~contact:None)
+let make_project ~state ?contact ~name ~description ~parent ~ctime () =
+  `Project ({ pstate = state; pstarred = false }, make ~name ~description ~parent ~ctime ~contact)
 
-let make_area ~name ~description ~parent ~ctime () =
-  `Area (make ~name ~description ~parent ~ctime ~contact:None)
+let make_area ?contact ~name ~description ~parent ~ctime () =
+  `Area (make ~name ~description ~parent ~ctime ~contact)
 
 let make_contact ~name ~description ~ctime () =
   `Contact (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)
@@ -142,8 +146,173 @@ let is_done = function
 
 let as_project = function
   | `Action ({ astarred; _}, d) -> `Project ({pstate = `Active; pstarred = astarred}, d)
+  | `Project _ as p -> p
   | `Area d -> `Project ({pstate = `Active; pstarred = false}, d)
 
 let as_area (`Project (_, d)) = `Area d
 
-let as_action (`Project ({ pstarred; _}, d)) = `Action ({astate = `Next; astarred = pstarred; context = None; repeat = None}, d)
+let as_action = function
+  | `Project ({ pstarred; _}, d) -> `Action ({astate = `Next; astarred = pstarred; context = None; repeat = None}, d)
+  | `Action _ as a -> a
+  | `Area d -> `Action ({astate = `Next; astarred = false; context = None; repeat = None}, d)
+
+let merge_detail ~log ~fmt ~base ~theirs ours =
+  if base = theirs then ours
+  else if base = ours then theirs
+  else if theirs = ours then theirs
+  else (
+    let keep, discard =
+      if ours < theirs then ours, theirs
+      else theirs, ours in
+    Printf.sprintf "Discarded change %s -> %s" (fmt base) (fmt discard) |> log;
+    keep
+  )
+
+(* Used for the (unlikely) case of a merge with no common ancestor *)
+let default_base = make ~name:"" ~description:"" ~parent:Ck_id.root ~ctime:0.0 ~contact:None
+
+let opt_uuid = function
+  | None -> "(none)"
+  | Some uuid -> Ck_id.to_string uuid
+let fmt_repeat = function
+  | None -> "never"
+  | Some repeat -> Ck_time.string_of_repeat repeat
+let str x = x
+let star = function
+  | false -> "unstarred"
+  | true -> "starred"
+let fmt_pstate = function
+  | `Active -> "active"
+  | `Done -> "done"
+  | `SomedayMaybe -> "someday/maybe"
+let fmt_astate = function
+  | `Next -> "next"
+  | `Waiting -> "waiting"
+  | `Waiting_for_contact -> "waiting for contact"
+  | `Waiting_until date -> Printf.sprintf "waiting until %s" (Ck_time.string_of_user_date date)
+  | `Future -> "future"
+  | `Done -> "done"
+
+let dedup xs =
+  let rec aux acc = function
+    | [] -> acc
+    | x :: ((y :: _) as rest) when x = y -> aux acc rest
+    | x :: xs -> aux (x :: acc) xs in
+  aux [] (List.sort String.compare xs)
+
+let merge_details ~log ~base ~theirs ours =
+  let {parent; name; description; ctime; contact; conflicts} = ours in
+  let parent      = merge_detail ~log ~fmt:Ck_id.to_string ~base:base.parent ~theirs:theirs.parent parent in
+  let name        = merge_detail ~log ~fmt:str ~base:base.name ~theirs:theirs.name name in
+  let description = merge_detail ~log ~fmt:str ~base:base.description ~theirs:theirs.description description in
+  let ctime       = min (min base.ctime theirs.ctime) ctime in
+  let contact     = merge_detail ~log ~fmt:opt_uuid ~base:base.contact ~theirs:theirs.contact contact in
+  let conflicts   = dedup (conflicts @ theirs.conflicts) in
+  {parent; name; description; ctime; contact; conflicts}
+
+let merge_project ~log ~base ~theirs ours =
+  let `Project (base_prj, base_details) = base in
+  let (their_prj, their_details) = theirs in
+  let ({pstarred; pstate}, our_details) = ours in
+  let prj = {
+    pstarred = merge_detail ~log ~fmt:star ~base:base_prj.pstarred ~theirs:their_prj.pstarred pstarred;
+    pstate = merge_detail ~log ~fmt:fmt_pstate ~base:base_prj.pstate ~theirs:their_prj.pstate pstate;
+  } in
+  `Project (prj, merge_details ~log ~base:base_details ~theirs:their_details our_details)
+
+(* If we decided the final state should be [`Waiting_for_contact] then make sure we pick the
+ * contact from the same place. *)
+let merge_waiting_contact ~log ~theirs ours =
+  let (their_act, their_details) = theirs in
+  let (our_act, our_details) = ours in
+  if their_details.contact = our_details.contact then their_details, our_details
+  else match their_act.astate, our_act.astate with
+  | `Waiting_for_contact, `Waiting_for_contact -> their_details, our_details  (* Normal merge *)
+  | `Waiting_for_contact, _ ->
+      log "Different contacts; picking the one we were waiting for";
+      their_details, {our_details with contact = their_details.contact}
+  | _, `Waiting_for_contact ->
+      log "Different contacts; picking the one we were waiting for";
+      {their_details with contact = our_details.contact}, our_details
+  | _ -> assert false
+
+let merge_action ~log ~base ~theirs ours =
+  let `Action (base_act, base_details) = base in
+  let (their_act, their_details) = theirs in
+  let ({astarred; astate; context; repeat}, our_details) = ours in
+  let repeat = merge_detail ~log ~fmt:fmt_repeat ~base:base_act.repeat ~theirs:their_act.repeat repeat in
+  let astate = merge_detail ~log ~fmt:fmt_astate ~base:base_act.astate ~theirs:their_act.astate astate in
+  let astate =
+    match astate with
+    | `Done when repeat <> None -> log "Set to repeat and marked done"; `Next
+    | s -> s in
+  let details =
+    let their_details, our_details =
+      match astate with
+      | `Waiting_for_contact -> merge_waiting_contact ~log ~theirs ours
+      | _ -> their_details, our_details in
+    merge_details ~log ~base:base_details ~theirs:their_details our_details in
+  let act = {
+    astarred = merge_detail ~log ~fmt:star ~base:base_act.astarred ~theirs:their_act.astarred astarred;
+    astate;
+    context = merge_detail ~log ~fmt:opt_uuid ~base:base_act.context ~theirs:their_act.context context;
+    repeat;
+  } in
+  `Action (act, details)
+
+let merge ?base ~theirs ours =
+  let base = (base :> apa option) |> default (`Area default_base) in
+  let theirs = (theirs :> apa) in
+  let ours = (ours :> apa) in
+  if base = theirs then ours
+  else if base = ours then theirs
+  else (
+    let conflicts = ref [] in
+    let log msg = conflicts := msg :: !conflicts in
+    let merged =
+      match theirs, ours with
+      | `Area theirs, `Area ours -> `Area (merge_details ~log ~base:(details base) ~theirs ours)
+      | `Project theirs, `Project ours -> merge_project ~log ~base:(as_project base) ~theirs ours
+      | `Action theirs, `Action ours -> merge_action ~log ~base:(as_action base) ~theirs ours
+      | theirs, ours ->
+          log "Type mismatch: converting to project";
+          let `Project theirs = as_project theirs in
+          let `Project ours = as_project ours in
+          merge_project ~log ~base:(as_project base) ~theirs ours
+    in
+    merged |> map_apa (fun d -> {d with conflicts = d.conflicts @ !conflicts})
+  )
+
+let merge_context ?base ~theirs ours =
+  let base = base |> default (`Context default_base) in
+  if base = theirs then ours
+  else if base = ours then theirs
+  else (
+    let `Context base = base in
+    let `Context theirs = theirs in
+    let `Context ours = ours in
+    let conflicts = ref [] in
+    let log msg = conflicts := msg :: !conflicts in
+    let merged = merge_details ~log ~base ~theirs ours in
+    `Context {merged with conflicts = merged.conflicts @ !conflicts}
+  )
+
+let merge_contact ?base ~theirs ours =
+  let base = base |> default (`Contact default_base) in
+  if base = theirs then ours
+  else if base = ours then theirs
+  else (
+    let `Contact base = base in
+    let `Contact theirs = theirs in
+    let `Contact ours = ours in
+    let conflicts = ref [] in
+    let log msg = conflicts := msg :: !conflicts in
+    let merged = merge_details ~log ~base ~theirs ours in
+    `Contact {merged with conflicts = merged.conflicts @ !conflicts}
+  )
+
+let with_conflict msg node = node |> map_details (fun d -> {d with conflicts = msg :: d.conflicts})
+let with_conflict : string -> ([< generic] as 'a) -> 'a = Obj.magic with_conflict
+
+let without_conflicts node = node |> map_details (fun d -> {d with conflicts = []})
+let without_conflicts : ([< generic] as 'a) -> 'a = Obj.magic without_conflicts

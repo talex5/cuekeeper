@@ -1,25 +1,15 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Ck_sigs
+open Ck_utils
 open Lwt
 
 let async : (unit -> unit Lwt.t) -> unit = Lwt.async
 
-module Make(Git : Git_storage_s.S)
-           (Clock : Ck_clock.S)
-           (R : sig
-             include REV with type commit = Git.Commit.t
-             open Node.Types
-             val make : time:Ck_time.user_date -> Git.Commit.t -> t Lwt.t
-             val disk_node : [< Node.generic] -> Ck_disk_node.generic
-             val apa_node : [< area | project | action] ->
-               [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
-             val action_node : action -> Ck_disk_node.Types.action
-             val project_node : project -> Ck_disk_node.Types.project
-             val area_node : area -> Ck_disk_node.Types.area
-           end) = struct
+module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type commit = Git.Commit.t) = struct
   open R.Node.Types
+
+  module Merge = Ck_merge.Make(Git)(R)
 
   type t = {
     branch : Git.Branch.t;
@@ -147,16 +137,15 @@ module Make(Git : Git_storage_s.S)
     let rec aux () =
       (* Merge to branch tip, even if we're on a fixed head *)
       let old_head = branch_head t in
-      Git.Commit.merge old_head pull_rq >>= function
-      | `Conflict msg -> Ck_utils.error "Conflict during merge: %s (discarding change)" msg
-      | `Ok merged when Git.Commit.equal old_head merged ->
+      Merge.merge ~base:base_commit ~theirs:old_head pull_rq >>= function
+      | `Nothing_to_do ->
           (* Our change had no effect, so there's nothing to do. *)
           return (return ())
       | `Ok merged ->
       (* Check that the merge is readable *)
       let time = Clock.now () |> Ck_time.of_unix_time in
       Lwt.catch (fun () -> R.make ~time merged >|= ignore)
-        (fun ex -> Ck_utils.error "Change generated an invalid commit:\n%s\n\nThis is a BUG. The invalid change has been discarded."
+        (fun ex -> bug "Change generated an invalid commit:\n%s\n\nThis is a BUG. The invalid change has been discarded."
           (Printexc.to_string ex)) >>= fun () ->
       Lwt_mutex.with_lock t.mutex (fun () ->
         (* At this point, head cannot contain our commit because we haven't merged it yet,
@@ -192,7 +181,7 @@ module Make(Git : Git_storage_s.S)
     assert (not (mem uuid base));
     let parent = Ck_disk_node.parent node in
     if parent <> Ck_id.root && not (mem parent base) then
-      Ck_utils.error "Parent '%a' does not exist!" Ck_id.fmt parent;
+      bug "Parent '%a' does not exist!" Ck_id.fmt parent;
     let s = Ck_disk_node.to_string node in
     let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name node) in
     merge_to_master t ~base ~msg (fun view ->
@@ -208,7 +197,7 @@ module Make(Git : Git_storage_s.S)
           assert (mem uuid base);
           let parent = Ck_disk_node.parent new_disk_node in
           if parent <> Ck_id.root && not (mem parent base) then
-            Ck_utils.error "Parent '%a' does not exist!" Ck_id.fmt parent;
+            bug "Parent '%a' does not exist!" Ck_id.fmt parent;
           let s = Ck_disk_node.to_string new_disk_node in
           Git.Staging.update view ["db"; Ck_id.to_string uuid] s
       | `Contact _ as new_disk_node ->
@@ -278,6 +267,10 @@ module Make(Git : Git_storage_s.S)
     merge_to_master t ~base ~msg (fun view ->
       Git.Staging.update view ["context"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
+
+  let clear_conflicts t node =
+    let msg = Printf.sprintf "Clear conflicts for '%s'" (R.Node.name node) in
+    update t ~msg node (Ck_disk_node.without_conflicts (R.disk_node node))
 
   let set_name t node name =
     let msg = Printf.sprintf "Rename '%s' to '%s'" (R.Node.name node) name in

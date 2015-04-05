@@ -40,3 +40,4 @@ val next_repeat : now:user_date -> repeat -> user_date
 val string_of_time_unit : time_unit -> string
 val string_of_unix_time : float -> string
 val string_of_user_date : user_date -> string
+val string_of_repeat : repeat -> string

@@ -3,6 +3,9 @@ open Lwt
 
 (* let () = Log.(set_log_level INFO) *)
 
+let () = Random.self_init ()
+(* let () = Random.init 8 *)
+
 module Queue = Lwt_pqueue.Make(struct
   type t = (float * unit Lwt.u)
   let compare a b =
@@ -59,13 +62,14 @@ module Key = struct
     | r -> r
 end
 
-module ItemMap = Map.Make(Key)
-module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
-module Git = Git_storage.Make(Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String))
-module M = Ck_model.Make(Test_clock)(Git)(struct type t = unit end)
-module W = M.Widget
-
+(*
+module Store = Irmin.Basic(Irmin_unix.Irmin_git.FS)(Irmin.Contents.String)
+let _ = Unix.system "rm -rf /tmp/test_db/.git"
+let () = Irmin_unix.install_dir_polling_listener 1.0
+let config = Irmin_unix.Irmin_git.config ~root:"/tmp/test_db" ()
+*)
 let config = Irmin_mem.config ()
+
 let task s =
   let date = Test_clock.now () |> Int64.of_float in
   Irmin.Task.create ~date ~owner:"User" s
@@ -75,27 +79,181 @@ let format_list l = "[" ^ (String.concat "; " l) ^ "]"
 type node = N of string * node list
 let n name children = N (name, children)
 
-let name_of widget =
-  match W.item widget with
-  | `Item item ->
-      let item = React.S.value item in
-      M.Item.name item
-  | `Group name -> name
+let assert_str_equal = assert_equal ~printer:(fun x -> x)
 
-let rec get_tree rl =
-  ReactiveData.RList.value rl
-  |> List.map (fun widget ->
-    let name = name_of widget in
-    let children = get_tree (W.children widget) in
-    let str =
-      match W.state widget |> React.S.value with
-      | `New -> "+" ^ name
-      | `Init -> "@" ^ name
-      | `Removed _ -> "-" ^ name
-      | `Current -> name
-    in
-    N (str, children)
-  )
+module Test_repo (Store : Irmin.BASIC with type key = string list and type value = string) = struct
+  module Git = Git_storage.Make(Store)
+  module ItemMap = Map.Make(Key)
+  module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
+  module M = Ck_model.Make(Test_clock)(Git)(struct type t = unit end)
+  module W = M.Widget
+  module Rev = Ck_rev.Make(Git)
+  module Up = Ck_update.Make(Git)(Test_clock)(Rev)
+
+  (* Workaround for Irmin creating empty directories *)
+  let filter_list staging path =
+    Git.Staging.list staging path
+    >>= Lwt_list.filter_s (fun p ->
+      Git.Staging.list staging p >|= function
+        | [] -> false
+        | _ -> true
+    )
+
+  let assert_git_tree_equals ~msg expected actual =
+    Git.Commit.checkout expected >>= fun expected ->
+    Git.Commit.checkout actual >>= fun actual ->
+    let rec check path =
+      filter_list expected path >>= fun e_paths ->
+      filter_list actual path >>= fun a_paths ->
+      let msg = String.concat "/" (msg :: path) in
+      let printer paths =
+        paths |> List.map (String.concat "/") |> String.concat "," in
+      assert_equal ~msg ~printer e_paths a_paths;
+      a_paths |> Lwt_list.iter_s check in
+    check []
+
+  let name_of widget =
+    match W.item widget with
+    | `Item item ->
+        let item = React.S.value item in
+        M.Item.name item
+    | `Group name -> name
+
+  let rec get_tree rl =
+    ReactiveData.RList.value rl
+    |> List.map (fun widget ->
+      let name = name_of widget in
+      let children = get_tree (W.children widget) in
+      let str =
+        match W.state widget |> React.S.value with
+        | `New -> "+" ^ name
+        | `Init -> "@" ^ name
+        | `Removed _ -> "-" ^ name
+        | `Current -> name
+      in
+      N (str, children)
+    )
+
+  let assert_tree ?label expected actual =
+    let msg =
+      match label with
+      | Some l -> l
+      | None -> Ck_time.string_of_unix_time !Test_clock.time in
+    let rec printer items = items
+      |> List.map (fun (N (name, children)) -> name ^ "(" ^ printer children ^ ")")
+      |> String.concat ", " in
+    debug "Expecting: %s\n" (printer expected);
+    let actual =
+      match get_tree actual with
+      | N (("Problems" | "@Problems"), []) :: xs -> xs   (* Remove Problems if empty, as the GUI does *)
+      | xs ->xs in
+    assert_equal ~msg ~printer expected actual
+
+  let rec lookup path widgets =
+    match path with
+    | [] -> assert false
+    | (p::ps) ->
+        let step =
+          try
+            ReactiveData.RList.value widgets
+            |> List.find (fun widget ->
+              name_of widget = p
+            )
+          with Not_found -> Ck_utils.bug "Node '%s' not found" p in
+        match ps with
+        | [] ->
+            begin match W.item step with
+            | `Item s -> React.S.value s
+            | `Group label -> Ck_utils.bug "Not an item '%s'" label end;
+        | ps -> lookup ps (W.children step)
+
+  let random_state ~common ~random repo =
+    (* Bias towards similar choices within a set *)
+    let rand_int n =
+      let r = Random.State.int random (3 * n) in
+      if r >= n then common mod n else r in
+    let rand_string n = string_of_int (rand_int n) in
+    let rand_time n = float_of_int (rand_int n) in
+    let rand_date () = Ck_time.make ~year:(2000 + rand_int 3) ~month:(rand_int 3) ~day:(rand_int 3) in
+
+    let choose options =
+      options.(rand_int (Array.length options)) in
+
+    Git.Repository.empty repo >>= fun s ->
+
+    let make_n n dir fn =
+      let used = ref [None] in
+      let n_possible = ref (2 * n) in
+      let possible_uuids = Array.init !n_possible string_of_int in
+      let unused_uuid () =
+        let i = rand_int (!n_possible) in
+        let uuid = possible_uuids.(i) in
+        possible_uuids.(i) <- possible_uuids.(!n_possible - 1);
+        decr n_possible;
+        uuid in
+      let rec aux todo = function
+        | 0 -> todo
+        | i ->
+            let id = unused_uuid () in
+            let uuid = Ck_id.of_string id in
+            used := Some uuid :: !used;
+            let str = fn
+              ~uuid
+              ~name:("n-" ^ rand_string 3)
+              ~description:(rand_string 3)
+              ~ctime:(rand_time 3) in
+            aux ((id, str) :: todo) (i - 1) in
+      aux [] n
+      |> Lwt_list.iter_s (fun (uuid, str) ->
+          Git.Staging.update s [dir; uuid] str
+      ) >|= fun () ->
+      Array.of_list !used in
+
+    let random_contact ~uuid:_ ~name ~description ~ctime =
+      Ck_disk_node.make_contact ~name ~description ~ctime ()
+      |> Ck_disk_node.contact_to_string in
+
+    let random_context ~uuid:_ ~name ~description ~ctime =
+      Ck_disk_node.make_context ~name ~description ~ctime ()
+      |> Ck_disk_node.context_to_string in
+
+    let areas = ref [Ck_id.root] in
+    let projects = ref [] in
+    let random_apa ~contacts ~contexts ~uuid ~name ~description ~ctime =
+      let contact = choose contacts in
+      begin match rand_int 3 with
+      | 0 ->
+          let parent = choose (Array.of_list !areas) in
+          areas := uuid :: !areas;
+          Ck_disk_node.make_area ?contact ~name ~description ~ctime ~parent ()
+      | 1 ->
+          let parent = choose (Array.of_list (!areas @ !projects)) in
+          projects := uuid :: !projects;
+          Ck_disk_node.make_project ?contact ~name ~description ~ctime ~state:(choose [| `Active; `SomedayMaybe; `Done |]) ~parent ()
+      | _ ->
+          let context = choose contexts in
+          let parent = choose (Array.of_list (!areas @ !projects)) in
+          let state =
+            match contact with
+            | None -> choose [| `Next; `Waiting; `Waiting_until (rand_date ()); `Future; `Done |]
+            | Some _ -> choose [| `Next; `Waiting; `Waiting_until (rand_date ()); `Waiting_for_contact; `Future; `Done |] in
+          let a = Ck_disk_node.make_action ?contact ?context ~name ~description ~ctime ~state ~parent () in
+          match state with
+          | `Done -> a
+          | _ ->
+              if rand_int 5 = 0 then
+                Ck_disk_node.with_repeat a (Some (
+                  Ck_time.make_repeat ~from:(rand_date ()) (1 + rand_int 2) (choose Ck_time.([| Day ; Week ; Month ; Year |]))
+                ))
+              else a
+      end
+      |> Ck_disk_node.to_string in
+
+    make_n (rand_int 2) "contact" random_contact >>= fun contacts ->
+    make_n (rand_int 2) "context" random_context >>= fun contexts ->
+    make_n (rand_int 5) "db" (random_apa ~contacts ~contexts) >>= fun _nodes ->
+    return s
+end
 
 let expect_tree s =
   match React.S.value s with
@@ -109,39 +267,6 @@ let expect_area = function
 let expect_some = function
   | None -> assert false
   | Some x -> x
-
-let assert_tree ?label expected actual =
-  let msg =
-    match label with
-    | Some l -> l
-    | None -> Ck_time.string_of_unix_time !Test_clock.time in
-  let rec printer items = items
-    |> List.map (fun (N (name, children)) -> name ^ "(" ^ printer children ^ ")")
-    |> String.concat ", " in
-  debug "Expecting: %s\n" (printer expected);
-  let actual =
-    match get_tree actual with
-    | N (("Problems" | "@Problems"), []) :: xs -> xs   (* Remove Problems if empty, as the GUI does *)
-    | xs ->xs in
-  assert_equal ~msg ~printer expected actual
-
-let rec lookup path widgets =
-  match path with
-  | [] -> assert false
-  | (p::ps) ->
-      let step =
-        try
-          ReactiveData.RList.value widgets
-          |> List.find (fun widget ->
-            name_of widget = p
-          )
-        with Not_found -> Ck_utils.error "Node '%s' not found" p in
-      match ps with
-      | [] ->
-          begin match W.item step with
-          | `Item s -> React.S.value s
-          | `Group label -> Ck_utils.error "Not an item '%s'" label end;
-      | ps -> lookup ps (W.children step)
 
 let run_with_exn fn =
   try
@@ -162,11 +287,12 @@ let expect_project item =
 
 let day d = Ck_time.make ~year:2015 ~month:4 ~day:d
 
-let assert_str_equal = assert_equal ~printer:(fun x -> x)
-
 let suite = 
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
+      let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module T = Test_repo(Store) in
+      let open T in
       Test_clock.reset ();
       let src, set_src = React.S.create ~eq:(ItemMap.equal (=)) ItemMap.empty in
       let set items =
@@ -275,6 +401,9 @@ let suite =
     );
 
     "model">:: (fun () ->
+      let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module T = Test_repo(Store) in
+      let open T in
       run_with_exn begin fun () ->
         Test_clock.reset ();
         let run_to_day d =
@@ -546,6 +675,76 @@ let suite =
 
       let rep = make_repeat 10 Year ~from:(make ~year:2000 ~month:2 ~day:1) in
       next_repeat rep ~now:apr30 |> string_of_user_date |> assert_str_equal "2020-03-01 (Sun)";
+    );
+
+    "merging">:: (fun () ->
+      let seed = Random.int (1 lsl 28) in
+      let random = Random.State.make [| seed |] in
+      try
+        run_with_exn begin fun () ->
+          let rec aux = function
+            | 0 -> return ()
+            | i ->
+                let common = Random.State.int random 1000 in
+                (* Note: need to reapply functor to get a fresh memory store *)
+                let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+                let module T = Test_repo(Store) in
+                let module Merge = Ck_merge.Make(T.Git)(T.Rev) in
+                let open T in
+
+                (* Printf.printf "test %d\n%!" i; *)
+                let branch_d name =
+                  Store.of_tag config task name >>= fun s ->
+                  Store.remove_tag (s "git branch -d") in
+                Git.make config task >>= fun repo ->
+                let commit ~parents msg =
+                  branch_d msg >>= fun () ->
+                  random_state ~common ~random repo >>= fun s ->
+                  Git.Commit.commit ~parents s ~msg >>= fun commit ->
+                  Git.Repository.branch repo ~if_new:(lazy (return commit)) msg >>= fun _branch ->
+                  return commit in
+                commit ~parents:[] "base" >>= fun base ->
+                commit ~parents:[base] "theirs" >>= fun theirs ->
+                commit ~parents:[base] "ours" >>= fun ours ->
+
+                let assert_git_tree_equals ~msg expected actual =
+                  catch (fun () -> assert_git_tree_equals ~msg expected actual)
+                    (fun ex ->
+                      (* Commit the result so we can view it with git *)
+                      branch_d "result" >>= fun () ->
+                      Git.Repository.branch repo ~if_new:(lazy (return actual)) "result" >>= fun _ ->
+                      fail ex) in
+
+                (* This is the common case, and so is optimised *)
+                Merge.merge ~base ~theirs:base ours >>= function
+                | `Nothing_to_do -> assert false  (* (still need to update branch) *)
+                | `Ok result ->
+                assert (Git.Commit.equal result ours);
+
+                (* This isn't, so we can use it to test the merge *)
+                Merge.merge ~base ~theirs base >>= (function
+                | `Nothing_to_do -> return theirs
+                | `Ok result -> return result
+                ) >>= assert_git_tree_equals ~msg:"theirs+base" theirs >>= fun () ->
+
+                (* Add an extra commit on theirs to force it to try the trivial merge *)
+                Git.Commit.checkout base >>= fun s ->
+                Git.Commit.commit s ~msg:"empty commit" >>= fun base2 ->
+                Merge.merge ~base ~theirs:base2 ours >>= (function
+                | `Nothing_to_do -> return base2
+                | `Ok result -> return result
+                ) >>= assert_git_tree_equals ~msg:"ours+base" ours >>= fun () ->
+
+                Merge.merge ~base ~theirs ours >>= (function
+                | `Nothing_to_do -> return base2
+                | `Ok result -> return result
+                ) >>= Rev.make ~time:(Ck_time.of_unix_time 0.0) >>= fun _rev ->
+                aux (i - 1) in
+          aux (try Sys.getenv "CK_TEST_ITERS" |> int_of_string with Not_found -> 100)
+        end
+      with ex ->
+        Printf.printf "[ random seed = %d ]\n" seed;
+        raise ex
     );
   ]
 

@@ -32,6 +32,7 @@ module type S = sig
     val read_exn : t -> path -> string Lwt.t
     val update : t -> path -> string -> unit Lwt.t
     val remove : t -> path -> unit Lwt.t
+    val mem : t -> path -> bool Lwt.t
   end
 
   module Commit : sig
@@ -54,11 +55,9 @@ module type S = sig
   module Repository : sig
     type t
 
-    val branch : t -> if_new:(Staging.t -> unit Lwt.t) -> string -> Branch.t Lwt.t
+    val branch : t -> if_new:(Commit.t Lwt.t Lazy.t) -> string -> Branch.t Lwt.t
     (** Get the named branch.
-     * Hack: if the branch does not exist yet, [if_new] is called to get
-     * the initial contents, which are then committed. This is because Irmin doesn't
-     * allow commits with no parent unless they're on a named branch. *)
+     * If the branch does not exist yet, [if_new] is called to get the initial commit. *)
 
     val commit : t -> Irmin.Hash.SHA1.t -> Commit.t option Lwt.t
     (** Look up a commit by its hash. *)

@@ -189,8 +189,8 @@ module Make(Clock : Ck_clock.S)
     let context = context >|?= Node.uuid in
     let contact = contact >|?= Node.uuid in
     add (Ck_disk_node.make_action ?context ?contact ~state) t
-  let add_project t ?(state=`Active) = add (Ck_disk_node.make_project ~state) t
-  let add_area t = add Ck_disk_node.make_area t
+  let add_project t ?(state=`Active) = add (Ck_disk_node.make_project ~state ?contact:None) t
+  let add_area t = add (Ck_disk_node.make_area ?contact:None) t
 
   let add_contact t ~name () =
     let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Clock.now ()) () in
@@ -228,6 +228,9 @@ module Make(Clock : Ck_clock.S)
     | TreeNode.Add_action (parent, context, contact, state) -> add_action t ~state ?parent ?context ?contact ~name ()
     | TreeNode.Add_project (parent, state) -> add_project t ~state ?parent ~name ()
     | TreeNode.Add_area parent -> add_area t ?parent ~name ()
+
+  let clear_conflicts t node =
+    Up.clear_conflicts t.master node
 
   let delete t node =
     Up.delete t.master node
@@ -741,6 +744,7 @@ module Make(Clock : Ck_clock.S)
     add
       ~uuid:"ad8c5bb1-f6b7-4a57-b090-d6ef2e3326c1"
       (Ck_disk_node.make_area
+        ?contact:None
         ~name:"Personal"
         ~description:"Add personal sub-areas here (Family, Car, Home, Exercise, etc).")
     >>= fun personal ->
@@ -749,6 +753,7 @@ module Make(Clock : Ck_clock.S)
       ~uuid:"1a7c8ea2-18ac-41cb-8f79-3566e49445f4"
       ~parent:personal
       (Ck_disk_node.make_project
+        ?contact:None
         ~name:"Start using CueKeeper"
         ~description:""
         ~state:`Active)
@@ -762,6 +767,10 @@ module Make(Clock : Ck_clock.S)
         ())
     >>= fun reading ->
 
+    let switch_to_ck =
+      match R.get t.r (R.Node.uuid switch_to_ck) with
+      | None -> assert false
+      | Some n -> n in
     add
       ~uuid:"6002ea71-6f1c-4ba9-8728-720f4b4c9845"
       ~parent:switch_to_ck
@@ -776,6 +785,7 @@ module Make(Clock : Ck_clock.S)
     add
       ~uuid:"1c6a6964-e6c8-499a-8841-8cb437e2930f"
       (Ck_disk_node.make_area
+        ?contact:None
         ~name:"Work"
         ~description:"Add work-related sub-areas here.")
     >>= fun _ ->
@@ -825,12 +835,14 @@ module Make(Clock : Ck_clock.S)
 
   let fixed_head t = t.fixed_head
 
-  let init_repo staging =
-    Git.Staging.update staging ["ck-version"] "0.1"
+  let init_repo repo =
+    Git.Repository.empty repo >>= fun staging ->
+    Git.Staging.update staging ["ck-version"] "0.1" >>= fun () ->
+    Git.Commit.commit staging ~msg:"Initialise repository"
 
   let make repo =
     let on_update, set_on_update = Lwt.wait () in
-    Git.Repository.branch ~if_new:init_repo repo "master" >>= Up.make ~on_update >>= fun master ->
+    Git.Repository.branch ~if_new:(lazy (init_repo repo)) repo "master" >>= Up.make ~on_update >>= fun master ->
     let r = Up.head master in
     get_log master >>= fun initial_log ->
     let alert, set_alert = React.S.create (R.alert r) in

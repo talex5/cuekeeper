@@ -42,13 +42,6 @@ let show_modal, modal_div =
 
 let current_error, set_current_error = React.S.create None
 
-let fmt_repeat spec =
-  let open Ck_time in
-  let units = string_of_time_unit spec.repeat_unit in
-  match spec.repeat_n with
-  | 1 -> Printf.sprintf "every %s" units
-  | n -> Printf.sprintf "every %d %ss" n units
-
 let make_error_box error =
   error
   |> React.S.map (function
@@ -930,6 +923,26 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       false in
     a ~a:[a_onclick clear; a_class ["delete"]] [entity "cross"]
 
+  let make_conflicts m item =
+    item >|~= function
+    | None -> []
+    | Some item ->
+    match M.Item.conflicts item with
+    | [] -> []
+    | ms ->
+        let clear_conflicts _ev =
+          async ~name:"clear_conflicts" (fun () -> M.clear_conflicts m item);
+          false in
+        [
+          div ~a:[a_class ["ck-conflicts"]] [
+            a ~a:[a_class ["close"]; a_onclick clear_conflicts] [pcdata "×"];
+            h4 [pcdata "Merge conflicts"];
+            ul (
+              ms |> List.map (fun msg -> li [pcdata msg])
+            )
+          ]
+        ]
+
   let make_details_panel m ~set_closed ~show_node details =
     let item = details.M.details_item in
     let title_cl =
@@ -970,7 +983,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             let repeating, clear =
               match M.Item.action_repeat action with
               | None -> "(never)", []
-              | Some repeat -> fmt_repeat repeat, [clear_repeat m action] in
+              | Some repeat -> Ck_time.string_of_repeat repeat, [clear_repeat m action] in
             [
               div waiting;
               div (
@@ -1024,7 +1037,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         div [
           R.Html5.span (make_parent_details m ~show_node details);
         ];
-        R.Html5.div context
+        R.Html5.div context;
+        R.Html5.div (make_conflicts m item |> rlist_of);
       ] @ contact @ [
         R.Html5.div waiting_for;
         R.Html5.ul ~a:[a_class ["ck-groups"]] children;
