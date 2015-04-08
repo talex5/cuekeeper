@@ -80,6 +80,7 @@ module Make(Git : Git_storage_s.S) = struct
     let description t = Ck_disk_node.description (disk_node t)
     let ctime t = Ck_disk_node.ctime (disk_node t)
     let action_state (`Action n) = Ck_disk_node.action_state (`Action n.disk_node)
+    let action_repeat (`Action n) = Ck_disk_node.action_repeat (`Action n.disk_node)
     let context (`Action n) = Ck_disk_node.context (`Action n.disk_node)
     let project_state (`Project n) = Ck_disk_node.project_state (`Project n.disk_node)
     let starred = function
@@ -184,7 +185,10 @@ module Make(Git : Git_storage_s.S) = struct
           if not (M.is_empty child_nodes) then error "Action with children!";
           begin match Node.action_state node with
           | `Next | `Waiting_for_contact | `Waiting_until _ | `Waiting -> In_progress
-          | `Future | `Done -> Idle end
+          | `Future -> Idle
+          | `Done ->
+              if Node.action_repeat node <> None then error "Repeating action marked as done!";
+              Idle end
       in
     roots t |> M.iter (fun _k n -> ignore (scan n))
 

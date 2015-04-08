@@ -534,6 +534,10 @@ span.ck-toggles a.ck-active-alert {
 	background-color: red;
 }
 
+a.ck-toggle-hidden {
+	visibility: hidden;
+}
+
 div.ck-done span.allow-strikethrough,
 span.ck-done span.allow-strikethrough {
 	text-decoration: line-through;
@@ -899,4 +903,23 @@ form.ck-review-mode input {
 	margin-left: 1em;
 	margin-right: 0.2em;
 	margin-bottom: 0;
+}
+
+form.ck-repeat {
+	text-align: center;
+}
+
+div.ck-repeat-interval {
+	margin-top: 0.2rem;
+	white-space: nowrap;
+}
+
+div.ck-repeat-interval > span,
+div.ck-repeat-interval > input,
+div.ck-repeat-interval > select {
+	margin-right: 0.2rem;
+}
+
+div.ck-repeat-interval > select {
+	width: auto;
 }

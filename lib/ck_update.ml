@@ -305,8 +305,28 @@ module Make(Git : Git_storage_s.S)
     update t ~msg node new_node
 
   let set_action_state t node astate =
-    let new_node = Ck_disk_node.with_astate (R.action_node node) (astate :> Ck_sigs.action_state) in
+    let astate = (astate :> Ck_sigs.action_state) in
+    let new_node = Ck_disk_node.with_astate (R.action_node node) astate in
+    (* When setting a repeating action to wait until a date, record the new date as the repeat date too. *)
+    let new_node =
+      match astate with
+      | `Waiting_until date ->
+          begin match Ck_disk_node.action_repeat new_node with
+          | None -> new_node
+          | Some r -> Ck_disk_node.with_repeat new_node (Some {r with repeat_from = date}) end
+      | _ -> new_node in
     let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
+    update t ~msg node new_node
+
+  let set_repeat t node repeat =
+    let new_node = Ck_disk_node.with_repeat (R.action_node node) repeat in
+    let new_node =
+      match repeat with
+      | None -> new_node
+      | Some r -> Ck_disk_node.with_astate new_node (`Waiting_until r.repeat_from) in
+    let msg = Printf.sprintf "%s repeat of '%s'"
+      (if repeat = None then "Clear" else "Set")
+      (R.Node.name node) in
     update t ~msg node new_node
 
   let set_waiting_for t node contact =

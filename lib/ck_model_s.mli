@@ -72,6 +72,7 @@ module type MODEL = sig
   val set_starred : t -> [< project | action] -> bool -> unit Lwt.t
   val set_action_state : t -> action -> [< action_state] -> unit Lwt.t
   val set_project_state : t -> project -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
+  val set_repeat : t -> action -> repeat option -> unit Lwt.t
 
   val convert_to_area : t -> project -> unit or_error Lwt.t
   val convert_to_project : t -> [< action | area] -> unit or_error Lwt.t

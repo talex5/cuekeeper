@@ -23,6 +23,7 @@ type action_details = {
   astarred : bool with default(false);
   astate : astate;
   context : Ck_id.t sexp_option;
+  repeat: Ck_sigs.repeat sexp_option;
 } with sexp
 
 type project_details = {
@@ -102,12 +103,14 @@ let with_contact node contact = node |> map_apa (fun d -> {d with contact})
 let equal = (=)
 
 let context (`Action (action_details, _)) = action_details.context
+let action_repeat (`Action ({ repeat; _ }, _)) = repeat
 let action_state (`Action ({ astate; _ }, _)) = astate
 let project_state (`Project ({ pstate; _ }, _)) = pstate
 let starred = function
   | `Project ({ pstarred; _ }, _ ) -> pstarred
   | `Action ({ astarred; _ }, _) -> astarred
 
+let with_repeat (`Action (a, details)) repeat = `Action ({a with repeat}, details)
 let with_astate (`Action (a, details)) astate = `Action ({a with astate}, details)
 let with_pstate (`Project (p, details)) pstate = `Project ({p with pstate}, details)
 
@@ -119,7 +122,7 @@ let with_starred node s =
 let with_context (`Action (a, details)) context = `Action ({a with context}, details)
 
 let make_action ~state ?context ?contact ~name ~description ~parent ~ctime () =
-  `Action ({ astate = state; astarred = false; context }, make ~name ~description ~parent ~ctime ~contact)
+  `Action ({ astate = state; astarred = false; context; repeat = None }, make ~name ~description ~parent ~ctime ~contact)
 
 let make_project ~state ~name ~description ~parent ~ctime () =
   `Project ({ pstate = state; pstarred = false }, make ~name ~description ~parent ~ctime ~contact:None)
@@ -143,4 +146,4 @@ let as_project = function
 
 let as_area (`Project (_, d)) = `Area d
 
-let as_action (`Project ({ pstarred; _}, d)) = `Action ({astate = `Next; astarred = pstarred; context = None}, d)
+let as_action (`Project ({ pstarred; _}, d)) = `Action ({astate = `Next; astarred = pstarred; context = None; repeat = None}, d)

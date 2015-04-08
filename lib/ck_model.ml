@@ -241,6 +241,9 @@ module Make(Clock : Ck_clock.S)
   let set_action_state t item state =
     Up.set_action_state t.master item state
 
+  let set_repeat t item repeat =
+    Up.set_repeat t.master item repeat
+
   let set_project_state t item state =
     Up.set_project_state t.master item state
 

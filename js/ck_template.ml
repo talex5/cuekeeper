@@ -5,6 +5,7 @@ open Tyxml_js
 open Html5
 open Ck_utils
 open Ck_js_utils
+open Ck_sigs
 
 open Lwt.Infix
 
@@ -18,6 +19,25 @@ module Gui_tree_data = struct
    *)
   type t = Dom_html.element Js.t
 end
+
+let next_repeat r =
+  let open Unix in
+  let now = gettimeofday () in
+  let n = r.repeat_n in
+  assert (n > 0);
+  let rec aux d =
+    if d >= now then d
+    else (
+      let tm = localtime d in
+      let tm =
+        match r.repeat_unit with
+        | Day -> {tm with tm_mday = tm.tm_mday + n}
+        | Week -> {tm with tm_mday = tm.tm_mday + 7 * n}
+        | Month -> {tm with tm_mon = tm.tm_mon + n}
+        | Year -> {tm with tm_year = tm.tm_year + n} in
+      aux (fst (mktime tm))
+    ) in
+  aux r.repeat_from
 
 let show_modal, modal_div =
   let dropdown, set_dropdown = ReactiveData.RList.make [] in
@@ -41,6 +61,18 @@ let show_modal, modal_div =
   (show, modal_div)
 
 let current_error, set_current_error = React.S.create None
+
+let fmt_time_unit = function
+  | Day -> "day"
+  | Week -> "week"
+  | Month -> "month"
+  | Year -> "year"
+
+let fmt_repeat spec =
+  let units = fmt_time_unit spec.repeat_unit in
+  match spec.repeat_n with
+  | 1 -> Printf.sprintf "every %s" units
+  | n -> Printf.sprintf "every %d %ss" n units
 
 let make_error_box error =
   error
@@ -107,7 +139,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let waiting_for = li [a ~a:[a_onclick clicked] [pcdata ("Waiting for " ^ name)]] in
         [waiting_for; waiting]
 
-  let toggle_label ~set_details ~current ~due details =
+  let is_repeat_action = function
+    | `Action _ as a -> M.Item.action_repeat a <> None
+    | _ -> false
+
+  let toggle_label ~set_details ~current ~due item details =
     let l =
       match details with
       | `Done -> "✓"
@@ -118,6 +154,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | `SomedayMaybe -> "sm" in
     let cl =
       if due && l = "w" then "ck-active-alert"
+      else if l = "✓" && is_repeat_action item then "ck-toggle-hidden"
       else if current = details then "ck-active-" ^ l else "ck-inactive" in
     let changed ev =
       set_details ev details;
@@ -126,7 +163,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let make_toggles ~m ~set_details ~item ?(due=false) current options =
     let starred = M.Item.starred item in
-    let state_toggles = options |> List.map (toggle_label ~set_details ~current ~due) in
+    let state_toggles = options |> List.map (toggle_label ~set_details ~current ~due item) in
     let cl = if starred then "star-active" else "star-inactive" in
     let set_star _ev =
       async ~name:"set_starred" (fun () -> M.set_starred m item (not starred));
@@ -143,7 +180,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let on_select date =
       async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
       Ck_modal.close () in
-    Pikaday.make ?initial:(due action) ~on_select ()
+    let initial =
+      match M.Item.action_repeat action with
+      | Some r -> Some (next_repeat r)
+      | None -> due action in
+    Pikaday.make ?initial ~on_select () |> fst
 
   let toggles_for_type m = function
     | `Action _ as item ->
@@ -458,7 +499,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         ) in
       let content = div ~a:[a_class ["ck-add-scheduled"]] [
         name_input;
-        Pikaday.make ~on_select ()
+        Pikaday.make ~on_select () |> fst
       ] in
       show_modal ~parent:(ev##target) [content];
       false in
@@ -788,7 +829,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let on_select date =
       async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
       Ck_modal.close () in
-    let content = Pikaday.make ?initial:(due action) ~on_select () in
+    let content = Pikaday.make ?initial:(due action) ~on_select () |> fst in
     show_modal ~parent:(ev##target) [content]
 
   let edit_context m ~show_node item ev =
@@ -861,6 +902,66 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     end
     | _ -> false
 
+  let unit_options = [| Day; Week; Month; Year |]
+  let edit_repeat m action ev =
+    let init =
+      match M.Item.action_repeat action with
+      | None ->
+          let repeat_from =
+            match due action with
+            | None -> Unix.gettimeofday ()
+            | Some date -> date in
+          {repeat_n = 1; repeat_unit = Week; repeat_from}
+      | Some r -> r in
+    let n_input = input ~a:[a_name "n"; a_size 2; a_input_type `Text; a_value (string_of_int init.repeat_n)] () in
+    auto_focus n_input;
+    let unit_input =
+      let unit_option u =
+        let attrs =
+          if u = init.repeat_unit then [a_selected `Selected] else [] in
+        option ~a:attrs (pcdata ((fmt_time_unit u) ^ "s")) in
+      select (unit_options |> Array.map unit_option |> Array.to_list) in
+    let on_select repeat_from =
+      let input_elem = To_dom.of_input n_input in
+      let repeat_n =
+        try
+          let n = input_elem##value |> Js.to_string |> String.trim |> int_of_string in
+          if n > 0 then Some n else None
+        with Failure _ -> None in
+      match repeat_n with
+      | None -> ()
+      | Some repeat_n ->
+      let unit_input = Tyxml_js.To_dom.of_select unit_input in
+      let repeat_unit = unit_options.(unit_input##selectedIndex) in
+      async ~name:"edit_repeat" (fun () ->
+        Some { repeat_n; repeat_unit; repeat_from }
+        |> M.set_repeat m action
+      );
+      Ck_modal.close () in
+    let picker_elem, pikaday = Pikaday.make ~initial:init.repeat_from ~on_select () in
+    let submit _ev =
+      on_select (Pikaday.get_date pikaday);
+      false in
+    [
+      form ~a:[a_onsubmit submit; a_class ["ck-repeat"]] [
+        div ~a:[a_class ["ck-repeat-interval"]] [
+          ck_label "Every";
+          n_input;
+          unit_input;
+          ck_label "from";
+        ];
+      ];
+      picker_elem
+    ]
+    |> show_modal ~parent:(ev##target);
+    false
+
+  let clear_repeat m action =
+    let clear _ev =
+      async ~name:"clear_repeat" (fun () -> M.set_repeat m action None);
+      false in
+    a ~a:[a_onclick clear; a_class ["delete"]] [entity "cross"]
+
   let make_details_panel m ~set_closed ~show_node details =
     let item = details.M.details_item in
     let title_cl =
@@ -892,12 +993,25 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let waiting_for =
       item >|~= (function
         | Some (`Action _ as action) ->
-            begin match M.Item.action_state action with
-            | `Waiting_until time ->
-                let clicked ev = edit_date ~ev m action; false in
-                [ck_label "Waiting until "; a ~a:[a_onclick clicked] [pcdata (fmt_date time)]]
-            | _ -> []
-            end
+            let waiting =
+              match M.Item.action_state action with
+              | `Waiting_until time ->
+                  let clicked ev = edit_date ~ev m action; false in
+                  [ck_label "Waiting until "; a ~a:[a_onclick clicked] [pcdata (fmt_date time)]]
+              | _ -> [] in
+            let repeating, clear =
+              match M.Item.action_repeat action with
+              | None -> "(never)", []
+              | Some repeat -> fmt_repeat repeat, [clear_repeat m action] in
+            [
+              div waiting;
+              div (
+                [
+                  ck_label "Repeats: ";
+                  a ~a:[a_onclick (edit_repeat m action)] [pcdata repeating];
+                ] @ clear
+              )
+            ]
         | _ -> []
       ) |> rlist_of in
     let contact =

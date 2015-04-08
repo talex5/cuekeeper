@@ -8,6 +8,7 @@ open Tyxml_js
 
 class type pikaday =
   object
+    method getDate : Js.date Js.t Js.meth
   end
 
 class type config =
@@ -22,25 +23,27 @@ let make_config () : config Js.t = Js.Unsafe.obj [| |]
 
 let pikaday_constr : (config Js.t -> pikaday Js.t) Js.constr = Js.Unsafe.global##_Pikaday
 
+let to_unix_date d =
+  Unix.mktime { Unix.
+    tm_year = d##getFullYear () - 1900;
+    tm_mon = d##getMonth ();
+    tm_mday = d##getDate ();
+    tm_hour = 0;
+    tm_min = 0;
+    tm_sec = 0;
+    (* (these are ignored) *)
+    tm_isdst = false;
+    tm_wday = 0;
+    tm_yday = 0;
+  } |> fst
+
 let make ?initial ~on_select () =
   let div = Html5.div [] in
   let elem = Tyxml_js.To_dom.of_div div in
   let config = make_config () in
   config##container <- elem;
   config##onSelect <- Js.wrap_callback (fun d ->
-    let date, _tm = Unix.mktime { Unix.
-      tm_year = d##getFullYear () - 1900;
-      tm_mon = d##getMonth ();
-      tm_mday = d##getDate ();
-      tm_hour = 0;
-      tm_min = 0;
-      tm_sec = 0;
-      (* (these are ignored) *)
-      tm_isdst = false;
-      tm_wday = 0;
-      tm_yday = 0;
-    } in
-    on_select date
+    on_select (to_unix_date d)
   );
   begin match initial with
   | Some date_utc ->
@@ -51,5 +54,7 @@ let make ?initial ~on_select () =
       config##setDefaultDate <- Js._true;
   | None -> () end;
   let pd = jsnew pikaday_constr (config) in
-  ignore pd;
-  div
+  (div, pd)
+
+let get_date (pd : #pikaday Js.t) =
+  pd##getDate () |> to_unix_date
