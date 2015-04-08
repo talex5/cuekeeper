@@ -1,3 +1,357 @@
+.alert-box {
+  border-style: solid;
+  border-width: 1px;
+  display: block;
+  font-weight: normal;
+  margin-bottom: 1.25rem;
+  position: relative;
+  padding: 0.875rem 1.5rem 0.875rem 0.875rem;
+  font-size: 0.8125rem;
+  transition: opacity 300ms ease-out;
+  background-color: #008CBA;
+  border-color: #0078a0;
+  color: #FFFFFF; }
+  .alert-box .close {
+    font-size: 1.375rem;
+    padding: 0 6px 4px;
+    line-height: .9;
+    position: absolute;
+    top: 50%;
+    margin-top: -0.6875rem;
+    right: 0.25rem;
+    color: #333333;
+    opacity: 0.3;
+    background: inherit; }
+    .alert-box .close:hover, .alert-box .close:focus {
+      opacity: 0.5; }
+  .alert-box.radius {
+    border-radius: 3px; }
+  .alert-box.round {
+    border-radius: 1000px; }
+  .alert-box.success {
+    background-color: #43AC6A;
+    border-color: #3a945b;
+    color: #FFFFFF; }
+  .alert-box.alert {
+    background-color: #f04124;
+    border-color: #de2d0f;
+    color: #FFFFFF; }
+  .alert-box.secondary {
+    background-color: #e7e7e7;
+    border-color: #c7c7c7;
+    color: #4f4f4f; }
+  .alert-box.warning {
+    background-color: #f08a24;
+    border-color: #de770f;
+    color: #FFFFFF; }
+  .alert-box.info {
+    background-color: #a0d3e8;
+    border-color: #74bfdd;
+    color: #4f4f4f; }
+  .alert-box.alert-close {
+    opacity: 0; }
+
+/* Foundation Dropdowns */
+.f-dropdown {
+  position: absolute;
+  left: -9999px;
+  list-style: none;
+  margin-left: 0;
+  outline: none;
+  width: 100%;
+  max-height: none;
+  height: auto;
+  background: #FFFFFF;
+  border: solid 1px #cccccc;
+  font-size: 0.875rem;
+  z-index: 89;
+  margin-top: 2px;
+  max-width: 200px; }
+  .f-dropdown > *:first-child {
+    margin-top: 0; }
+  .f-dropdown > *:last-child {
+    margin-bottom: 0; }
+  .f-dropdown:before {
+    content: "";
+    display: block;
+    width: 0;
+    height: 0;
+    border: inset 6px;
+    border-color: transparent transparent #FFFFFF transparent;
+    border-bottom-style: solid;
+    position: absolute;
+    top: -12px;
+    left: 10px;
+    z-index: 89; }
+  .f-dropdown:after {
+    content: "";
+    display: block;
+    width: 0;
+    height: 0;
+    border: inset 7px;
+    border-color: transparent transparent #cccccc transparent;
+    border-bottom-style: solid;
+    position: absolute;
+    top: -14px;
+    left: 9px;
+    z-index: 88; }
+  .f-dropdown.right:before {
+    left: auto;
+    right: 10px; }
+  .f-dropdown.right:after {
+    left: auto;
+    right: 9px; }
+  .f-dropdown.drop-right {
+    position: absolute;
+    left: -9999px;
+    list-style: none;
+    margin-left: 0;
+    outline: none;
+    width: 100%;
+    max-height: none;
+    height: auto;
+    background: #FFFFFF;
+    border: solid 1px #cccccc;
+    font-size: 0.875rem;
+    z-index: 89;
+    margin-top: 0;
+    margin-left: 2px;
+    max-width: 200px; }
+    .f-dropdown.drop-right > *:first-child {
+      margin-top: 0; }
+    .f-dropdown.drop-right > *:last-child {
+      margin-bottom: 0; }
+    .f-dropdown.drop-right:before {
+      content: "";
+      display: block;
+      width: 0;
+      height: 0;
+      border: inset 6px;
+      border-color: transparent #FFFFFF transparent transparent;
+      border-right-style: solid;
+      position: absolute;
+      top: 10px;
+      left: -12px;
+      z-index: 89; }
+    .f-dropdown.drop-right:after {
+      content: "";
+      display: block;
+      width: 0;
+      height: 0;
+      border: inset 7px;
+      border-color: transparent #cccccc transparent transparent;
+      border-right-style: solid;
+      position: absolute;
+      top: 9px;
+      left: -14px;
+      z-index: 88; }
+  .f-dropdown.drop-left {
+    position: absolute;
+    left: -9999px;
+    list-style: none;
+    margin-left: 0;
+    outline: none;
+    width: 100%;
+    max-height: none;
+    height: auto;
+    background: #FFFFFF;
+    border: solid 1px #cccccc;
+    font-size: 0.875rem;
+    z-index: 89;
+    margin-top: 0;
+    margin-left: -2px;
+    max-width: 200px; }
+    .f-dropdown.drop-left > *:first-child {
+      margin-top: 0; }
+    .f-dropdown.drop-left > *:last-child {
+      margin-bottom: 0; }
+    .f-dropdown.drop-left:before {
+      content: "";
+      display: block;
+      width: 0;
+      height: 0;
+      border: inset 6px;
+      border-color: transparent transparent transparent #FFFFFF;
+      border-left-style: solid;
+      position: absolute;
+      top: 10px;
+      right: -12px;
+      left: auto;
+      z-index: 89; }
+    .f-dropdown.drop-left:after {
+      content: "";
+      display: block;
+      width: 0;
+      height: 0;
+      border: inset 7px;
+      border-color: transparent transparent transparent #cccccc;
+      border-left-style: solid;
+      position: absolute;
+      top: 9px;
+      right: -14px;
+      left: auto;
+      z-index: 88; }
+  .f-dropdown.drop-top {
+    position: absolute;
+    left: -9999px;
+    list-style: none;
+    margin-left: 0;
+    outline: none;
+    width: 100%;
+    max-height: none;
+    height: auto;
+    background: #FFFFFF;
+    border: solid 1px #cccccc;
+    font-size: 0.875rem;
+    z-index: 89;
+    margin-top: -2px;
+    margin-left: 0;
+    max-width: 200px; }
+    .f-dropdown.drop-top > *:first-child {
+      margin-top: 0; }
+    .f-dropdown.drop-top > *:last-child {
+      margin-bottom: 0; }
+    .f-dropdown.drop-top:before {
+      content: "";
+      display: block;
+      width: 0;
+      height: 0;
+      border: inset 6px;
+      border-color: #FFFFFF transparent transparent transparent;
+      border-top-style: solid;
+      position: absolute;
+      top: auto;
+      bottom: -12px;
+      left: 10px;
+      right: auto;
+      z-index: 89; }
+    .f-dropdown.drop-top:after {
+      content: "";
+      display: block;
+      width: 0;
+      height: 0;
+      border: inset 7px;
+      border-color: #cccccc transparent transparent transparent;
+      border-top-style: solid;
+      position: absolute;
+      top: auto;
+      bottom: -14px;
+      left: 9px;
+      right: auto;
+      z-index: 88; }
+  .f-dropdown li {
+    font-size: 0.875rem;
+    cursor: pointer;
+    line-height: 1.125rem;
+    margin: 0; }
+    .f-dropdown li:hover, .f-dropdown li:focus {
+      background: #EEEEEE; }
+    .f-dropdown li.radius {
+      border-radius: 3px; }
+    .f-dropdown li a {
+      display: block;
+      padding: 0.5rem;
+      color: #555555; }
+  .f-dropdown.content {
+    position: absolute;
+    left: -9999px;
+    list-style: none;
+    margin-left: 0;
+    outline: none;
+    padding: 1.25rem;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    background: #FFFFFF;
+    border: solid 1px #cccccc;
+    font-size: 0.875rem;
+    z-index: 89;
+    max-width: 200px; }
+    .f-dropdown.content > *:first-child {
+      margin-top: 0; }
+    .f-dropdown.content > *:last-child {
+      margin-bottom: 0; }
+  .f-dropdown.tiny {
+    max-width: 200px; }
+  .f-dropdown.small {
+    max-width: 300px; }
+  .f-dropdown.medium {
+    max-width: 500px; }
+  .f-dropdown.large {
+    max-width: 800px; }
+  .f-dropdown.mega {
+    width: 100% !important;
+    max-width: 100% !important; }
+    .f-dropdown.mega.open {
+      left: 0 !important; }
+
+/* Typography resets */
+div,
+dl,
+dt,
+dd,
+ul,
+ol,
+li,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+pre,
+form,
+p,
+blockquote,
+th,
+td {
+  margin: 0;
+  padding: 0; }
+
+/* Default Link Styles */
+a {
+  color: #008CBA;
+  text-decoration: none;
+  line-height: inherit; }
+  a:hover, a:focus {
+    color: #0078a0; }
+  a img {
+    border: none; }
+
+/* Unordered Lists */
+ul li ul,
+ul li ol {
+  margin-left: 1.25rem;
+  margin-bottom: 0; }
+ul.square li ul, ul.circle li ul, ul.disc li ul {
+  list-style: inherit; }
+ul.square {
+  list-style-type: square;
+  margin-left: 1.1rem; }
+ul.circle {
+  list-style-type: circle;
+  margin-left: 1.1rem; }
+ul.disc {
+  list-style-type: disc;
+  margin-left: 1.1rem; }
+ul.no-bullet {
+  list-style: none; }
+
+/* Ordered Lists */
+ol {
+  margin-left: 1.4rem; }
+  ol li ul,
+  ol li ol {
+    margin-left: 1.25rem;
+    margin-bottom: 0; }
+
+/* Not allow resize out of parent */
+textarea {
+  width: 100%;
+  max-width: 100%; }
+
+/* CueKeeper */
+
 div.ck-tree li { list-style-type: none; }
 div.ck-details ul.ck-groups li { list-style-type: none; }
 
