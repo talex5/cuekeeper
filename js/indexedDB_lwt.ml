@@ -89,17 +89,18 @@ let trans_rw t setup =
   setup (trans##objectStore (t.store_name));
   r
 
-let keys t =
-  let keys = ref [] in
+let bindings t =
+  let bindings = ref [] in
   trans_ro t
     (fun store set_r ->
       let request = store##openCursor () in
       request##onsuccess <- Dom.handler (fun _event ->
         Js.Opt.case (request##result)
-          (fun () -> Lwt.wakeup set_r !keys)
+          (fun () -> Lwt.wakeup set_r !bindings)
           (fun cursor ->
             let key = cursor##key |> Js.to_string in
-            keys := key :: !keys;
+            let value = cursor##value |> Js.to_string |> UTF8_codec.decode in
+            bindings := (key, value) :: !bindings;
             cursor##continue ()
           );
         Js._true

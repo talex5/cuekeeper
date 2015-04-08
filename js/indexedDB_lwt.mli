@@ -28,4 +28,4 @@ val compare_and_set : store -> key -> test:(string option -> bool) -> new_value:
  * This happens in a single atomic transaction. *)
 
 val remove : store -> key -> unit Lwt.t
-val keys : store -> key list Lwt.t
+val bindings : store -> (key * string) list Lwt.t

@@ -49,8 +49,8 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | Some _ -> true
 
   let iter { idb_store; _ } fn =
-    IndexedDB_lwt.keys idb_store >>=
-    Lwt_list.iter_p (fun x -> fn (K.of_hum x))
+    IndexedDB_lwt.bindings idb_store >>=
+    Lwt_list.iter_p (fun (k, v) -> fn (K.of_hum k) (return (Tc.read_string (module V) v)))
 end
 
 module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
