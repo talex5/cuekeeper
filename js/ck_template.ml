@@ -75,6 +75,10 @@ let (>>?=) = Js.Opt.bind
 module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   module W = M.Widget
 
+  let opt_show ~show_node = function
+    | None -> print_endline "Added item no longer exists!"
+    | Some node -> show_node (node :> M.Item.generic)
+
   let with_done cls = function
     | `Action _ | `Project _ as node when M.Item.is_done node -> "ck-done" :: cls
     | _ -> cls
@@ -239,11 +243,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let input_elem = Tyxml_js.To_dom.of_input name_input in
       let name = input_elem##value |> Js.to_string |> String.trim in
       if name <> "" then (
-        async ~name:"add" (fun () ->
-          adder name >|= function
-          | None -> ()
-          | Some node -> show_node (node :> M.Item.generic)
-        );
+        async ~name:"add" (fun () -> adder name >|= opt_show ~show_node);
       );
       Ck_modal.close ();
       false in
@@ -432,9 +432,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let name = input_elem##value |> Js.to_string |> String.trim in
       if name <> "" then (
         async ~name:"add contact" (fun () ->
-          M.add_contact m ~name >|= function
-          | None -> ()
-          | Some node -> show_node (node :> M.Item.generic)
+          M.add_contact m ~name () >|= opt_show ~show_node
         );
       );
       Ck_modal.close ();
@@ -466,9 +464,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let name = input_elem##value |> Js.to_string |> String.trim in
         if name <> "" then (
           async ~name:"add to schedule" (fun () ->
-            M.add_action m ~state:(`Waiting_until date) ~name () >|= function
-            | None -> print_endline "Added item no longer exists!"
-            | Some item -> show_node (item :> M.Item.generic)
+            M.add_action m ~state:(`Waiting_until date) ~name () >|= opt_show ~show_node
           );
           Ck_modal.close ()
         ) in
@@ -563,9 +559,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let name = List.assoc "name" f |> String.trim in
         if name <> "" then (
           async ~name:"add" (fun () ->
-            adder ~name ?description:None () >|= function
-            | None -> print_endline "Added item no longer exists!"
-            | Some item -> show_node (item :> M.Item.generic)
+            adder ~name ?description:None () >|= opt_show ~show_node
           )
         );
         close ()
@@ -817,7 +811,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             let input_elem = Tyxml_js.To_dom.of_input name_input in
             let name = input_elem##value |> Js.to_string |> String.trim in
             if name <> "" then async ~name:"add context" (fun () ->
-              M.add_context m ~name >>= function
+              M.add_context m ~name () >>= function
               | None -> print_endline "Added item no longer exists!"; Lwt.return ()
               | Some (`Context _ as node) ->
                   Ck_modal.close ();
@@ -852,7 +846,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             let input_elem = Tyxml_js.To_dom.of_input name_input in
             let name = input_elem##value |> Js.to_string |> String.trim in
             if name <> "" then async ~name:"add contact" (fun () ->
-              M.add_contact m ~name >>= function
+              M.add_contact m ~name () >>= function
               | None -> print_endline "Added item no longer exists!"; Lwt.return ()
               | Some (`Contact _ as node) ->
                   Ck_modal.close ();
@@ -1045,25 +1039,63 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ] in
     (title, div contents)
 
-  let make_toplevel_adders m ~show_node =
-    let editing, set_editing = React.S.create ~eq:assume_changed None in
-    let make adder label =
-      let clicked _ev =
-        set_editing (Some adder);
-        true in
-      li [a ~a:[a_onclick clicked] [pcdata label]] in
-    let widget =
-      editing >|~= function
-      | None ->
-          ul ~a:[a_class ["ck-adders"]] [
-            make (M.add_area m ?parent:None) "+area";
-            make (M.add_project m ~state:`Active ?parent:None) "+project";
-            make (M.add_action m ~state:`Next ?parent:None ?context:None ?contact:None) "+action";
-          ]
-      | Some adder ->
-          let close () = set_editing None in
-          add_form ~close ~show_node adder in
-    ReactiveData.RList.singleton_s widget
+  let search_create_bar m ~show_node =
+    let my_input = ref None in
+    let my_form = ref None in
+    let value, set_value = React.S.create "" in
+    let cl = value |> React.S.map (function
+      | "" -> ["ck-menu-hidden"]
+      | _ -> ["ck-menu-dropdown"]
+    ) in
+    let close () =
+      begin match !my_input with
+      | None -> assert false
+      | Some input -> (To_dom.of_input input)##value <- Js.string "" end;
+      set_value "" in
+    let oninput ev =
+      Js.Opt.iter (ev##target) (fun input ->
+        Js.Opt.iter (Dom_html.CoerceTo.input input) (fun input ->
+          let v = input##value |> Js.to_string |> String.trim in
+          begin match React.S.value value, v with
+          | "", "" -> ()
+          | "", _ ->
+              let f = match !my_form with None -> assert false | Some f -> f in
+              Ck_modal.show ~close (To_dom.of_form f)
+          | _, "" -> Ck_modal.close ()
+          | _, _ -> () end;
+          set_value v
+        )
+      );
+      true in
+    let input_box = input ~a:[a_oninput oninput; a_name "v"; a_placeholder "Add item"; a_size 20; a_autocomplete `Off] () in
+    let add adder _ev =
+      begin match React.S.value value with
+      | "" -> ()
+      | name ->
+          Ck_modal.close ();
+          async ~name:"add-action-top" (fun () ->
+            adder m ~name () >|= opt_show ~show_node
+          )
+      end;
+      false in
+    let submit = add (M.add_action ~state:`Next ?context:None ?contact:None ?parent:None ?description:None) in
+    my_input := Some input_box;
+    let action adder label =
+      li [a ~a:[a_onclick (add adder)] [pcdata label]] in
+    let f = form ~a:[a_onsubmit submit; a_class ["ck-main-entry"]] [
+      input_box;
+      div ~a:[R.Html5.a_class cl] [
+        ul [
+          action (M.add_action ~state:`Next ?context:None ?contact:None ?parent:None ?description:None) "Add action";
+          action (M.add_project ~state:`Active ?parent:None ?description:None) "Add project";
+          action (M.add_area ?parent:None ?description:None) "Add area";
+          action (M.add_contact) "Add contact";
+          action (M.add_context) "Add context";
+        ]
+      ]
+    ] in
+    my_form := Some f;
+    f
 
   let history_uuid = Ck_id.of_string "aeeb4ba1-ae68-43ff-b23e-1f66e8b950a3"
 
@@ -1150,9 +1182,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           make_mode_switcher m current_tree;
         ];
         div ~a:[a_class ["medium-4"; "columns"]] [
-          R.Html5.div ~a:[a_class ["ck-toplevel-adders"]] (
-            make_toplevel_adders m ~show_node
-          );
+          search_create_bar m ~show_node;
           div ~a:[a_class ["ck-actions"]] [
             a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
             a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];

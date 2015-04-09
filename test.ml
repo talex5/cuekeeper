@@ -348,7 +348,7 @@ let suite =
         M.add_action m ~state:`Next ~parent:work ~name:"GC unused signals" () >>= function
         | None | Some (`Area _ | `Project _) -> assert false
         | Some (`Action _ as gc) ->
-        M.add_context m ~name:"Coding" >>= function
+        M.add_context m ~name:"Coding" () >>= function
         | None -> assert false
         | Some coding ->
         M.set_context m gc coding >>= function

@@ -924,3 +924,42 @@ div.ck-repeat-interval > select {
 div.ck-repeat-interval > select {
 	width: auto;
 }
+
+form.ck-main-entry {
+	position: relative;
+}
+
+form.ck-main-entry input {
+	margin-top: 1px;
+	width: 100%;
+}
+
+div.ck-menu-dropdown {
+	position: absolute;
+	z-index: 89;
+	background: white;
+	border: solid 1px #cccccc;
+	width: 100%;
+}
+
+div.ck-menu-hidden {
+	display: none;
+}
+
+div.ck-menu-dropdown ul {
+	list-style: none;
+}
+
+div.ck-menu-dropdown li {
+    font-size: 0.875rem;
+    cursor: pointer;
+    line-height: 1.125rem;
+    margin: 0; }
+    div.ck-menu-dropdown li:hover, .f-dropdown li:focus {
+      background: #EEEEEE; }
+    div.ck-menu-dropdown li.radius {
+      border-radius: 3px; }
+    div.ck-menu-dropdown li a {
+      display: block;
+      padding: 0.5rem;
+      color: #555555; }

@@ -192,12 +192,12 @@ module Make(Clock : Ck_clock.S)
   let add_project t ?(state=`Active) = add (Ck_disk_node.make_project ~state) t
   let add_area t = add Ck_disk_node.make_area t
 
-  let add_contact t ~name =
+  let add_contact t ~name () =
     let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Clock.now ()) () in
     Up.add_contact t.master ~base:t.r disk_node >|= fun id ->
     R.get_contact t.r id
 
-  let add_context t ~name =
+  let add_context t ~name () =
     let disk_node = Ck_disk_node.make_context ~name ~description:"" ~ctime:(Clock.now ()) () in
     Up.add_context t.master ~base:t.r disk_node >|= fun id ->
     R.get_context t.r id

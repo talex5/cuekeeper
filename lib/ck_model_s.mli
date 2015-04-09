@@ -56,10 +56,10 @@ module type MODEL = sig
   val add_project : t -> ?state:project_state -> ?parent:[< area | project] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
   val add_area : t -> ?parent:[< area] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
 
-  val add_contact : t -> name:string -> [> contact] option Lwt.t
+  val add_contact : t -> name:string -> unit -> [> contact] option Lwt.t
   val set_contact : t -> [< area | project | action] -> contact option -> unit or_error Lwt.t
 
-  val add_context : t -> name:string -> [> context] option Lwt.t
+  val add_context : t -> name:string -> unit -> [> context] option Lwt.t
   val set_context : t -> action -> context -> unit or_error Lwt.t
 
   val add_child : t -> [< area | project | context] -> string -> [area | project | action] option Lwt.t
