@@ -23,7 +23,7 @@ type action_details = {
   astarred : bool with default(false);
   astate : astate;
   context : Ck_id.t sexp_option;
-  repeat: Ck_sigs.repeat sexp_option;
+  repeat: Ck_time.repeat sexp_option;
 } with sexp
 
 type project_details = {

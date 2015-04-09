@@ -313,12 +313,13 @@ module Make(Git : Git_storage_s.S)
       | `Waiting_until date ->
           begin match Ck_disk_node.action_repeat new_node with
           | None -> new_node
-          | Some r -> Ck_disk_node.with_repeat new_node (Some {r with repeat_from = date}) end
+          | Some r -> Ck_disk_node.with_repeat new_node (Some {r with Ck_time.repeat_from = date}) end
       | _ -> new_node in
     let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
     update t ~msg node new_node
 
   let set_repeat t node repeat =
+    let open Ck_time in
     let new_node = Ck_disk_node.with_repeat (R.action_node node) repeat in
     let new_node =
       match repeat with

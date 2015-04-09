@@ -5,7 +5,7 @@ open Tyxml_js
 open Html5
 open Ck_utils
 open Ck_js_utils
-open Ck_sigs
+open Ck_time
 
 open Lwt.Infix
 
@@ -19,25 +19,6 @@ module Gui_tree_data = struct
    *)
   type t = Dom_html.element Js.t
 end
-
-let next_repeat r =
-  let open Unix in
-  let now = gettimeofday () in
-  let n = r.repeat_n in
-  assert (n > 0);
-  let rec aux d =
-    if d >= now then d
-    else (
-      let tm = localtime d in
-      let tm =
-        match r.repeat_unit with
-        | Day -> {tm with tm_mday = tm.tm_mday + n}
-        | Week -> {tm with tm_mday = tm.tm_mday + 7 * n}
-        | Month -> {tm with tm_mon = tm.tm_mon + n}
-        | Year -> {tm with tm_year = tm.tm_year + n} in
-      aux (fst (mktime tm))
-    ) in
-  aux r.repeat_from
 
 let show_modal, modal_div =
   let dropdown, set_dropdown = ReactiveData.RList.make [] in
@@ -182,7 +163,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       Ck_modal.close () in
     let initial =
       match M.Item.action_repeat action with
-      | Some r -> Some (next_repeat r)
+      | Some r -> Some (next_repeat ~now:(Unix.gettimeofday ()) r)
       | None -> due action in
     Pikaday.make ?initial ~on_select () |> fst
 

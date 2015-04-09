@@ -30,7 +30,7 @@ val with_name : generic -> string -> generic
 val with_description : generic -> string -> generic
 val with_parent : [< area | project | action] -> Ck_id.t -> [area | project | action]
 val with_contact : [< area | project | action] -> Ck_id.t option -> [area | project | action]
-val with_repeat : action -> repeat option -> action
+val with_repeat : action -> Ck_time.repeat option -> action
 val with_astate : action -> action_state -> action
 val with_pstate : project -> [ `Active | `SomedayMaybe | `Done ] -> project
 val with_starred : [< project | action] -> bool -> [project | action]

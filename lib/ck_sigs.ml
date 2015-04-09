@@ -1,25 +1,12 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Sexplib.Conv
 open Ck_utils
 
 type stop = unit -> unit
 type 'a or_error = [ `Ok of 'a | `Error of string ]
 type action_state = [ `Next | `Waiting | `Waiting_for_contact | `Waiting_until of float | `Future | `Done ]
 type project_state = [ `Active | `SomedayMaybe | `Done ]
-type time_unit =
-  | Day
-  | Week
-  | Month
-  | Year
-  with sexp
-
-type repeat = {
-  repeat_n : int;
-  repeat_unit : time_unit;
-  repeat_from : float;
-} with sexp
 
 module type DISK_NODE = sig
   module Types : sig
@@ -45,7 +32,7 @@ module type DISK_NODE = sig
   val ctime : [< generic ] -> float
   val starred : [< project | action] -> bool
   val action_state : action -> action_state
-  val action_repeat : action -> repeat option
+  val action_repeat : action -> Ck_time.repeat option
   val project_state : project -> project_state
   val is_done : [< project | action] -> bool
   val context : action -> Ck_id.t option
