@@ -232,7 +232,12 @@ module Make(Git : Git_storage_s.S)
       `Ok () in
     match node with
     | `Contact _ -> remove ["contact"; uuid]
-    | `Context _ -> remove ["context"; uuid]
+    | `Context _ as node ->
+        begin match R.actions_of_context node with
+        | [] -> remove ["context"; uuid]
+        | child :: _ ->
+            error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
+        end
     | `Area _ | `Project _ | `Action _ as node ->
         try
           let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
