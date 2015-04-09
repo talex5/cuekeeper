@@ -15,7 +15,7 @@ type astate =
   [ `Next
   | `Waiting
   | `Waiting_for_contact
-  | `Waiting_until of float
+  | `Waiting_until of Ck_time.user_date
   | `Future
   | `Done ] with sexp
 

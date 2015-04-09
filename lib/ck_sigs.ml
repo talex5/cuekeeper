@@ -5,7 +5,7 @@ open Ck_utils
 
 type stop = unit -> unit
 type 'a or_error = [ `Ok of 'a | `Error of string ]
-type action_state = [ `Next | `Waiting | `Waiting_for_contact | `Waiting_until of float | `Future | `Done ]
+type action_state = [ `Next | `Waiting | `Waiting_for_contact | `Waiting_until of Ck_time.user_date | `Future | `Done ]
 type project_state = [ `Active | `SomedayMaybe | `Done ]
 
 module type DISK_NODE = sig
@@ -130,6 +130,6 @@ module type REV = sig
    * Currently, this is true when a [`Waiting_until] action is due, or
    * [problems t] is non-empty. *)
 
-  val expires : t -> float option
+  val expires : t -> Ck_time.user_date option
   (** Will need to reload at this time (this is when the next scheduled action becomes due). *)
 end

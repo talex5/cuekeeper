@@ -50,28 +50,6 @@ let rlist_of ?init s =
   let changes = React.S.changes s |> React.E.map (fun x -> ReactiveData.RList.Set x) in
   ReactiveData.RList.make_from init changes
 
-let string_of_day = function
-  | 0 -> "Sun"
-  | 1 -> "Mon"
-  | 2 -> "Tue"
-  | 3 -> "Wed"
-  | 4 -> "Thu"
-  | 5 -> "Fri"
-  | 6 -> "Sat"
-  | _ -> "XXX"
-
-let fmt_date date =
-  let open Unix in
-  let tm = localtime date in
-  Printf.sprintf "%04d-%02d-%02d (%s)"
-    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday (string_of_day tm.tm_wday)
-
-let fmt_timestamp date =
-  let open Unix in
-  let tm = localtime date in
-  Printf.sprintf "%04d-%02d-%02d %02d:%02d (%s)"
-    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min (string_of_day tm.tm_wday)
-
 (* Get the index of an item in an assoc list. *)
 let index_of key items =
   let rec aux i = function

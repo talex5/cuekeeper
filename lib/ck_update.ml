@@ -11,7 +11,7 @@ module Make(Git : Git_storage_s.S)
            (R : sig
              include REV with type commit = Git.Commit.t
              open Node.Types
-             val make : time:float -> Git.Commit.t -> t Lwt.t
+             val make : time:Ck_time.user_date -> Git.Commit.t -> t Lwt.t
              val disk_node : [< Node.generic] -> Ck_disk_node.generic
              val apa_node : [< area | project | action] ->
                [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
@@ -36,7 +36,8 @@ module Make(Git : Git_storage_s.S)
     Lwt.cancel (t.alarm);
     match R.expires t.head with
     | None -> ()
-    | Some time ->
+    | Some date ->
+        let time = Ck_time.unix_time_of date in
         let sleeper = Clock.sleep (time -. Clock.now ()) in
         t.alarm <- sleeper;
         async (fun () ->
@@ -53,7 +54,7 @@ module Make(Git : Git_storage_s.S)
             )
         )
   and update_head t new_head =   (* Call with mutex locked *)
-    let time = Clock.now () in
+    let time = Clock.now () |> Ck_time.of_unix_time in
     R.make ~time new_head >>= fun new_head ->
     t.head <- new_head;
     t.on_update >>= fun on_update ->
@@ -79,7 +80,7 @@ module Make(Git : Git_storage_s.S)
     match Git.Branch.head branch |> React.S.value with
     | None -> failwith "No commits on branch!"
     | Some initial_head ->
-    let time = Clock.now () in
+    let time = Clock.now () |> Ck_time.of_unix_time in
     R.make ~time initial_head >>= fun initial_head ->
     let updated = Lwt_condition.create () in
     let update_scheduled = ref false in
@@ -153,7 +154,7 @@ module Make(Git : Git_storage_s.S)
           return (return ())
       | `Ok merged ->
       (* Check that the merge is readable *)
-      let time = Clock.now () in
+      let time = Clock.now () |> Ck_time.of_unix_time in
       Lwt.catch (fun () -> R.make ~time merged >|= ignore)
         (fun ex -> Ck_utils.error "Change generated an invalid commit:\n%s\n\nThis is a BUG. The invalid change has been discarded."
           (Printexc.to_string ex)) >>= fun () ->
@@ -313,7 +314,9 @@ module Make(Git : Git_storage_s.S)
       | `Waiting_until date ->
           begin match Ck_disk_node.action_repeat new_node with
           | None -> new_node
-          | Some r -> Ck_disk_node.with_repeat new_node (Some {r with Ck_time.repeat_from = date}) end
+          | Some r ->
+              let new_r = Ck_time.(make_repeat ~from:date r.repeat_n r.repeat_unit) in
+              Ck_disk_node.with_repeat new_node (Some new_r) end
       | _ -> new_node in
     let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
     update t ~msg node new_node

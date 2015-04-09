@@ -420,7 +420,7 @@ module Make(Clock : Ck_clock.S)
     R.schedule r |> List.iter (fun action ->
       match Node.action_state action with
       | `Waiting_until time ->
-          let date = fmt_date time in
+          let date = Ck_time.string_of_user_date time in
           let group =
             match !day with
             | Some (prev_date, group) when prev_date = date -> group

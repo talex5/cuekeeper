@@ -42,6 +42,10 @@ module Test_clock = struct
     | _ ->
         time := t;
         debug "time = %.2f\n" !time
+
+  let reset () =
+    schedule := Queue.empty;
+    time := 0.0
 end
 
 module Key = struct
@@ -102,6 +106,10 @@ let expect_some = function
   | Some x -> x
 
 let assert_tree ?label expected actual =
+  let msg =
+    match label with
+    | Some l -> l
+    | None -> Ck_time.string_of_unix_time !Test_clock.time in
   let rec printer items = items
     |> List.map (fun (N (name, children)) -> name ^ "(" ^ printer children ^ ")")
     |> String.concat ", " in
@@ -110,7 +118,7 @@ let assert_tree ?label expected actual =
     match get_tree actual with
     | N (("Problems" | "@Problems"), []) :: xs -> xs   (* Remove Problems if empty, as the GUI does *)
     | xs ->xs in
-  assert_equal ?msg:label ~printer expected actual
+  assert_equal ~msg ~printer expected actual
 
 let rec lookup path widgets =
   match path with
@@ -147,10 +155,14 @@ let expect_project item =
   | `Project _ as x -> x
   | _ -> assert_failure "Not a project!"
 
+let day d = Ck_time.make ~year:2015 ~month:4 ~day:d
+
+let assert_str_equal = assert_equal ~printer:(fun x -> x)
+
 let suite = 
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
-      Test_clock.time := 0.0;
+      Test_clock.reset ();
       let src, set_src = React.S.create ~eq:(ItemMap.equal (=)) ItemMap.empty in
       let set items =
         List.fold_left (fun acc i ->
@@ -176,7 +188,8 @@ let suite =
             s :: acc
           ) (React.S.value rl) []
           |> List.rev in
-        assert_equal ~printer:format_list expected actual in
+        let msg = Printf.sprintf "t=%.2f" !Test_clock.time in
+        assert_equal ~msg ~printer:format_list expected actual in
       let dst = Slow.make ~eq:(=) ~delay:1.0 src in
       eqd dst [];
 
@@ -251,11 +264,19 @@ let suite =
       eqd dst ["0"; "1.5"; "-2"; "3"; "+two"];
       rename a3 (fst a3, "2.5");
       eqd dst ["0"; "1.5"; "-2"; "2.5"; "+two"];
+
+      Test_clock.run_to 12.0;
+      eqd dst ["0"; "1.5"; "2.5"; "two"];
     );
 
     "model">:: (fun () ->
       run_with_exn begin fun () ->
-        Test_clock.time := 0.0;
+        Test_clock.reset ();
+        let run_to_day d =
+          day d |> Ck_time.unix_time_of |> Test_clock.run_to in
+        let wait s =
+          Test_clock.run_to (!Test_clock.time +. s) in
+        run_to_day 0;
         let config = Irmin_mem.config () in
         let task s =
           let date = Test_clock.now () |> Int64.of_float in
@@ -318,7 +339,7 @@ let suite =
           n "@Recently completed" [];
         ];
         M.set_project_state m start_using_ck `SomedayMaybe >>= fun () ->
-        Test_clock.run_to 2.0;
+        wait 2.0;
         next_actions |> assert_tree ~label:"empty" [
           n "Next actions" [];
           n "Recently completed" [];
@@ -377,7 +398,7 @@ let suite =
 
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         M.set_action_state m units `Waiting >>= fun () ->
-        Test_clock.run_to 4.0;
+        wait 2.0;
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
@@ -390,7 +411,7 @@ let suite =
         ];
 
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
-        M.set_action_state m units (`Waiting_until 5.0) >>= fun () ->
+        M.set_action_state m units (`Waiting_until (day 5)) >>= fun () ->
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
@@ -402,7 +423,7 @@ let suite =
           n "Recently completed" [];
         ];
 
-        Test_clock.run_to 5.0;
+        run_to_day 5;
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
@@ -416,8 +437,8 @@ let suite =
         ];
 
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
-        M.set_action_state m units (`Waiting_until 6.0) >>= fun () ->
-        M.add_action m ~state:(`Waiting_until 7.0) ~parent:work ~name:"Implement scheduing" () >>= fun _ ->
+        M.set_action_state m units (`Waiting_until (day 6)) >>= fun () ->
+        M.add_action m ~state:(`Waiting_until (day 7)) ~parent:work ~name:"Implement scheduing" () >>= fun _ ->
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
@@ -430,7 +451,7 @@ let suite =
           n "Recently completed" [];
         ];
 
-        Test_clock.run_to 6.0;
+        run_to_day 6;
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
@@ -443,7 +464,8 @@ let suite =
           n "Recently completed" [];
         ];
 
-        Test_clock.run_to 7.5;
+        run_to_day 7;
+        wait 0.5;
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
@@ -489,7 +511,42 @@ let suite =
 
         return ()
       end
-    )
+    );
+
+    "time">:: (fun () ->
+      let open Ck_time in
+      let assert_less b a =
+        assert_equal (compare b (of_tm (tm_of b))) 0;
+        assert_equal (compare b (of_unix_time (unix_time_of b))) 0;
+        assert_equal (compare b b) 0;
+        assert_equal (compare a b) (-1);
+        assert_equal (compare b a) 1 in
+      make ~year:2000 ~month:10 ~day:5 |> assert_less (make ~year:2001 ~month:10 ~day:5);
+      make ~year:2000 ~month:10 ~day:5 |> assert_less (make ~year:2000 ~month:11 ~day:5);
+      make ~year:2000 ~month:10 ~day:5 |> assert_less (make ~year:2000 ~month:10 ~day:6);
+      make ~year:2000 ~month:11 ~day:1 |> assert_less (make ~year:2000 ~month:10 ~day:33);
+
+      make ~year:2015 ~month:04 ~day:9 |> string_of_user_date |> assert_str_equal "2015-05-09 (Sat)";
+      let apr30 = make ~year:2015 ~month:4 ~day:0 in
+      let may1st = make ~year:2015 ~month:4 ~day:1 in
+
+      let rep = make_repeat 2 Day ~from:(make ~year:2015 ~month:3 ~day:9) in
+      rep.repeat_from |> string_of_user_date |> assert_str_equal "2015-04-09 (Thu)";
+      next_repeat rep ~now:rep.repeat_from |> string_of_user_date |> assert_str_equal "2015-04-11 (Sat)";
+      next_repeat rep ~now:apr30 |> string_of_user_date |> assert_str_equal "2015-05-01 (Fri)";
+      next_repeat rep ~now:may1st |> string_of_user_date |> assert_str_equal "2015-05-03 (Sun)";
+
+      let rep = make_repeat 1 Week ~from:(make ~year:2015 ~month:3 ~day:9) in
+      next_repeat rep ~now:rep.repeat_from |> string_of_user_date |> assert_str_equal "2015-04-16 (Thu)";
+
+      let rep = make_repeat 3 Month ~from:(make ~year:2014 ~month:11 ~day:30) in
+      next_repeat rep ~now:rep.repeat_from |> string_of_user_date |> assert_str_equal "2015-03-30 (Mon)";
+      let rep = make_repeat 2 Month ~from:(make ~year:2014 ~month:11 ~day:30) in
+      next_repeat rep ~now:rep.repeat_from |> string_of_user_date |> assert_str_equal "2015-03-02 (Mon)";
+
+      let rep = make_repeat 10 Year ~from:(make ~year:2000 ~month:2 ~day:1) in
+      next_repeat rep ~now:apr30 |> string_of_user_date |> assert_str_equal "2020-03-01 (Sun)";
+    );
   ]
 
 let is_error = function

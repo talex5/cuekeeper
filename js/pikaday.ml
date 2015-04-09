@@ -23,33 +23,23 @@ let make_config () : config Js.t = Js.Unsafe.obj [| |]
 
 let pikaday_constr : (config Js.t -> pikaday Js.t) Js.constr = Js.Unsafe.global##_Pikaday
 
-let to_unix_date d =
-  Unix.mktime { Unix.
-    tm_year = d##getFullYear () - 1900;
-    tm_mon = d##getMonth ();
-    tm_mday = d##getDate ();
-    tm_hour = 0;
-    tm_min = 0;
-    tm_sec = 0;
-    (* (these are ignored) *)
-    tm_isdst = false;
-    tm_wday = 0;
-    tm_yday = 0;
-  } |> fst
+let to_user_date d =
+  Ck_time.make
+    ~year:(d##getFullYear ())
+    ~month:(d##getMonth ())
+    ~day:(d##getDate ())
 
-let make ?initial ~on_select () =
+let make ?(initial:Ck_time.user_date option) ~on_select () =
   let div = Html5.div [] in
   let elem = Tyxml_js.To_dom.of_div div in
   let config = make_config () in
   config##container <- elem;
   config##onSelect <- Js.wrap_callback (fun d ->
-    on_select (to_unix_date d)
+    on_select (to_user_date d)
   );
-  begin match initial with
-  | Some date_utc ->
-      let open Unix in
-      let local_date = localtime date_utc in
-      let js_date = jsnew Js.date_day (local_date.tm_year + 1900, local_date.tm_mon, local_date.tm_mday) in
+  begin match (initial :> (int * int * int) option) with
+  | Some (y, m, d) ->
+      let js_date = jsnew Js.date_day (y, m, d) in
       config##defaultDate <- Js.Optdef.return js_date;
       config##setDefaultDate <- Js._true;
   | None -> () end;
@@ -57,4 +47,4 @@ let make ?initial ~on_select () =
   (div, pd)
 
 let get_date (pd : #pikaday Js.t) =
-  pd##getDate () |> to_unix_date
+  pd##getDate () |> to_user_date

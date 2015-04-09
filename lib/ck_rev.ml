@@ -20,8 +20,8 @@ module Make(Git : Git_storage_s.S) = struct
         index : (Ck_id.t, apa) Hashtbl.t;
         mutable alert : bool;
         mutable schedule : action list;
-        mutable expires : float option;
-        valid_from : float;
+        mutable expires : Ck_time.user_date option;
+        valid_from : Ck_time.user_date;
         mutable problems : (Ck_id.t, string) Hashtbl.t
       }
       and 'a node_details = {
@@ -94,7 +94,7 @@ module Make(Git : Git_storage_s.S) = struct
 
     let is_due action =
       match action_state action with
-      | `Waiting_until time -> time <= (rev action).valid_from
+      | `Waiting_until time -> Ck_time.compare time (rev action).valid_from <= 0
       | _ -> false
 
     let node_due = function
@@ -146,7 +146,7 @@ module Make(Git : Git_storage_s.S) = struct
             if time <= now then t.alert <- true
             else (
               match t.expires with
-              | Some old_time when old_time <= time -> ()
+              | Some old_time when Ck_time.compare old_time time <= 0 -> ()
               | _ -> t.expires <- Some time
             )
         | _ -> () end

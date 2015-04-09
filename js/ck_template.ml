@@ -5,7 +5,6 @@ open Tyxml_js
 open Html5
 open Ck_utils
 open Ck_js_utils
-open Ck_time
 
 open Lwt.Infix
 
@@ -43,14 +42,9 @@ let show_modal, modal_div =
 
 let current_error, set_current_error = React.S.create None
 
-let fmt_time_unit = function
-  | Day -> "day"
-  | Week -> "week"
-  | Month -> "month"
-  | Year -> "year"
-
 let fmt_repeat spec =
-  let units = fmt_time_unit spec.repeat_unit in
+  let open Ck_time in
+  let units = string_of_time_unit spec.repeat_unit in
   match spec.repeat_n with
   | 1 -> Printf.sprintf "every %s" units
   | n -> Printf.sprintf "every %d %ss" n units
@@ -163,7 +157,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       Ck_modal.close () in
     let initial =
       match M.Item.action_repeat action with
-      | Some r -> Some (next_repeat ~now:(Unix.gettimeofday ()) r)
+      | Some r -> Some (Ck_time.next_repeat ~now:(Unix.gettimeofday () |> Ck_time.of_unix_time) r)
       | None -> due action in
     Pikaday.make ?initial ~on_select () |> fst
 
@@ -417,7 +411,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             match log_entry.msg with
             | [] -> "(no log message)"
             | x::_ -> x in
-          let date = fmt_timestamp log_entry.date in
+          let date = Ck_time.string_of_unix_time log_entry.date in
           let item =
             li ~a:[R.Html5.a_class cl] [
               a ~a:[a_onclick view] [pcdata date];
@@ -740,7 +734,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                     set_editing (Some (item, descr));
                     false in
                   let append_log _ev =
-                    let today = fmt_date (Unix.gettimeofday ()) in
+                    let today = Ck_time.(string_of_user_date (Unix.gettimeofday () |> of_unix_time)) in
                     let descr =
                       match M.Item.description item with
                       | "" -> ""
@@ -883,16 +877,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     end
     | _ -> false
 
-  let unit_options = [| Day; Week; Month; Year |]
+  let unit_options = Ck_time.([| Day; Week; Month; Year |])
   let edit_repeat m action ev =
+    let open Ck_time in
     let init =
       match M.Item.action_repeat action with
       | None ->
-          let repeat_from =
+          make_repeat 1 Week ~from:(
             match due action with
-            | None -> Unix.gettimeofday ()
-            | Some date -> date in
-          {repeat_n = 1; repeat_unit = Week; repeat_from}
+            | None -> Unix.gettimeofday () |> Ck_time.of_unix_time
+            | Some date -> date
+          )
       | Some r -> r in
     let n_input = input ~a:[a_name "n"; a_size 2; a_input_type `Text; a_value (string_of_int init.repeat_n)] () in
     auto_focus n_input;
@@ -900,22 +895,22 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let unit_option u =
         let attrs =
           if u = init.repeat_unit then [a_selected `Selected] else [] in
-        option ~a:attrs (pcdata ((fmt_time_unit u) ^ "s")) in
+        option ~a:attrs (pcdata ((string_of_time_unit u) ^ "s")) in
       select (unit_options |> Array.map unit_option |> Array.to_list) in
-    let on_select repeat_from =
+    let on_select date =
       let input_elem = To_dom.of_input n_input in
-      let repeat_n =
+      let n =
         try
           let n = input_elem##value |> Js.to_string |> String.trim |> int_of_string in
           if n > 0 then Some n else None
         with Failure _ -> None in
-      match repeat_n with
+      match n with
       | None -> ()
-      | Some repeat_n ->
+      | Some n ->
       let unit_input = Tyxml_js.To_dom.of_select unit_input in
-      let repeat_unit = unit_options.(unit_input##selectedIndex) in
+      let units = unit_options.(unit_input##selectedIndex) in
       async ~name:"edit_repeat" (fun () ->
-        Some { repeat_n; repeat_unit; repeat_from }
+        Some (make_repeat n units ~from:date)
         |> M.set_repeat m action
       );
       Ck_modal.close () in
@@ -964,7 +959,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let ctime =
       match initial_item with
       | None -> "-"
-      | Some item -> M.Item.ctime item |> fmt_timestamp in
+      | Some item -> M.Item.ctime item |> Ck_time.string_of_unix_time in
     let description = make_editable_description m item in
     let title = 
       div ~a:[R.Html5.a_class title_cl] [
@@ -978,7 +973,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               match M.Item.action_state action with
               | `Waiting_until time ->
                   let clicked ev = edit_date ~ev m action; false in
-                  [ck_label "Waiting until "; a ~a:[a_onclick clicked] [pcdata (fmt_date time)]]
+                  [ck_label "Waiting until "; a ~a:[a_onclick clicked] [pcdata (Ck_time.string_of_user_date time)]]
               | _ -> [] in
             let repeating, clear =
               match M.Item.action_repeat action with
@@ -1134,7 +1129,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             div ~a:[a_class cl] [
               pcdata (
                 Printf.sprintf "Time-travel active: you are viewing the state of CueKeeper as at %s."
-                  (fmt_timestamp log_entry.Git_storage_s.Log_entry.date)
+                  (Ck_time.string_of_unix_time log_entry.Git_storage_s.Log_entry.date)
               );
               a ~a:[a_class ["close"]; a_onclick return_to_present] [pcdata "×"]
             ]
