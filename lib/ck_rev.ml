@@ -124,7 +124,10 @@ module Make(Git : Git_storage_s.S) = struct
   let process_item ~now t node =
     begin match Node.contact node with
     | None -> ()
-    | Some c -> Hashtbl.add t.nodes_of_contact c node end;
+    | Some c ->
+        if not (Ck_id.M.mem c !(t.contacts)) then
+          error "Contact '%a' of '%s' not found!" Ck_id.fmt c (Node.name node);
+        Hashtbl.add t.nodes_of_contact c node end;
     match node with
     | `Action _ as node ->
         begin match Node.context node with
@@ -135,12 +138,8 @@ module Make(Git : Git_storage_s.S) = struct
             Hashtbl.add t.actions_of_context id node end;
         begin match Node.action_state node with
         | `Waiting_for_contact ->
-            begin match Node.contact node with
-            | None -> error "Waiting_for_contact but no contact set on '%s'" (Node.name node)
-            | Some c ->
-                if not (Ck_id.M.mem c !(t.contacts)) then
-                  error "Contact '%a' of '%s' not found!" Ck_id.fmt c (Node.name node)
-            end
+            if Node.contact node = None then
+              error "Waiting_for_contact but no contact set on '%s'" (Node.name node)
         | `Waiting_until time ->
             t.schedule <- node :: t.schedule;
             if time <= now then t.alert <- true

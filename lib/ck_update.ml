@@ -231,7 +231,12 @@ module Make(Git : Git_storage_s.S)
       ) >|= fun () ->
       `Ok () in
     match node with
-    | `Contact _ -> remove ["contact"; uuid]
+    | `Contact _ as node ->
+        begin match R.nodes_of_contact node with
+        | [] -> remove ["contact"; uuid]
+        | child :: _ ->
+            error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
+        end
     | `Context _ as node ->
         begin match R.actions_of_context node with
         | [] -> remove ["context"; uuid]
