@@ -797,24 +797,6 @@ div.ck-actions a + a {
 	margin-left: 1.5em;
 }
 
-dl.sub-nav {
-	margin-bottom: 0;
-}
-dl.sub-nav.li {
-	margin-left: 0;
-}
-dl.sub-nav a {
-	background: #f4f4f4;
-	border-radius: 3px;
-}
-dl.sub-nav a.alert {
-	color: white;
-	background: #f88;
-	border-radius: 3px;
-}
-dl.sub-nav dd:first-child {
-	margin-left: 0;
-}
 div.ck-tree {
 	margin-left: 0;
 	overflow: auto;
@@ -963,3 +945,43 @@ div.ck-menu-dropdown li {
       display: block;
       padding: 0.5rem;
       color: #555555; }
+
+ul.ck-mode-selector li {
+	float: left;
+	list-style: none;
+	background: #f4f4f4;
+	margin: 0 1em 0 0;
+	border-radius: 0 0 6px 6px;
+	padding: 0.2rem;
+	font-family: "Helvetica Neue",Helvetica,Roboto,Arial,sans-serif;
+	font-weight: normal;
+	font-size: 0.875rem;
+}
+
+ul.ck-mode-selector li.active {
+	background: #258FAF;
+}
+
+ul.ck-mode-selector li.alert {
+	color: white;
+	background: #f88;
+}
+
+ul.ck-mode-selector li a {
+	padding: 0.1875rem 1rem;
+	color: #999;
+}
+
+ul.ck-mode-selector li:hover a {
+	color: #737373;
+}
+
+ul.ck-mode-selector li.active a,
+ul.ck-mode-selector li.alert a,
+ul.ck-mode-selector li.active:hover a {
+	color: #fff;
+}
+
+html {
+	overflow-y: scroll;
+}

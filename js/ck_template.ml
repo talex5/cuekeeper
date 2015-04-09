@@ -525,23 +525,21 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let make_mode_switcher m current_tree =
     let item ?alert name mode =
-      let cl = current_tree |> React.S.map (fun t ->
+      let clicked _ev = M.set_mode m mode; false in
+      let alert_attr =
+        match alert with
+        | None -> React.S.const []
+        | Some s ->
+            s >|~= function
+              | false -> []
+              | true -> ["alert"] in
+      let active_attr = current_tree |> React.S.map (fun t ->
         if (mode_of t) = mode then ["active"] else []
       ) in
-      let clicked _ev = M.set_mode m mode; false in
-      let attrs = [a_onclick clicked] in
-      let attrs =
-        match alert with
-        | None -> attrs
-        | Some s ->
-            let cl = R.Html5.a_class (s >|~= function
-              | false -> [""]
-              | true -> ["alert"]
-            ) in
-            cl :: attrs in
-      let button = a ~a:attrs [pcdata name] in
-      dd ~a:[R.Html5.a_class cl] [button] in
-    dl ~a:[a_class ["sub-nav"]] [
+      let cl = R.Html5.a_class (React.S.l2 (@) alert_attr active_attr) in
+      let button = a ~a:[a_onclick clicked] [pcdata name] in
+      li ~a:[cl] [button] in
+    ul ~a:[a_class ["ck-mode-selector"]] [
       item "Process" `Process;
       item "Work" `Work ~alert:(M.alert m);
       item "Contact" `Contact;
