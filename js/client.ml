@@ -48,8 +48,7 @@ let start (main:#Dom.node Js.t) =
       let task s =
         let date = Unix.time () |> Int64.of_float in
         Irmin.Task.create ~date ~owner:"User" s in
-      let repo = Git.make config task in
-      M.make repo >>= fun m ->
+      Git.make config task >>= M.make >>= fun m ->
       T.make_top m
       |> List.iter (fun child -> main##appendChild (Tyxml_js.To_dom.of_node child) |> ignore);
       return ()

@@ -10,20 +10,16 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
   type repo = {
     config : Irmin.config;
     task_maker : string -> Irmin.task;
-  }
-
-  type commit = {
-    c_repo : repo;
-    c_store : string -> I.t;
+    empty : string -> I.t;
   }
 
   module Staging = struct
     type t = {
-      commit : commit option;
+      repo : repo;
       view : V.t;
     }
 
-    let empty () = V.empty () >|= fun view -> {commit = None; view}
+    let of_view repo view = {repo; view}
     let list t = V.list t.view
     let read_exn t = V.read_exn t.view
     let update t = V.update t.view
@@ -31,14 +27,17 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
   end
 
   module Commit = struct
-    type t = commit
+    type t = {
+      repo : repo;
+      store : string -> I.t;
+    }
 
     type id = Irmin.Hash.SHA1.t
 
     module History = I.History
 
     let id t =
-      match I.branch (t.c_store "get commit ID") with
+      match I.branch (t.store "get commit ID") with
       | `Tag _ | `Empty -> assert false
       | `Head id -> id
 
@@ -46,24 +45,22 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       id a = id b
 
     let of_id repo id =
-      I.of_head repo.config repo.task_maker id >|= fun c_store ->
-      {c_repo = repo; c_store}
+      I.of_head repo.config repo.task_maker id >|= fun store ->
+      {repo; store}
 
     let checkout t =
-      V.of_path (t.c_store "Make view") I.Key.empty >|= fun view ->
-      {Staging.commit = Some t; view}
+      V.of_path (t.store "Make view") I.Key.empty >|= Staging.of_view t.repo
 
     let commit staging ~msg =
-      match staging.Staging.commit with
-      | None -> assert false
-      | Some t ->
-      I.of_head t.c_repo.config t.c_repo.task_maker (id t) >>= fun tmp_branch ->
-      V.update_path (tmp_branch msg) I.Key.empty staging.Staging.view >|= fun () ->
-      {t with c_store = tmp_branch}
+      let repo = staging.Staging.repo in
+      let parents = V.parents staging.Staging.view in
+      V.make_head (repo.empty msg) (repo.task_maker msg) ~parents ~contents:staging.Staging.view
+      >>= I.of_head repo.config repo.task_maker
+      >|= fun store -> { repo; store }
 
     let history ?depth t =
       let open Git_storage_s in
-      I.history ?depth (t.c_store "Read history") >>= fun history ->
+      I.history ?depth (t.store "Read history") >>= fun history ->
       let h = ref [] in
       history |> Top.iter (fun head ->
         h := head :: !h
@@ -71,7 +68,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       let map = ref Log_entry_map.empty in
       let rank = ref 0 in
       !h |> Lwt_list.iter_s (fun hash ->
-          I.task_of_head (t.c_store "Read log entry") hash >|= fun task ->
+          I.task_of_head (t.store "Read log entry") hash >|= fun task ->
           incr rank;
           let msg = Irmin.Task.messages task in
           let date = Irmin.Task.date task |> Int64.to_float in
@@ -81,9 +78,9 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       !map
 
     let merge a b =
-      I.of_head a.c_repo.config a.c_repo.task_maker (id a) >>= fun tmp ->
+      I.of_head a.repo.config a.repo.task_maker (id a) >>= fun tmp ->
       I.merge_head (tmp "Merge") (id b) >|= function
-      | `Ok () -> `Ok {a with c_store = tmp}
+      | `Ok () -> `Ok {a with store = tmp}
       | `Conflict _ as c -> c
   end
 
@@ -101,12 +98,16 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       | None, None -> true
       | _ -> false
 
-    let initialise store fn =
-      Staging.empty () >>= fun staging ->
+    let initialise repo store fn =
+      V.empty () >>= wrap1 (Staging.of_view repo) >>= fun staging ->
       fn staging >>= fun () ->
-      (* XXX: race if someone else tries to initialise the same branch *)
-      V.update_path (store "Initialise repository") I.Key.empty staging.Staging.view >>= fun () ->
-      I.head_exn (store "Get initial commit")
+      Commit.commit staging ~msg:"Initialise repository" >>= fun commit ->
+      let new_id = Commit.id commit in
+      I.compare_and_set_head (store "Initialise repository") ~test:None ~set:(Some new_id) >>= function
+      | true -> return new_id
+      | false ->
+          Log.warn "Concurrent attempt to initialise new branch; discarding our attempt";
+          I.head_exn (store "Read new head")
 
     let of_store repo store ~if_new =
       match I.branch (store "Get branch name") with
@@ -117,12 +118,10 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
         | Some id -> Commit.of_id repo id >|= fun commit -> Some commit in
       (* Start watching for updates (must do this BEFORE getting the initial commit) *)
       let watch_tags = I.watch_tags (store "Watch branch") in
-      I.head (store "Get latest commit") >>= fun initial_head_id ->
-      let initial_head_id =
-        match initial_head_id with
-        | None -> initialise store if_new
-        | Some id -> return id in
-      initial_head_id >>= fun initial_head_id ->
+      I.head (store "Get latest commit") >>= (function
+        | None -> initialise repo store if_new
+        | Some id -> return id
+      ) >>= fun initial_head_id ->
       let head_id = ref (Some initial_head_id) in
       Commit.of_id repo initial_head_id >>= fun initial_head ->
       let head, set_head = React.S.create ~eq:opt_commit_equal (Some initial_head) in
@@ -177,7 +176,11 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
     let commit t hash =
       (* XXX: what does Irmin do if the hash doesn't exist? *)
       Commit.of_id t hash >|= fun c -> Some c
+
+    let empty t = V.empty () >|= Staging.of_view t
   end
 
-  let make config task_maker = {config; task_maker}
+  let make config task_maker =
+    I.empty config task_maker >|= fun empty ->
+    {config; task_maker; empty}
 end

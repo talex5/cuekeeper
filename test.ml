@@ -281,8 +281,7 @@ let suite =
         let task s =
           let date = Test_clock.now () |> Int64.of_float in
           Irmin.Task.create ~date ~owner:"User" s in
-        let repo = Git.make config task in
-        M.make repo >>= fun m ->
+        Git.make config task >>= M.make >>= fun m ->
         M.set_mode m `Process;
         let process_tree = M.tree m |> expect_tree in
         let work = lookup ["Work"] process_tree |> expect_area in

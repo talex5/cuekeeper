@@ -28,7 +28,6 @@ module type S = sig
   module Staging : sig
     type t
 
-    val empty : unit -> t Lwt.t
     val list : t -> path -> path list Lwt.t
     val read_exn : t -> path -> string Lwt.t
     val update : t -> path -> string -> unit Lwt.t
@@ -62,5 +61,9 @@ module type S = sig
      * allow commits with no parent unless they're on a named branch. *)
 
     val commit : t -> Irmin.Hash.SHA1.t -> Commit.t option Lwt.t
+    (** Look up a commit by its hash. *)
+
+    val empty : t -> Staging.t Lwt.t
+    (** Create an empty checkout with no parent. *)
   end
 end
