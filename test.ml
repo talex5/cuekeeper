@@ -65,6 +65,11 @@ module Git = Git_storage.Make(Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
 module M = Ck_model.Make(Test_clock)(Git)(struct type t = unit end)
 module W = M.Widget
 
+let config = Irmin_mem.config ()
+let task s =
+  let date = Test_clock.now () |> Int64.of_float in
+  Irmin.Task.create ~date ~owner:"User" s
+
 let format_list l = "[" ^ (String.concat "; " l) ^ "]"
 
 type node = N of string * node list
@@ -277,10 +282,6 @@ let suite =
         let wait s =
           Test_clock.run_to (!Test_clock.time +. s) in
         run_to_day 0;
-        let config = Irmin_mem.config () in
-        let task s =
-          let date = Test_clock.now () |> Int64.of_float in
-          Irmin.Task.create ~date ~owner:"User" s in
         Git.make config task >>= M.make >>= fun m ->
         M.set_mode m `Process;
         let process_tree = M.tree m |> expect_tree in

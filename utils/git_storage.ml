@@ -51,9 +51,12 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
     let checkout t =
       V.of_path (t.store "Make view") I.Key.empty >|= Staging.of_view t.repo
 
-    let commit staging ~msg =
+    let commit ?parents staging ~msg =
       let repo = staging.Staging.repo in
-      let parents = V.parents staging.Staging.view in
+      let parents =
+        match parents with
+        | Some parents -> parents |> List.map id
+        | None -> V.parents staging.Staging.view in
       V.make_head (repo.empty msg) (repo.task_maker msg) ~parents ~contents:staging.Staging.view
       >>= I.of_head repo.config repo.task_maker
       >|= fun store -> { repo; store }
