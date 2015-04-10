@@ -39,7 +39,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
 
     let id t =
       match I.branch (t.c_store "get commit ID") with
-      | `Tag _ -> assert false
+      | `Tag _ | `Empty -> assert false
       | `Head id -> id
 
     let equal a b =
@@ -110,7 +110,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
 
     let of_store repo store ~if_new =
       match I.branch (store "Get branch name") with
-      | `Head _ -> failwith "Not a tag!"
+      | `Head _ | `Empty -> failwith "Not a tag!"
       | `Tag branch_name ->
       let commit_of_id = function
         | None -> return None
