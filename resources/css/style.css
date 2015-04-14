@@ -621,7 +621,7 @@ div.tabs-content div.content {
 	padding-top: 0;
 }
 
-div.ck-details ul {
+div.ck-details div.description ul {
 	margin-bottom: 0;
 	margin-left: 1.1rem;
 }
