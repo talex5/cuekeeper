@@ -8,6 +8,11 @@ Copyright Thomas Leonard, 2015
 Installation
 ------------
 
+Pin a couple of patches we require:
+
+    opam pin add irmin 'https://github.com/mirage/irmin.git'
+    opam pin add sexplib 'https://github.com/talex5/sexplib.git#js_of_ocaml'
+
 Install the dependencies:
 
     opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64
