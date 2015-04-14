@@ -122,7 +122,7 @@ module Make(Git : Git_storage_s.S) = struct
       let a = (a :> generic) in
       let b = (b :> generic) in
       uuid a = uuid b &&
-      disk_node a = disk_node b &&
+      Ck_disk_node.equal (disk_node a) (disk_node b) &&
       node_due a = node_due b   (* Force the GUI to update when an item becomes due *)
   end
 
