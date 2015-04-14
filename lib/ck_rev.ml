@@ -192,6 +192,10 @@ module Make(Git : Git_storage_s.S) = struct
       bug "Node '%s' is not reachable from the root! (cycle in parent relation)" (Node.name example)
     )
 
+  let is_incomplete = function
+    | `Area _ -> true
+    | `Project _ | `Action _ as n -> not (Node.is_done n)
+
   let check_for_problems t =
     let rec scan node =
       let add problem =
@@ -206,6 +210,8 @@ module Make(Git : Git_storage_s.S) = struct
       match node with
       | `Project _ as node ->
           if (M.exists (fun _k -> is_area) child_nodes) then bug "Project with area child!";
+          if Node.project_state node = `Done && M.exists (fun _k -> is_incomplete) child_nodes then
+            add "Completed project with incomplete child";
           let children_status = M.fold reduce_progress child_nodes Idle in
           if children_status = Idle && Node.project_state node = `Active then add "Active project with no next action";
           children_status
