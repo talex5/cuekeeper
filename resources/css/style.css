@@ -521,7 +521,7 @@ span.ck-toggles a.ck-active-✓ {
 }
 div.ck-tree span.ck-toggles a.ck-active-alert {
 	-webkit-animation-name: alert;
-	-webkit-animation-iteration-count: infinite;
+	-webkit-animation-iteration-count: 3;
 	-webkit-animation-duration: 2.0s;
 	animation-name: alert;
 	animation-iteration-count: 3;
@@ -564,9 +564,11 @@ div.ck-details.closed {
 
 div.ck-details.ck-highlight .ck-heading {
 	-webkit-animation-name: flash;
-	-webkit-animation-duration: 1.0s;
+	-webkit-animation-iteration-count: 2;
+	-webkit-animation-duration: 2.0s;
 	animation-name: flash;
-	animation-duration: 1.0s;
+	animation-duration: 2.0s;
+	animation-iteration-count: 2;
 	background: yellow;
 }
 

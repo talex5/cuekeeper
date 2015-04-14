@@ -1136,6 +1136,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           let closed, set_closed = React.S.create false in
           let panel = make closed set_closed in
           ReactiveData.RList.insert (uuid, panel) 0 details_handle;
+          Ck_animate.scroll_to_show (0, 0)
       | Some _ ->
           Ck_panel.highlight uuid
       in

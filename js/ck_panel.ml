@@ -36,8 +36,16 @@ let make ~id ~closed ~set_closed ~on_destroy ~title ~contents =
           cancel_close := Ck_animate.fade_out ~when_complete:on_destroy elem
       | _ -> () end;
       current_highlight |> React.S.map (fun highlight ->
+        let matches = (highlight = Some id) in
+        begin match matches, !elem with
+        | true, Some elem ->
+            let elem = To_dom.of_element elem in
+            let _x, y = Ck_js_utils.pos_from_root elem in
+            let height = elem##clientHeight in
+            Ck_animate.scroll_to_show (y, y + height);
+        | _ -> () end;
         "ck-details" :: List.concat [
-          if highlight = Some id then ["ck-highlight"] else [];
+          if matches then ["ck-highlight"] else [];
           if closed then ["closed"] else [];
         ]
       )
@@ -58,7 +66,7 @@ let make ~id ~closed ~set_closed ~on_destroy ~title ~contents =
 let highlight uuid =
   set_highlight (Some uuid);
   async ~name:"highlight" (fun () ->
-    Lwt_js.sleep 1.0 >|= fun () ->
+    Lwt_js.sleep 2.0 >|= fun () ->
     if React.S.value current_highlight = Some uuid then set_highlight None
   )
 
