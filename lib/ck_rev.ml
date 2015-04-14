@@ -206,6 +206,7 @@ module Make(Git : Git_storage_s.S) = struct
         match scan child with
         | Idle -> acc
         | In_progress -> In_progress in
+      if Node.conflicts node <> [] then add "Unread merge conflicts report";
       let child_nodes = child_nodes node in
       match node with
       | `Project _ as node ->
