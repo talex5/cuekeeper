@@ -61,6 +61,15 @@ let () =
     set_current_error (Some msg)
   )
 
+(* Form submission MUST always return false, or the page will refresh. *)
+let a_onsubmit fn =
+  a_onsubmit (fun ev ->
+    try fn ev; false
+    with ex ->
+      !Lwt.async_exception_hook ex;
+      false
+  )
+
 let ck_label s = span ~a:[a_class ["ck-label"]] [pcdata s]
 
 let (>>?=) = Js.Opt.bind
@@ -238,8 +247,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       if name <> "" then (
         async ~name:"add" (fun () -> adder name >|= opt_show ~show_node);
       );
-      Ck_modal.close ();
-      false in
+      Ck_modal.close () in
     let content =
       form ~a:[a_onsubmit submit_clicked] [
         name_input;
@@ -428,8 +436,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           M.add_contact m ~name () >|= opt_show ~show_node
         );
       );
-      Ck_modal.close ();
-      false in
+      Ck_modal.close () in
     let content =
       form ~a:[a_onsubmit submit_clicked] [
         name_input;
@@ -461,9 +468,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           );
           Ck_modal.close ()
         ) in
-      let content = div ~a:[a_class ["ck-add-scheduled"]] [
+      let pk_elem, picker = Pikaday.make ~on_select () in
+      let submit _ev =
+        match Pikaday.get_date picker with
+        | Some date -> on_select date
+        | None -> () in
+      let content = form ~a:[a_class ["ck-add-scheduled"]; a_onsubmit submit] [
         name_input;
-        Pikaday.make ~on_select () |> fst
+        pk_elem;
       ] in
       show_modal ~parent:(ev##target) [content];
       false in
@@ -554,8 +566,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           )
         );
         close ()
-      );
-      false in
+      ) in
     let keydown (ev:Dom_html.keyboardEvent Js.t) =
       if ev##keyCode = keycode_escape then (
         close();
@@ -631,8 +642,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   async ~name:"set_name" (fun () -> M.set_name m item name)
                 )
               );
-              set_editing None;
-              false in
+              set_editing None in
             let old_name = React.S.value name in
             let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 25; a_value old_name] () in
             auto_focus name_input;
@@ -749,9 +759,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             );
         | Some (item, descr) ->
             let cancel _ev = set_editing None; false in
-            let submit_ref = ref (fun _ -> true) in
+            let submit_ref = ref ignore in
             let keydown (ev:Dom_html.keyboardEvent Js.t) =
-              if ev##keyCode = 13 && Js.to_bool ev##ctrlKey then !submit_ref ev
+              if ev##keyCode = 13 && Js.to_bool ev##ctrlKey then (!submit_ref ev; false)
               else true in
             let value = textarea ~a:[a_rows 5; a_onkeydown keydown]
               (pcdata descr) in
@@ -766,8 +776,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               let elem = Tyxml_js.To_dom.of_textarea value in
               let v = Js.to_string (elem##value) |> String.trim in
               async ~name:"set_description" (fun () -> M.set_description m item v);
-              set_editing None;
-              false in
+              set_editing None in
             submit_ref := submit;
             React.S.const [
               form ~a:[a_onsubmit submit] [
@@ -808,8 +817,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   Ck_modal.close ();
                   show_node node;
                   M.set_context m action node >|= report_error ~parent:(ev##target)
-            );
-            false in
+            ) in
           li [form ~a:[a_onsubmit add_context] [name_input]] in
         let contexts =
           M.candidate_contexts_for m action |> List.map (fun candidate ->
@@ -843,8 +851,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   Ck_modal.close ();
                   show_node node;
                   M.set_contact m item (Some node) >|= report_error ~parent:(ev##target)
-            );
-            false in
+            ) in
           li [form ~a:[a_onsubmit add_contact] [name_input]] in
         let contacts =
           M.candidate_contacts_for m item |> List.map (fun candidate ->
@@ -899,10 +906,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         |> M.set_repeat m action
       );
       Ck_modal.close () in
-    let picker_elem, pikaday = Pikaday.make ~initial:init.repeat_from ~on_select () in
+    let picker_elem, picker = Pikaday.make ~initial:init.repeat_from ~on_select () in
     let submit _ev =
-      on_select (Pikaday.get_date pikaday);
-      false in
+      match Pikaday.get_date picker with
+      | Some date -> on_select date
+      | None -> () in
     [
       form ~a:[a_onsubmit submit; a_class ["ck-repeat"]] [
         div ~a:[a_class ["ck-repeat-interval"]] [
@@ -966,7 +974,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | None -> "-"
       | Some item -> M.Item.ctime item |> Ck_time.string_of_unix_time in
     let description = make_editable_description m item in
-    let title = 
+    let title =
       div ~a:[R.Html5.a_class title_cl] [
         R.Html5.span ~a:[a_class ["ck-toggles"]] (make_state_toggles m item);
         R.Html5.div ~a:[a_class ["inline"]] (make_editable_title m item);
@@ -1081,19 +1089,18 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       true in
     let input_box = input ~a:[a_oninput oninput; a_name "v"; a_placeholder "Add item"; a_size 20; a_autocomplete `Off] () in
     let add adder _ev =
-      begin match React.S.value value with
+      match React.S.value value with
       | "" -> ()
       | name ->
           Ck_modal.close ();
           async ~name:"add-action-top" (fun () ->
             adder m ~name () >|= opt_show ~show_node
           )
-      end;
-      false in
+      in
     let submit = add (M.add_action ~state:`Next ?context:None ?contact:None ?parent:None ?description:None) in
     my_input := Some input_box;
     let action adder label =
-      li [a ~a:[a_onclick (add adder)] [pcdata label]] in
+      li [a ~a:[a_onclick (fun ev -> add adder ev; false)] [pcdata label]] in
     let f = form ~a:[a_onsubmit submit; a_class ["ck-main-entry"]] [
       input_box;
       div ~a:[R.Html5.a_class cl] [

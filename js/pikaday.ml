@@ -8,7 +8,7 @@ open Tyxml_js
 
 class type pikaday =
   object
-    method getDate : Js.date Js.t Js.meth
+    method getDate : Js.date Js.t Js.Opt.t Js.meth
   end
 
 class type config =
@@ -47,4 +47,6 @@ let make ?(initial:Ck_time.user_date option) ~on_select () =
   (div, pd)
 
 let get_date (pd : #pikaday Js.t) =
-  pd##getDate () |> to_user_date
+  Js.Opt.case (pd##getDate ())
+    (fun () -> None)
+    (fun d -> Some (to_user_date d))

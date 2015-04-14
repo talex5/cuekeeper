@@ -828,11 +828,11 @@ div.ck-or {
 	text-align: center;
 }
 
-div.ck-add-scheduled {
+form.ck-add-scheduled {
 	padding: 2px;
 }
 
-div.ck-add-scheduled input {
+form.ck-add-scheduled input {
 	width: 100%;
 }
 
