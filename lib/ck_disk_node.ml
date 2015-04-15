@@ -182,12 +182,11 @@ let conflicts t = (details t).conflicts
 
 let of_string s =
   match disk_apa_of_sexp (Sexplib.Sexp.of_string s) with
-  | `Action (a, d) -> `Action (action_node a d)
-  | `Project (p, d) -> `Project (project_node p d)
-  | `Area d -> `Area (area_node d)
+  | `Action (a, d) -> (action_node a d :> apa_node)
+  | `Project (p, d) -> (project_node p d :> apa_node)
+  | `Area d -> (area_node d :> apa_node)
 let to_string t =
-  (unwrap_apa t)#sexp
-  |> Sexplib.Sexp.to_string
+  Sexplib.Sexp.to_string t#sexp
 
 let contact_of_string s = `Contact (contact_node (node_details_of_sexp (Sexplib.Sexp.of_string s)))
 let contact_to_string (`Contact t) = Sexplib.Sexp.to_string (sexp_of_node_details t#details)

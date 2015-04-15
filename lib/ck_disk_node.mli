@@ -88,8 +88,8 @@ val contact : [< area | project | action ] -> Ck_id.t option
 
 open Types
 
-val of_string : string -> [ area | project | action ]
-val to_string : [< area | project | action ] -> string
+val of_string : string -> apa_node
+val to_string : #apa_node -> string
 
 val contact_of_string : string -> contact
 val contact_to_string : contact -> string

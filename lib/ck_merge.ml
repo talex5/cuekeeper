@@ -40,7 +40,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     let get = R.get
     let to_disk = R.apa_node
     let merge = Ck_disk_node.merge
-    let to_string = Ck_disk_node.to_string
+    let to_string n = Ck_disk_node.(unwrap_apa n |> to_string)
     let diff p = p.nodes
     let with_conflict msg n = ((Ck_disk_node.unwrap_apa n)#with_conflict msg)#apa_ty
     let equal = R.Node.equal
@@ -146,6 +146,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
    * Also, fixup any invalid parent links.
    *)
   let scan_merged_nodes staging =
+    let open Ck_disk_node.Types in
     let required_contacts = ref Ck_id.S.empty in
     let required_contexts = ref Ck_id.S.empty in
     let nodes = Hashtbl.create 100 in
@@ -163,17 +164,17 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
       with Not_found -> None in
     (* Look up the parent node. [None] if there is no parent
      * or the parent is missing. *)
-    let parent node =
-      let parent = Ck_disk_node.parent node in
+    let parent (node:#apa_node) =
+      let parent = node#parent in
       if parent <> Ck_id.root then (
         try Some (Hashtbl.find nodes parent)
         with Not_found -> None
       ) else None in
     let to_clear = ref [] in
-    let ignore_node : [< Ck_disk_node.generic] -> unit = ignore in
+    let ignore_node : #apa_node -> unit = ignore in
     let clear_parent ~msg uuid node =
       let node =
-        (((Ck_disk_node.unwrap_apa node)#with_parent Ck_id.root)#with_conflict msg)#apa_ty in
+        (node#with_parent Ck_id.root)#with_conflict msg in
       Hashtbl.replace nodes uuid node;
       to_clear := (uuid, node) :: !to_clear;
       node in
@@ -186,7 +187,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
         | Checking -> clear_parent ~msg:"Removed parent due to cycle" uuid node
         | Rooted -> node    (* Already checked this one *)
       with Not_found ->
-        let parent = Ck_disk_node.parent node in
+        let parent = node#parent in
         if parent = Ck_id.root then (
           Hashtbl.add rooted uuid Rooted;
           node
@@ -206,23 +207,26 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
       (* Ensure reachable from root, breaking cycles if necessary *)
       let node = ensure_rooted uuid node in
       (* Note any required contact *)
-      begin match Ck_disk_node.contact node with
+      begin match node#contact with
       | None -> ()
       | Some contact -> required_contacts := !required_contacts |> Ck_id.S.add contact
       end;
       (* Note any required context *)
-      begin match node with
-      | `Action _ as node ->
-          begin match Ck_disk_node.context node with
+      begin match node#apa_ty with
+      | `Action node ->
+          begin match node#context with
           | None -> ()
           | Some context -> required_contexts := !required_contexts |> Ck_id.S.add context end
       | _ -> ()
       end;
       (* Check parent is of the right type *)
-      match parent node, node with
-      | Some `Action _, _ -> clear_parent ~msg:"Removed parent as it became an action" uuid node |> ignore_node
-      | Some `Project _, `Area _ -> clear_parent ~msg:"Removed parent as it is not an area" uuid node |> ignore_node
-      | _ -> ()
+      match parent node with
+      | None -> ()
+      | Some parent_node ->
+          match parent_node#ty, node#ty with
+          | `Action _, _ -> clear_parent ~msg:"Removed parent as it became an action" uuid node |> ignore_node
+          | `Project _, `Area _ -> clear_parent ~msg:"Removed parent as it is not an area" uuid node |> ignore_node
+          | _ -> ()
     );
     (* Apply all the changes now (since Hashtbl.iter isn't async). *)
     !to_clear |> Lwt_list.iter_s (fun (uuid, node) ->

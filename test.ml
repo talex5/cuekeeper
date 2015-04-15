@@ -247,6 +247,7 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
                 ))
               else a
       end
+      |> Ck_disk_node.unwrap_apa
       |> Ck_disk_node.to_string in
 
     make_n (rand_int 2) "contact" random_contact >>= fun contacts ->

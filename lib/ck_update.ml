@@ -182,7 +182,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     let parent = Ck_disk_node.parent node in
     if parent <> Ck_id.root && not (mem parent base) then
       bug "Parent '%a' does not exist!" Ck_id.fmt parent;
-    let s = Ck_disk_node.to_string node in
+    let s = Ck_disk_node.to_string (Ck_disk_node.unwrap_apa node) in
     let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name node) in
     merge_to_master t ~base ~msg (fun view ->
       Git.Staging.update view ["db"; Ck_id.to_string uuid] s
@@ -198,7 +198,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
           let parent = Ck_disk_node.parent new_disk_node in
           if parent <> Ck_id.root && not (mem parent base) then
             bug "Parent '%a' does not exist!" Ck_id.fmt parent;
-          let s = Ck_disk_node.to_string new_disk_node in
+          let s = Ck_disk_node.to_string (Ck_disk_node.unwrap_apa new_disk_node) in
           Git.Staging.update view ["db"; Ck_id.to_string uuid] s
       | `Contact _ as new_disk_node ->
           assert (Ck_id.M.mem uuid (R.contacts base));
