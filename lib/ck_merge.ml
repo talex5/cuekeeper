@@ -35,40 +35,40 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
 
   module APA : KIND = struct
     type t = [area | project | action]
-    type disk_t = [Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action]
+    type disk_t = Ck_disk_node.Types.apa_node
     let dir = "db"
     let get = R.get
-    let to_disk = R.apa_node
+    let to_disk n = R.apa_node n
     let merge = Ck_disk_node.merge
-    let to_string n = Ck_disk_node.(unwrap_apa n |> to_string)
+    let to_string x = Sexplib.Sexp.to_string x#sexp
     let diff p = p.nodes
-    let with_conflict msg n = ((Ck_disk_node.unwrap_apa n)#with_conflict msg)#apa_ty
+    let with_conflict msg n = n#with_conflict msg
     let equal = R.Node.equal
   end
 
   module Contact : KIND = struct
     type t = contact
-    type disk_t = Ck_disk_node.Types.contact
+    type disk_t = Ck_disk_node.Types.contact_node
     let dir = "contact"
     let get = R.get_contact
     let to_disk = R.contact_node
     let merge = Ck_disk_node.merge_contact
-    let to_string = Ck_disk_node.contact_to_string
+    let to_string x = Sexplib.Sexp.to_string x#sexp
     let diff p = p.contacts
-    let with_conflict msg (`Contact c) = `Contact (c#with_conflict msg)
+    let with_conflict msg c = c#with_conflict msg
     let equal = R.Node.equal
   end
 
   module Context : KIND = struct
     type t = context
-    type disk_t = Ck_disk_node.Types.context
+    type disk_t = Ck_disk_node.Types.context_node
     let dir = "context"
     let get = R.get_context
     let to_disk = R.context_node
     let merge = Ck_disk_node.merge_context
-    let to_string = Ck_disk_node.context_to_string
+    let to_string x = Sexplib.Sexp.to_string x#sexp
     let diff p = p.contexts
-    let with_conflict msg (`Context c) = `Context (c#with_conflict msg)
+    let with_conflict msg c = c#with_conflict msg
     let equal = R.Node.equal
   end
 

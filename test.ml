@@ -197,11 +197,12 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
             let id = unused_uuid () in
             let uuid = Ck_id.of_string id in
             used := Some uuid :: !used;
-            let str = fn
+            let node : #Ck_disk_node.Types.node = fn
               ~uuid
               ~name:("n-" ^ rand_string 3)
               ~description:(rand_string 3)
               ~ctime:(rand_time 3) in
+            let str = Sexplib.Sexp.to_string node#sexp in
             aux ((id, str) :: todo) (i - 1) in
       aux [] n
       |> Lwt_list.iter_s (fun (uuid, str) ->
@@ -210,12 +211,10 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
       Array.of_list !used in
 
     let random_contact ~uuid:_ ~name ~description ~ctime =
-      Ck_disk_node.make_contact ~name ~description ~ctime ()
-      |> Ck_disk_node.contact_to_string in
+      Ck_disk_node.make_contact ~name ~description ~ctime () in
 
     let random_context ~uuid:_ ~name ~description ~ctime =
-      Ck_disk_node.make_context ~name ~description ~ctime ()
-      |> Ck_disk_node.context_to_string in
+      Ck_disk_node.make_context ~name ~description ~ctime () in
 
     let areas = ref [Ck_id.root] in
     let projects = ref [] in
@@ -247,8 +246,7 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
                 ))
               else a
       end
-      |> Ck_disk_node.unwrap_apa
-      |> Ck_disk_node.to_string in
+      |> Ck_disk_node.unwrap_apa in
 
     make_n (rand_int 2) "contact" random_contact >>= fun contacts ->
     make_n (rand_int 2) "context" random_context >>= fun contexts ->

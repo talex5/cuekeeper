@@ -10,18 +10,17 @@ module type S = sig
   open Node.Types
 
   val make : time:Ck_time.user_date -> commit -> t Lwt.t
-  val disk_node : [< Node.generic] -> Ck_disk_node.generic
-  val apa_node : [< area | project | action] ->
-    [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action ]
+  val disk_node : [< Node.generic] -> Ck_disk_node.Types.node
+  val apa_node : [< area | project | action] -> Ck_disk_node.Types.apa_node
 
-  val action_node : action -> Ck_disk_node.Types.action
-  val project_node : project -> Ck_disk_node.Types.project
-  val area_node : area -> Ck_disk_node.Types.area
-  val context_node : context -> Ck_disk_node.Types.context
-  val contact_node : contact -> Ck_disk_node.Types.contact
+  val action_node : action -> Ck_disk_node.Types.action_node
+  val project_node : project -> Ck_disk_node.Types.project_node
+  val area_node : area -> Ck_disk_node.Types.area_node
+  val context_node : context -> Ck_disk_node.Types.context_node
+  val contact_node : contact -> Ck_disk_node.Types.contact_node
 end
 
-module Make(Git : Git_storage_s.S) = struct
+module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
   type commit = Git.Commit.t
 
   module Node = struct
@@ -68,17 +67,17 @@ module Make(Git : Git_storage_s.S) = struct
       | `Contact of contact_node
       | `Context of context_node ]
 
-    let apa_disk_node = function
-      | `Action n -> `Action n.disk_node
-      | `Project n -> `Project n.disk_node
-      | `Area n -> `Area n.disk_node
+    let apa_disk_node : [< apa] -> Ck_disk_node.Types.apa_node = function
+      | `Action n -> (n.disk_node :> Ck_disk_node.Types.apa_node)
+      | `Project n -> (n.disk_node :> Ck_disk_node.Types.apa_node)
+      | `Area n -> (n.disk_node :> Ck_disk_node.Types.apa_node)
 
-    let disk_node = function
-      | `Action n -> `Action n.disk_node
-      | `Project n -> `Project n.disk_node
-      | `Area n -> `Area n.disk_node
-      | `Contact n -> `Contact n.disk_node
-      | `Context n -> `Context n.disk_node
+    let disk_node : [< generic] -> Ck_disk_node.Types.node = function
+      | `Action n -> (n.disk_node :> Ck_disk_node.Types.node)
+      | `Project n -> (n.disk_node :> Ck_disk_node.Types.node)
+      | `Area n -> (n.disk_node :> Ck_disk_node.Types.node)
+      | `Contact n -> (n.disk_node :> Ck_disk_node.Types.node)
+      | `Context n -> (n.disk_node :> Ck_disk_node.Types.node)
 
     let details = function
       | `Action n -> {n with disk_node = ()}
@@ -90,12 +89,12 @@ module Make(Git : Git_storage_s.S) = struct
     let rev n = (details n).rev
     let uuid n = (details n).uuid
 
-    let contact t = Ck_disk_node.contact (apa_disk_node t)
-    let parent t = Ck_disk_node.parent (apa_disk_node t)
-    let name t = Ck_disk_node.name (disk_node t)
-    let description t = Ck_disk_node.description (disk_node t)
-    let ctime t = Ck_disk_node.ctime (disk_node t)
-    let conflicts t = Ck_disk_node.conflicts (disk_node t)
+    let contact t = (apa_disk_node t)#contact
+    let parent t = (apa_disk_node t)#parent
+    let name t = (disk_node t)#name
+    let description t = (disk_node t)#description
+    let ctime t = (disk_node t)#ctime
+    let conflicts t = (disk_node t)#conflicts
     let action_state (`Action n) = Ck_disk_node.action_state (`Action n.disk_node)
     let action_repeat (`Action n) = Ck_disk_node.action_repeat (`Action n.disk_node)
     let context (`Action n) = Ck_disk_node.context (`Action n.disk_node)
@@ -358,11 +357,11 @@ module Make(Git : Git_storage_s.S) = struct
 
   let disk_node = Node.disk_node
   let apa_node = Node.apa_disk_node
-  let action_node (`Action n) = `Action n.disk_node
-  let project_node (`Project n) = `Project n.disk_node
-  let area_node (`Area n) = `Area n.disk_node
-  let contact_node (`Contact n) = `Contact n.disk_node
-  let context_node (`Context n) = `Context n.disk_node
+  let action_node (`Action n) = n.disk_node
+  let project_node (`Project n) = n.disk_node
+  let area_node (`Area n) = n.disk_node
+  let contact_node (`Contact n) = n.disk_node
+  let context_node (`Context n) = n.disk_node
 
   let due action =
     match Node.action_state action with

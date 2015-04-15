@@ -43,9 +43,13 @@ module Types = struct
   class virtual node details =
     object (self : 'a)
       val details = details
+      method virtual dir : string
+      method virtual sexp : Sexplib.Sexp.t
       method details = details
       method name = details.name
+      method with_name name = {< details = {details with name} >}
       method description = details.description
+      method with_description description = {< details = {details with description} >}
       method ctime = details.ctime
       method conflicts = details.conflicts
       method with_conflict conflict = {< details = {details with conflicts = conflict :: details.conflicts} >}
@@ -57,20 +61,31 @@ module Types = struct
         [ `Area of area_node | `Project of project_node | `Action of action_node
         | `Contact of contact_node | `Context of context_node ]
     end
-  and virtual contact_node = node
-  and virtual context_node = node
+  and virtual contact_node details =
+    object
+      inherit node details
+      method dir = "contact"
+    end
+  and virtual context_node details =
+    object
+      inherit node details
+      method dir = "context"
+    end
   and virtual apa_node details =
     object (self)
       inherit node details
-      method virtual sexp : Sexplib.Sexp.t
+      method dir = "db"
       method parent = details.parent
       method with_parent parent = {< details = {details with parent} >}
       method contact = details.contact
+      method with_contact contact = {< details = {details with contact} >}
       method virtual apa_ty :
         [ `Area of area_node | `Project of project_node | `Action of action_node ]
       method ty = (self#apa_ty :> [ `Area of area_node | `Project of project_node | `Action of action_node
                                   | `Contact of contact_node | `Context of context_node ])
-
+      method virtual as_area : area_node
+      method virtual as_project : project_node
+      method virtual as_action : action_node
     end
   and virtual area_node = apa_node
   and virtual project_node project_details details =
@@ -108,40 +123,49 @@ open Types
 
 let contact_node details =
   object (self : #contact_node)
-    inherit node details
+    inherit contact_node details
     method ty = `Contact self
     method data = Obj.repr details
+    method sexp = sexp_of_node_details details
   end
 
 let context_node details =
   object (self : #context_node)
-    inherit node details
+    inherit context_node details
     method ty = `Context self
     method data = Obj.repr details
+    method sexp = sexp_of_node_details details
   end
 
-let area_node details =
-  object (self : #area_node)
+let rec area_node details =
+  object (self : #Types.area_node)
     inherit apa_node details
     method apa_ty = `Area self
     method sexp = sexp_of_disk_apa (`Area details :> disk_apa)
     method data = Obj.repr details
+    method as_area = self
+    method as_project = project_node {pstate = `Active; pstarred = false} details
+    method as_action = action_node {astate = `Next; astarred = false; context = None; repeat = None} details
   end
-
-let project_node project_details details =
-  object (self : #project_node)
+and project_node project_details details =
+  object (self : #Types.project_node)
     inherit project_node project_details details
     method apa_ty = `Project self
     method sexp = sexp_of_disk_apa (`Project (project_details, details) :> disk_apa)
     method data = Obj.repr (project_details, details)
+    method as_area = area_node details
+    method as_project = self
+    method as_action = action_node {astate = `Next; astarred = project_details.pstarred; context = None; repeat = None} details
   end
-
-let action_node action_details details =
-  object (self : #action_node)
+and action_node action_details details =
+  object (self : #Types.action_node)
     inherit action_node action_details details
     method apa_ty = `Action self
     method sexp = sexp_of_disk_apa (`Action (action_details, details) :> disk_apa)
     method data = Obj.repr (action_details, details)
+    method as_area = area_node details
+    method as_project = project_node {pstate = `Active; pstarred = action_details.astarred} details
+    method as_action = self
   end
 
 type apa =
@@ -189,10 +213,8 @@ let to_string t =
   Sexplib.Sexp.to_string t#sexp
 
 let contact_of_string s = `Contact (contact_node (node_details_of_sexp (Sexplib.Sexp.of_string s)))
-let contact_to_string (`Contact t) = Sexplib.Sexp.to_string (sexp_of_node_details t#details)
 
 let context_of_string s = `Context (context_node (node_details_of_sexp (Sexplib.Sexp.of_string s)))
-let context_to_string (`Context t) = Sexplib.Sexp.to_string (sexp_of_node_details t#details)
 
 let make ~name ~description ~parent ~ctime ~contact = {
   name;
@@ -208,7 +230,7 @@ let with_description node description = ((unwrap node)#map_details (fun d -> {d 
 let with_parent node parent = ((unwrap_apa node)#map_details (fun d -> {d with parent}))#apa_ty
 let with_contact node contact = ((unwrap_apa node)#map_details (fun d -> {d with contact}))#apa_ty
 let equal a b =
-  (unwrap (a : [< generic] :> generic))#equals (unwrap (b : [< generic] :> generic))
+  (a :> node)#equals (b :> node)
 
 let context (`Action a) = a#context
 let action_repeat (`Action a) = a#repeat
@@ -239,29 +261,20 @@ let make_area ?contact ~name ~description ~parent ~ctime () =
   `Area (area_node (make ~name ~description ~parent ~ctime ~contact))
 
 let make_contact ~name ~description ~ctime () =
-  `Contact (contact_node (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None))
+  contact_node (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)
 
 let make_context ~name ~description ~ctime () =
-  `Context (context_node (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None))
+  context_node (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)
 
 let is_done = function
   | `Action n -> n#state = `Done
   | `Project n -> n#state = `Done
 
+(* XXX *)
 let as_project = function
   | `Action n -> `Project (project_node {pstate = `Active; pstarred = n#starred} n#details)
   | `Project _ as p -> p
   | `Area n -> `Project (project_node {pstate = `Active; pstarred = false} n#details)
-
-let as_area = function
-  | `Area _ as a -> a
-  | `Project n -> `Area (area_node n#details)
-  | `Action n -> `Area (area_node n#details)
-
-let as_action = function
-  | `Project p -> `Action (action_node {astate = `Next; astarred = p#starred; context = None; repeat = None} p#details)
-  | `Action _ as a -> a
-  | `Area d -> `Action (action_node {astate = `Next; astarred = false; context = None; repeat = None} d#details)
 
 let merge_detail ~log ~fmt ~base ~theirs ours =
   if base = theirs then ours
@@ -318,7 +331,6 @@ let merge_details ~log ~base ~theirs ours =
   {parent; name; description; ctime; contact; conflicts}
 
 let merge_project ~log ~base ~theirs ours =
-  let `Project base = base in
   let {pstarred; pstate} = ours#project in
   let prj = {
     pstarred = merge_detail ~log ~fmt:star ~base:base#starred ~theirs:theirs#starred pstarred;
@@ -341,7 +353,6 @@ let merge_waiting_contact ~log ~theirs ours =
   | _ -> assert false
 
 let merge_action ~log ~base ~theirs ours =
-  let `Action base = base in
   let {astarred; astate; context; repeat} = ours#action in
   let repeat = merge_detail ~log ~fmt:fmt_repeat ~base:base#repeat ~theirs:theirs#repeat repeat in
   let astate = merge_detail ~log ~fmt:fmt_astate ~base:base#state ~theirs:theirs#state astate in
@@ -364,52 +375,44 @@ let merge_action ~log ~base ~theirs ours =
   action_node act details
 
 let merge ?base ~theirs ours =
-  let base = (base :> apa option) |> default (`Area (area_node default_base)) in
-  let theirs = (theirs :> apa) in
-  let ours = (ours :> apa) in
+  let base = base |> default (area_node default_base) in
   if equal base theirs then ours
   else if equal base ours then theirs
   else (
     let conflicts = ref [] in
     let log msg = conflicts := msg :: !conflicts in
     let merged =
-      match theirs, ours with
-      | `Area theirs, `Area ours -> area_node (merge_details ~log ~base:(details base) ~theirs:theirs#details ours#details)
-      | `Project theirs, `Project ours -> (merge_project ~log ~base:(as_project base) ~theirs ours :> apa_node)
-      | `Action theirs, `Action ours -> (merge_action ~log ~base:(as_action base) ~theirs ours :> apa_node)
+      match theirs#apa_ty, ours#apa_ty with
+      | `Area theirs, `Area ours -> area_node (merge_details ~log ~base:base#details ~theirs:theirs#details ours#details)
+      | `Project theirs, `Project ours -> (merge_project ~log ~base:base#as_project ~theirs ours :> apa_node)
+      | `Action theirs, `Action ours -> (merge_action ~log ~base:base#as_action ~theirs ours :> apa_node)
       | theirs, ours ->
           log "Type mismatch: converting to project";
           let `Project theirs = as_project theirs in
           let `Project ours = as_project ours in
-          (merge_project ~log ~base:(as_project base) ~theirs ours :> apa_node)
+          (merge_project ~log ~base:base#as_project ~theirs ours :> apa_node)
     in
-    (merged#map_details (fun d -> {d with conflicts = d.conflicts @ !conflicts}))#apa_ty
+    merged#map_details (fun d -> {d with conflicts = d.conflicts @ !conflicts})
   )
 
 let merge_context ?base ~theirs ours =
-  let base = base |> default (`Context (context_node default_base)) in
+  let base = base |> default (context_node default_base) in
   if equal base theirs then ours
   else if equal base ours then theirs
   else (
-    let `Context base = base in
-    let `Context theirs = theirs in
-    let `Context ours = ours in
     let conflicts = ref [] in
     let log msg = conflicts := msg :: !conflicts in
     let merged = merge_details ~log ~base:base#details ~theirs:theirs#details ours#details in
-    `Context (context_node {merged with conflicts = merged.conflicts @ !conflicts})
+    context_node {merged with conflicts = merged.conflicts @ !conflicts}
   )
 
 let merge_contact ?base ~theirs ours =
-  let base = base |> default (`Contact (contact_node default_base)) in
+  let base = base |> default (contact_node default_base) in
   if equal base theirs then ours
   else if equal base ours then theirs
   else (
-    let `Contact base = base in
-    let `Contact theirs = theirs in
-    let `Contact ours = ours in
     let conflicts = ref [] in
     let log msg = conflicts := msg :: !conflicts in
     let merged = merge_details ~log ~base:base#details ~theirs:theirs#details ours#details in
-    `Contact (contact_node {merged with conflicts = merged.conflicts @ !conflicts})
+    contact_node {merged with conflicts = merged.conflicts @ !conflicts}
   )

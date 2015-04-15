@@ -45,8 +45,8 @@ module Make(Git : Git_storage_s.S)
     parent:[`Toplevel of R.t | `Node of [< area | project ]] ->
     (parent:Ck_id.t -> ctime:float -> unit -> [ Ck_disk_node.Types.area | Ck_disk_node.Types.project | Ck_disk_node.Types.action]) ->
     Ck_id.t Lwt.t
-  val add_contact : t -> base:R.t -> Ck_disk_node.Types.contact -> Ck_id.t Lwt.t
-  val add_context : t -> ?uuid:Ck_id.t -> base:R.t -> Ck_disk_node.Types.context -> Ck_id.t Lwt.t
+  val add_contact : t -> base:R.t -> Ck_disk_node.Types.contact_node -> Ck_id.t Lwt.t
+  val add_context : t -> ?uuid:Ck_id.t -> base:R.t -> Ck_disk_node.Types.context_node -> Ck_id.t Lwt.t
   val delete : t -> [< R.Node.generic] -> unit or_error Lwt.t
   val clear_conflicts : t -> [< R.Node.generic] -> unit Lwt.t
 

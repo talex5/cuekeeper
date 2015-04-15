@@ -13,9 +13,13 @@ type project_details
 module Types : sig
   class type virtual node =
     object ('a)
+      method virtual dir : string
+      method virtual sexp : Sexplib.Sexp.t
       method details : node_details
       method name : string
+      method with_name : string -> 'a
       method description : string
+      method with_description : string -> 'a
       method ctime : float
       method conflicts : string list
       method with_conflict : string -> 'a
@@ -32,12 +36,15 @@ module Types : sig
   and virtual apa_node =
     object ('a)
       inherit node
-      method virtual sexp : Sexplib.Sexp.t
       method parent : Ck_id.t
       method with_parent : Ck_id.t -> 'a
       method contact : Ck_id.t option
+      method with_contact : Ck_id.t option -> 'a
       method virtual apa_ty :
         [ `Area of area_node | `Project of project_node | `Action of action_node ]
+      method virtual as_area : area_node
+      method virtual as_project : project_node
+      method virtual as_action : action_node
     end
   and virtual area_node = apa_node
   and virtual project_node =
@@ -92,18 +99,16 @@ val of_string : string -> apa_node
 val to_string : #apa_node -> string
 
 val contact_of_string : string -> contact
-val contact_to_string : contact -> string
 
 val context_of_string : string -> context
-val context_to_string : context -> string
 
-val equal : ([< generic] as 'a) -> 'a -> bool
+val equal : #node -> #node -> bool
 
 val make_action : state:action_state -> ?context:Ck_id.t -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> [> action]
 val make_project : state:project_state -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> [> project]
 val make_area : ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> [> area]
-val make_contact : name:string -> description:string -> ctime:float -> unit -> contact
-val make_context : name:string -> description:string -> ctime:float -> unit -> context
+val make_contact : name:string -> description:string -> ctime:float -> unit -> contact_node
+val make_context : name:string -> description:string -> ctime:float -> unit -> context_node
 
 val with_name : generic -> string -> generic
 val with_description : generic -> string -> generic
@@ -115,14 +120,9 @@ val with_pstate : project -> [ `Active | `SomedayMaybe | `Done ] -> project
 val with_starred : [< project | action] -> bool -> [project | action]
 val with_context : action -> Ck_id.t option -> action
 
-val as_area : project -> area
-val as_project : [< area | action] -> project
-val as_action : project -> action
-
-val merge : ?base:[< area | project | action] -> theirs:[< area | project | action] -> [< area | project | action] ->
-  [area | project | action]
-val merge_context : ?base:context -> theirs:context -> context -> context
-val merge_contact : ?base:contact -> theirs:contact -> contact -> contact
+val merge : ?base:apa_node -> theirs:apa_node -> apa_node -> apa_node
+val merge_context : ?base:context_node -> theirs:context_node -> context_node -> context_node
+val merge_contact : ?base:contact_node -> theirs:contact_node -> contact_node -> contact_node
 
 val unwrap : [< generic] -> node
 val unwrap_apa : [< `Area of area_node | `Project of project_node | `Action of action_node] -> apa_node
