@@ -6,7 +6,83 @@
 
 open Ck_sigs
 
-include DISK_NODE
+type node_details
+type action_details
+type project_details
+
+module Types : sig
+  class type virtual node =
+    object ('a)
+      method details : node_details
+      method name : string
+      method description : string
+      method ctime : float
+      method conflicts : string list
+      method map_details : (node_details -> node_details) -> 'a
+      method virtual data : Obj.t
+      method equals : node -> bool
+      method virtual ty :
+        [ `Area of area_node | `Project of project_node | `Action of action_node
+        | `Contact of contact_node | `Context of context_node ]
+    end
+  and virtual contact_node = node
+  and virtual context_node = node
+  and virtual apa_node =
+    object
+      inherit node
+      method virtual sexp : Sexplib.Sexp.t
+      method parent : Ck_id.t
+      method contact : Ck_id.t option
+      method virtual apa_ty :
+        [ `Area of area_node | `Project of project_node | `Action of action_node ]
+    end
+  and virtual area_node = apa_node
+  and virtual project_node =
+    object ('a)
+      inherit apa_node
+      method project : project_details
+      method starred : bool
+      method state : project_state
+      method with_state : project_state -> 'a
+      method with_starred : bool -> 'a
+    end
+  and virtual action_node =
+    object ('a)
+      inherit apa_node
+      method action : action_details
+      method starred : bool
+      method state : action_state
+      method context : Ck_id.t option
+      method repeat : Ck_time.repeat option
+      method with_repeat : Ck_time.repeat option -> 'a
+      method with_state : action_state -> 'a
+      method with_starred : bool -> 'a
+      method with_context : Ck_id.t option -> 'a
+    end
+
+  type action = [`Action of action_node]
+  type project = [`Project of project_node]
+  type area = [`Area of area_node]
+  type contact = [`Contact of contact_node]
+  type context = [`Context of context_node]
+end
+open Types
+
+type generic = [ area | project | action | contact | context ]
+
+val parent : [< area | project | action ] -> Ck_id.t
+val name : [< generic ] -> string
+val description : [< generic] -> string
+val ctime : [< generic ] -> float
+val conflicts : [< generic ] -> string list
+val starred : [< project | action] -> bool
+val action_state : action -> action_state
+val action_repeat : action -> Ck_time.repeat option
+val project_state : project -> project_state
+val is_done : [< project | action] -> bool
+val context : action -> Ck_id.t option
+val contact : [< area | project | action ] -> Ck_id.t option
+
 open Types
 
 val of_string : string -> [ area | project | action ]
