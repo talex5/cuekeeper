@@ -18,6 +18,8 @@ module Types : sig
       method description : string
       method ctime : float
       method conflicts : string list
+      method with_conflict : string -> 'a
+      method without_conflicts : 'a
       method map_details : (node_details -> node_details) -> 'a
       method virtual data : Obj.t
       method equals : node -> bool
@@ -28,10 +30,11 @@ module Types : sig
   and virtual contact_node = node
   and virtual context_node = node
   and virtual apa_node =
-    object
+    object ('a)
       inherit node
       method virtual sexp : Sexplib.Sexp.t
       method parent : Ck_id.t
+      method with_parent : Ck_id.t -> 'a
       method contact : Ck_id.t option
       method virtual apa_ty :
         [ `Area of area_node | `Project of project_node | `Action of action_node ]
@@ -120,5 +123,6 @@ val merge : ?base:[< area | project | action] -> theirs:[< area | project | acti
   [area | project | action]
 val merge_context : ?base:context -> theirs:context -> context -> context
 val merge_contact : ?base:contact -> theirs:contact -> contact -> contact
-val with_conflict : string -> ([< generic] as 'a) -> 'a
-val without_conflicts : ([< generic] as 'a) -> 'a
+
+val unwrap : [< generic] -> node
+val unwrap_apa : [< `Area of area_node | `Project of project_node | `Action of action_node] -> apa_node

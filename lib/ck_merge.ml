@@ -42,7 +42,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     let merge = Ck_disk_node.merge
     let to_string = Ck_disk_node.to_string
     let diff p = p.nodes
-    let with_conflict = Ck_disk_node.with_conflict
+    let with_conflict msg n = ((Ck_disk_node.unwrap_apa n)#with_conflict msg)#apa_ty
     let equal = R.Node.equal
   end
 
@@ -55,7 +55,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     let merge = Ck_disk_node.merge_contact
     let to_string = Ck_disk_node.contact_to_string
     let diff p = p.contacts
-    let with_conflict = Ck_disk_node.with_conflict
+    let with_conflict msg (`Contact c) = `Contact (c#with_conflict msg)
     let equal = R.Node.equal
   end
 
@@ -68,7 +68,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     let merge = Ck_disk_node.merge_context
     let to_string = Ck_disk_node.context_to_string
     let diff p = p.contexts
-    let with_conflict = Ck_disk_node.with_conflict
+    let with_conflict msg (`Context c) = `Context (c#with_conflict msg)
     let equal = R.Node.equal
   end
 
@@ -173,8 +173,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     let ignore_node : [< Ck_disk_node.generic] -> unit = ignore in
     let clear_parent ~msg uuid node =
       let node =
-        Ck_disk_node.with_parent node Ck_id.root
-        |> Ck_disk_node.with_conflict msg in
+        (((Ck_disk_node.unwrap_apa node)#with_parent Ck_id.root)#with_conflict msg)#apa_ty in
       Hashtbl.replace nodes uuid node;
       to_clear := (uuid, node) :: !to_clear;
       node in

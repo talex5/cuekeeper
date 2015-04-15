@@ -48,6 +48,8 @@ module Types = struct
       method description = details.description
       method ctime = details.ctime
       method conflicts = details.conflicts
+      method with_conflict conflict = {< details = {details with conflicts = conflict :: details.conflicts} >}
+      method without_conflicts = {< details = {details with conflicts = []} >}
       method map_details fn = {< details = fn details >}
       method virtual data : Obj.t
       method equals (other:node) = self#data = other#data
@@ -62,6 +64,7 @@ module Types = struct
       inherit node details
       method virtual sexp : Sexplib.Sexp.t
       method parent = details.parent
+      method with_parent parent = {< details = {details with parent} >}
       method contact = details.contact
       method virtual apa_ty :
         [ `Area of area_node | `Project of project_node | `Action of action_node ]
@@ -411,9 +414,3 @@ let merge_contact ?base ~theirs ours =
     let merged = merge_details ~log ~base:base#details ~theirs:theirs#details ours#details in
     `Contact (contact_node {merged with conflicts = merged.conflicts @ !conflicts})
   )
-
-let with_conflict msg node = ((unwrap node)#map_details (fun d -> {d with conflicts = msg :: d.conflicts}))#ty
-let with_conflict : string -> ([< generic] as 'a) -> 'a = Obj.magic with_conflict
-
-let without_conflicts node = ((unwrap node)#map_details (fun d -> {d with conflicts = []}))#ty
-let without_conflicts : ([< generic] as 'a) -> 'a = Obj.magic without_conflicts

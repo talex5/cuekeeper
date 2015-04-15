@@ -270,7 +270,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
 
   let clear_conflicts t node =
     let msg = Printf.sprintf "Clear conflicts for '%s'" (R.Node.name node) in
-    update t ~msg node (Ck_disk_node.without_conflicts (R.disk_node node))
+    update t ~msg node (Ck_disk_node.unwrap (R.disk_node node))#without_conflicts#ty
 
   let set_name t node name =
     let msg = Printf.sprintf "Rename '%s' to '%s'" (R.Node.name node) name in
