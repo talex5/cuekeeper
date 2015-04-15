@@ -14,6 +14,7 @@ module Types : sig
   class type virtual node =
     object ('a)
       method virtual dir : string
+      method uuid : Ck_id.t
       method virtual sexp : Sexplib.Sexp.t
       method details : node_details
       method name : string
@@ -78,17 +79,17 @@ module Types : sig
 end
 open Types
 
-val apa_of_string : string -> apa_node
-val contact_of_string : string -> contact
-val context_of_string : string -> context
+val apa_of_string : uuid:Ck_id.t -> string -> apa_node
+val contact_of_string : uuid:Ck_id.t -> string -> contact_node
+val context_of_string : uuid:Ck_id.t -> string -> context_node
 
 val equal : #node -> #node -> bool
 
-val make_action : state:action_state -> ?context:Ck_id.t -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> action_node
-val make_project : state:project_state -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> project_node
-val make_area : ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> area_node
-val make_contact : name:string -> description:string -> ctime:float -> unit -> contact_node
-val make_context : name:string -> description:string -> ctime:float -> unit -> context_node
+val make_action : state:action_state -> ?context:Ck_id.t -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> Ck_id.t -> action_node
+val make_project : state:project_state -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> Ck_id.t -> project_node
+val make_area : ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> Ck_id.t -> area_node
+val make_contact : name:string -> description:string -> ctime:float -> Ck_id.t -> contact_node
+val make_context : name:string -> description:string -> ctime:float -> Ck_id.t -> context_node
 
 val merge_apa : ?base:apa_node -> theirs:apa_node -> apa_node -> apa_node
 val merge_context : ?base:context_node -> theirs:context_node -> context_node -> context_node

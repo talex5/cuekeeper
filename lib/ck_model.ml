@@ -193,12 +193,12 @@ module Make(Clock : Ck_clock.S)
   let add_area t = add (Ck_disk_node.make_area ?contact:None) t
 
   let add_contact t ~name () =
-    let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Clock.now ()) () in
+    let disk_node = Ck_disk_node.make_contact ~name ~description:"" ~ctime:(Clock.now ()) in
     Up.add_contact t.master ~base:t.r disk_node >|= fun id ->
     R.get_contact t.r id
 
   let add_context t ~name () =
-    let disk_node = Ck_disk_node.make_context ~name ~description:"" ~ctime:(Clock.now ()) () in
+    let disk_node = Ck_disk_node.make_context ~name ~description:"" ~ctime:(Clock.now ()) in
     Up.add_context t.master ~base:t.r disk_node >|= fun id ->
     R.get_context t.r id
 
@@ -763,8 +763,7 @@ module Make(Clock : Ck_clock.S)
       (Ck_disk_node.make_context
         ~name:"Reading"
         ~description:"Reading books, web-sites, etc."
-        ~ctime:(Clock.now ())
-        ())
+        ~ctime:(Clock.now ()))
     >>= fun reading ->
 
     let switch_to_ck =

@@ -173,12 +173,13 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     updated >>= fun () ->         (* [on_update] has been called. *)
     return result
 
-  let create t ~base ?uuid (node:#Ck_disk_node.Types.apa_node) =
+  let create t ~base ?uuid (node:Ck_id.t -> #Ck_disk_node.Types.apa_node) =
     let uuid =
       match uuid with
       | Some uuid -> uuid
       | None -> Ck_id.mint () in
     assert (not (mem uuid base));
+    let node = node uuid in
     let parent = node#parent in
     if parent <> Ck_id.root && not (mem parent base) then
       bug "Parent '%a' does not exist!" Ck_id.fmt parent;
@@ -233,12 +234,13 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       | `Toplevel rev -> (rev, Ck_id.root)
       | `Node p -> (R.Node.rev p, R.Node.uuid p) in
     let disk_node =
-      maker ~parent ~ctime:(Unix.gettimeofday ()) () in
+      maker ~parent ~ctime:(Unix.gettimeofday ()) in
     create t ?uuid ~base disk_node
 
   let add_contact t ~base contact =
     let uuid = Ck_id.mint () in
     assert (not (Ck_id.M.mem uuid (R.contacts base)));
+    let contact = contact uuid in
     let s = Sexplib.Sexp.to_string contact#sexp in
     let msg = Printf.sprintf "Create '%s'" contact#name in
     merge_to_master t ~base ~msg (fun view ->
@@ -251,6 +253,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       | Some u -> u
       | None -> Ck_id.mint () in
     assert (not (Ck_id.M.mem uuid (R.contexts base)));
+    let context = context uuid in
     let s = Sexplib.Sexp.to_string context#sexp in
     let msg = Printf.sprintf "Create '%s'" context#name in
     merge_to_master t ~base ~msg (fun view ->

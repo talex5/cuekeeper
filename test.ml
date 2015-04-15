@@ -210,11 +210,11 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
       ) >|= fun () ->
       Array.of_list !used in
 
-    let random_contact ~uuid:_ ~name ~description ~ctime =
-      Ck_disk_node.make_contact ~name ~description ~ctime () in
+    let random_contact ~uuid ~name ~description ~ctime =
+      Ck_disk_node.make_contact ~name ~description ~ctime uuid in
 
-    let random_context ~uuid:_ ~name ~description ~ctime =
-      Ck_disk_node.make_context ~name ~description ~ctime () in
+    let random_context ~uuid ~name ~description ~ctime =
+      Ck_disk_node.make_context ~name ~description ~ctime uuid in
 
     let areas = ref [Ck_id.root] in
     let projects = ref [] in
@@ -224,12 +224,12 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
       | 0 ->
           let parent = choose (Array.of_list !areas) in
           areas := uuid :: !areas;
-          let node = Ck_disk_node.make_area ?contact ~name ~description ~ctime ~parent () in
+          let node = Ck_disk_node.make_area ?contact ~name ~description ~ctime ~parent uuid in
           (node :> Ck_disk_node.Types.apa_node)
       | 1 ->
           let parent = choose (Array.of_list (!areas @ !projects)) in
           projects := uuid :: !projects;
-          let node = Ck_disk_node.make_project ?contact ~name ~description ~ctime ~state:(choose [| `Active; `SomedayMaybe; `Done |]) ~parent () in
+          let node = Ck_disk_node.make_project ?contact ~name ~description ~ctime ~state:(choose [| `Active; `SomedayMaybe; `Done |]) ~parent uuid in
           (node :> Ck_disk_node.Types.apa_node)
       | _ ->
           let context = choose contexts in
@@ -238,7 +238,7 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
             match contact with
             | None -> choose [| `Next; `Waiting; `Waiting_until (rand_date ()); `Future; `Done |]
             | Some _ -> choose [| `Next; `Waiting; `Waiting_until (rand_date ()); `Waiting_for_contact; `Future; `Done |] in
-          let a = Ck_disk_node.make_action ?contact ?context ~name ~description ~ctime ~state ~parent () in
+          let a = Ck_disk_node.make_action ?contact ?context ~name ~description ~ctime ~state ~parent uuid in
           let node = match state with
           | `Done -> a
           | _ ->

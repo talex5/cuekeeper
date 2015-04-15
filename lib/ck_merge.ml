@@ -156,7 +156,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
       | ["db"; uuid] as key ->
           let uuid = Ck_id.of_string uuid in
           Git.Staging.read_exn staging key >|= fun node ->
-          Ck_disk_node.apa_of_string node |> Hashtbl.add nodes uuid
+          Ck_disk_node.apa_of_string ~uuid node |> Hashtbl.add nodes uuid
       | _ -> assert false
     ) >>= fun () ->
     let get uuid =

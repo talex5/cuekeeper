@@ -41,7 +41,6 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
       }
       and 'a node_details = {
         rev : rev;
-        uuid : Ck_id.t;
         disk_node : 'a;
       }
       and action_node = Ck_disk_node.Types.action_node node_details
@@ -87,8 +86,8 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
       | `Context n -> {n with disk_node = ()}
 
     let rev n = (details n).rev
-    let uuid n = (details n).uuid
 
+    let uuid n = (disk_node n)#uuid
     let contact t = (apa_disk_node t)#contact
     let parent t = (apa_disk_node t)#parent
     let name t = (disk_node t)#name
@@ -249,12 +248,12 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
           let uuid = Ck_id.of_string uuid in
           assert (uuid <> Ck_id.root);
           Git.Staging.read_exn tree key >|= fun s ->
-          let disk_node = Ck_disk_node.apa_of_string s in
+          let disk_node = Ck_disk_node.apa_of_string ~uuid s in
           let node =
             match disk_node#apa_ty with
-            | `Action disk_node -> `Action {rev = t; uuid; disk_node}
-            | `Project disk_node -> `Project {rev = t; uuid; disk_node}
-            | `Area disk_node -> `Area {rev = t; uuid; disk_node} in
+            | `Action disk_node -> `Action {rev = t; disk_node}
+            | `Project disk_node -> `Project {rev = t; disk_node}
+            | `Area disk_node -> `Area {rev = t; disk_node} in
           apa_nodes := !apa_nodes |> Ck_id.M.add uuid node;
           let parent = disk_node#parent in
           let old_children =
@@ -270,8 +269,8 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
       | ["contact"; uuid] as key ->
           let uuid = Ck_id.of_string uuid in
           Git.Staging.read_exn tree key >|= fun s ->
-          let `Contact disk_node = Ck_disk_node.contact_of_string s in
-          let contact = {rev = t; uuid; disk_node} in
+          let disk_node = Ck_disk_node.contact_of_string ~uuid s in
+          let contact = {rev = t; disk_node} in
           contacts := !contacts |> Ck_id.M.add uuid contact;
       | _ -> assert false
     ) >>= fun () ->
@@ -281,8 +280,8 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
       | ["context"; uuid] as key ->
           let uuid = Ck_id.of_string uuid in
           Git.Staging.read_exn tree key >|= fun s ->
-          let `Context disk_node = Ck_disk_node.context_of_string s in
-          let context = {rev = t; uuid; disk_node} in
+          let disk_node = Ck_disk_node.context_of_string ~uuid s in
+          let context = {rev = t; disk_node} in
           contexts := !contexts |> Ck_id.M.add uuid context;
       | _ -> assert false
     ) >>= fun () ->
@@ -345,10 +344,10 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
   let contexts t = !(t.contexts) |> Ck_id.M.map (fun c -> `Context c)
 
   let nodes_of_contact (`Contact c) =
-    Hashtbl.find_all c.rev.nodes_of_contact c.uuid
+    Hashtbl.find_all c.rev.nodes_of_contact c.disk_node#uuid
 
   let actions_of_context (`Context c) =
-    Hashtbl.find_all c.rev.actions_of_context c.uuid
+    Hashtbl.find_all c.rev.actions_of_context c.disk_node#uuid
 
   let contact_for node =
     match Node.contact node with
