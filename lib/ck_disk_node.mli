@@ -4,7 +4,8 @@
 (** The data that gets stored to disk (e.g. parent UUID), but not data we calculate on loading
  * (e.g. list of children). *)
 
-open Ck_sigs
+type action_state = [ `Next | `Waiting | `Waiting_for_contact | `Waiting_until of Ck_time.user_date | `Future | `Done ]
+type project_state = [ `Active | `SomedayMaybe | `Done ]
 
 type node_details
 type action_details

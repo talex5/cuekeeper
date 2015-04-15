@@ -13,7 +13,7 @@ type node_details = {
   conflicts : string sexp_list;
 } with sexp
 
-type astate =
+type action_state =
   [ `Next
   | `Waiting
   | `Waiting_for_contact
@@ -21,16 +21,20 @@ type astate =
   | `Future
   | `Done ] with sexp
 
+type project_state =
+  [ `Active | `SomedayMaybe | `Done ]
+  with sexp
+
 type action_details = {
   astarred : bool with default(false);
-  astate : astate;
+  astate : action_state;
   context : Ck_id.t sexp_option;
   repeat: Ck_time.repeat sexp_option;
 } with sexp
 
 type project_details = {
   pstarred : bool with default(false);
-  pstate : [ `Active | `SomedayMaybe | `Done ]
+  pstate : project_state
 } with sexp
 
 type disk_apa =

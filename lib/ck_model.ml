@@ -65,8 +65,8 @@ module Make(Clock : Ck_clock.S)
 
     open Item.Types
     type adder =
-      | Add_action of [area | project] option * context option * contact option * action_state
-      | Add_project of [area | project] option * project_state
+      | Add_action of [area | project] option * context option * contact option * Ck_disk_node.action_state
+      | Add_project of [area | project] option * Ck_disk_node.project_state
       | Add_area of area option
 
     type t = {

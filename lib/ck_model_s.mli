@@ -51,9 +51,9 @@ module type MODEL = sig
     details_stop : stop;
   }
 
-  val add_action : t -> state:action_state -> ?context:context -> ?contact:contact -> ?parent:[< area | project] ->
+  val add_action : t -> state:Ck_disk_node.action_state -> ?context:context -> ?contact:contact -> ?parent:[< area | project] ->
                    name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
-  val add_project : t -> ?state:project_state -> ?parent:[< area | project] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
+  val add_project : t -> ?state:Ck_disk_node.project_state -> ?parent:[< area | project] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
   val add_area : t -> ?parent:[< area] -> name:string -> ?description:string -> unit -> [area | project | action] option Lwt.t
 
   val add_contact : t -> name:string -> unit -> [> contact] option Lwt.t
@@ -71,7 +71,7 @@ module type MODEL = sig
   val set_name : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_description : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_starred : t -> [< project | action] -> bool -> unit Lwt.t
-  val set_action_state : t -> action -> [< action_state] -> unit Lwt.t
+  val set_action_state : t -> action -> [< Ck_disk_node.action_state] -> unit Lwt.t
   val set_project_state : t -> project -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
   val set_repeat : t -> action -> Ck_time.repeat option -> unit Lwt.t
 

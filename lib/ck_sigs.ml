@@ -5,8 +5,6 @@ open Ck_utils
 
 type stop = unit -> unit
 type 'a or_error = [ `Ok of 'a | `Error of string ]
-type action_state = [ `Next | `Waiting | `Waiting_for_contact | `Waiting_until of Ck_time.user_date | `Future | `Done ]
-type project_state = [ `Active | `SomedayMaybe | `Done ]
 
 module type DISK_NODE = sig
   module Types : sig
@@ -32,9 +30,9 @@ module type DISK_NODE = sig
   val ctime : [< generic ] -> float
   val conflicts : [< generic ] -> string list
   val starred : [< project | action] -> bool
-  val action_state : action -> action_state
+  val action_state : action -> Ck_disk_node.action_state
   val action_repeat : action -> Ck_time.repeat option
-  val project_state : project -> project_state
+  val project_state : project -> Ck_disk_node.project_state
   val is_done : [< project | action] -> bool
   val context : action -> Ck_id.t option
   val contact : [< area | project | action ] -> Ck_id.t option
@@ -81,6 +79,10 @@ module type REV = sig
 
   module Node : sig
     include DISK_NODE
+    open Types
+
+    type 'a node_details
+
     val rev : [< generic] -> t
 
     val uuid : [< generic ] -> Ck_id.t
@@ -95,6 +97,8 @@ module type REV = sig
     val is_due : Types.action -> bool
     (** [true] if this is a waiting action due at or before the time
      * this revision was loaded. *)
+
+    val apa_ty : #Ck_disk_node.Types.apa_node node_details -> [area | project | action]
   end
   open Node.Types
 

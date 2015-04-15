@@ -299,7 +299,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     update t ~msg node new_node
 
   let set_action_state t node astate =
-    let astate = (astate :> Ck_sigs.action_state) in
+    let astate = (astate :> Ck_disk_node.action_state) in
     let new_node = (R.action_node node)#with_state astate in
     (* When setting a repeating action to wait until a date, record the new date as the repeat date too. *)
     let new_node =

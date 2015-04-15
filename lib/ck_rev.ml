@@ -46,7 +46,8 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
         rev : rev;
         disk_node : 'a;
       }
-      and apa =
+
+      type apa =
         [ `Action of action_node node_details
         | `Project of project_node node_details
         | `Area of area_node node_details]
@@ -64,6 +65,14 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
     end
 
     open Types
+
+    type 'a node_details = 'a Types.node_details
+
+    let apa_ty ({rev; disk_node} : #Ck_disk_node.Types.apa_node node_details) =
+      match disk_node#ty with
+      | `Area disk_node -> `Area {rev; disk_node}
+      | `Project disk_node -> `Project {rev; disk_node}
+      | `Action disk_node -> `Action {rev; disk_node}
 
     type generic =
       [ apa

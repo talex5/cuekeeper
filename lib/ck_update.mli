@@ -53,7 +53,7 @@ module Make(Git : Git_storage_s.S)
   val set_name : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_description : t -> [< R.Node.generic ] -> string -> unit Lwt.t
   val set_starred : t -> [< action | project] -> bool -> unit Lwt.t
-  val set_action_state : t -> action -> [< action_state ] -> unit Lwt.t
+  val set_action_state : t -> action -> [< Ck_disk_node.action_state ] -> unit Lwt.t
   val set_repeat : t -> action -> Ck_time.repeat option -> unit Lwt.t
   val set_waiting_for : t -> action -> contact -> unit Lwt.t
   val set_project_state : t -> project -> [ `Active | `SomedayMaybe | `Done ] -> unit Lwt.t
