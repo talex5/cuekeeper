@@ -230,7 +230,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     );
     (* Apply all the changes now (since Hashtbl.iter isn't async). *)
     !to_clear |> Lwt_list.iter_s (fun (uuid, node) ->
-      Ck_disk_node.to_string node
+      Sexplib.Sexp.to_string node#sexp
       |> Git.Staging.update staging [APA.dir; Ck_id.to_string uuid]
     ) >|= fun () ->
     {

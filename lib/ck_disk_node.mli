@@ -78,28 +78,8 @@ module Types : sig
 end
 open Types
 
-type generic = [ area | project | action | contact | context ]
-
-val parent : [< area | project | action ] -> Ck_id.t
-val name : [< generic ] -> string
-val description : [< generic] -> string
-val ctime : [< generic ] -> float
-val conflicts : [< generic ] -> string list
-val starred : [< project | action] -> bool
-val action_state : action -> action_state
-val action_repeat : action -> Ck_time.repeat option
-val project_state : project -> project_state
-val is_done : [< project | action] -> bool
-val context : action -> Ck_id.t option
-val contact : [< area | project | action ] -> Ck_id.t option
-
-open Types
-
 val of_string : string -> apa_node
-val to_string : #apa_node -> string
-
 val contact_of_string : string -> contact
-
 val context_of_string : string -> context
 
 val equal : #node -> #node -> bool
@@ -113,6 +93,3 @@ val make_context : name:string -> description:string -> ctime:float -> unit -> c
 val merge : ?base:apa_node -> theirs:apa_node -> apa_node -> apa_node
 val merge_context : ?base:context_node -> theirs:context_node -> context_node -> context_node
 val merge_contact : ?base:contact_node -> theirs:contact_node -> contact_node -> contact_node
-
-val unwrap : [< generic] -> node
-val unwrap_apa : [< `Area of area_node | `Project of project_node | `Action of action_node] -> apa_node

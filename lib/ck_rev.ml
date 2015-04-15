@@ -95,16 +95,16 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
     let description t = (disk_node t)#description
     let ctime t = (disk_node t)#ctime
     let conflicts t = (disk_node t)#conflicts
-    let action_state (`Action n) = Ck_disk_node.action_state (`Action n.disk_node)
-    let action_repeat (`Action n) = Ck_disk_node.action_repeat (`Action n.disk_node)
-    let context (`Action n) = Ck_disk_node.context (`Action n.disk_node)
-    let project_state (`Project n) = Ck_disk_node.project_state (`Project n.disk_node)
+    let action_state (`Action n) = n.disk_node#state
+    let action_repeat (`Action n) = n.disk_node#repeat
+    let context (`Action n) = n.disk_node#context
+    let project_state (`Project n) = n.disk_node#state
     let starred = function
-      | `Action n -> Ck_disk_node.starred (`Action n.disk_node)
-      | `Project n -> Ck_disk_node.starred (`Project n.disk_node)
+      | `Action n -> n.disk_node#starred
+      | `Project n -> n.disk_node#starred
     let is_done = function
-      | `Action n -> Ck_disk_node.is_done (`Action n.disk_node)
-      | `Project n -> Ck_disk_node.is_done (`Project n.disk_node)
+      | `Action n -> n.disk_node#state = `Done
+      | `Project n -> n.disk_node#state = `Done
 
     let key node = (String.lowercase (name node), uuid node)
 
@@ -249,14 +249,14 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
           let uuid = Ck_id.of_string uuid in
           assert (uuid <> Ck_id.root);
           Git.Staging.read_exn tree key >|= fun s ->
-          let disk_node = (Ck_disk_node.of_string s)#apa_ty in
+          let disk_node = Ck_disk_node.of_string s in
           let node =
-            match disk_node with
+            match disk_node#apa_ty with
             | `Action disk_node -> `Action {rev = t; uuid; disk_node}
             | `Project disk_node -> `Project {rev = t; uuid; disk_node}
             | `Area disk_node -> `Area {rev = t; uuid; disk_node} in
           apa_nodes := !apa_nodes |> Ck_id.M.add uuid node;
-          let parent = Ck_disk_node.parent disk_node in
+          let parent = disk_node#parent in
           let old_children =
             try Hashtbl.find children parent
             with Not_found -> [] in

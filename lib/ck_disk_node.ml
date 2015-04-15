@@ -168,49 +168,11 @@ and action_node action_details details =
     method as_action = self
   end
 
-type apa =
-  [ `Action of action_node
-  | `Project of project_node
-  | `Area of area_node ]
-
-type generic =
-  [ apa
-  | `Contact of contact_node
-  | `Context of context_node ]
-
-let details : [< generic] -> node_details = function
-  | `Action d -> d#details
-  | `Project d -> d#details
-  | `Area d -> d#details
-  | `Contact d -> d#details
-  | `Context d -> d#details
-
-let unwrap_apa : [< apa] -> apa_node = function
-  | `Action n -> (n :> apa_node)
-  | `Project n -> (n :> apa_node)
-  | `Area n -> (n :> apa_node)
-
-let unwrap : [< generic] -> node = function
-  | `Action n -> (n :> node)
-  | `Project n -> (n :> node)
-  | `Area n -> (n :> node)
-  | `Contact n -> (n :> node)
-  | `Context n -> (n :> node)
-
-let ctime t = (details t).ctime
-let name t = (details t).name
-let description t = (details t).description
-let parent t = (unwrap_apa t)#parent
-let contact t = (details t).contact
-let conflicts t = (details t).conflicts
-
 let of_string s =
   match disk_apa_of_sexp (Sexplib.Sexp.of_string s) with
   | `Action (a, d) -> (action_node a d :> apa_node)
   | `Project (p, d) -> (project_node p d :> apa_node)
   | `Area d -> (area_node d :> apa_node)
-let to_string t =
-  Sexplib.Sexp.to_string t#sexp
 
 let contact_of_string s = `Contact (contact_node (node_details_of_sexp (Sexplib.Sexp.of_string s)))
 
@@ -228,14 +190,6 @@ let make ~name ~description ~parent ~ctime ~contact = {
 let equal a b =
   (a :> node)#equals (b :> node)
 
-let context (`Action a) = a#context
-let action_repeat (`Action a) = a#repeat
-let action_state (`Action a) = a#state
-let project_state (`Project p) = p#state
-let starred = function
-  | `Project n -> n#starred
-  | `Action n -> n#starred
-
 let make_action ~state ?context ?contact ~name ~description ~parent ~ctime () =
   action_node { astate = state; astarred = false; context; repeat = None } (make ~name ~description ~parent ~ctime ~contact)
 
@@ -250,16 +204,6 @@ let make_contact ~name ~description ~ctime () =
 
 let make_context ~name ~description ~ctime () =
   context_node (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)
-
-let is_done = function
-  | `Action n -> n#state = `Done
-  | `Project n -> n#state = `Done
-
-(* XXX *)
-let as_project = function
-  | `Action n -> `Project (project_node {pstate = `Active; pstarred = n#starred} n#details)
-  | `Project _ as p -> p
-  | `Area n -> `Project (project_node {pstate = `Active; pstarred = false} n#details)
 
 let merge_detail ~log ~fmt ~base ~theirs ours =
   if base = theirs then ours
@@ -371,11 +315,9 @@ let merge ?base ~theirs ours =
       | `Area theirs, `Area ours -> area_node (merge_details ~log ~base:base#details ~theirs:theirs#details ours#details)
       | `Project theirs, `Project ours -> (merge_project ~log ~base:base#as_project ~theirs ours :> apa_node)
       | `Action theirs, `Action ours -> (merge_action ~log ~base:base#as_action ~theirs ours :> apa_node)
-      | theirs, ours ->
+      | _ ->
           log "Type mismatch: converting to project";
-          let `Project theirs = as_project theirs in
-          let `Project ours = as_project ours in
-          (merge_project ~log ~base:base#as_project ~theirs ours :> apa_node)
+          (merge_project ~log ~base:base#as_project ~theirs:theirs#as_project ours#as_project :> apa_node)
     in
     merged#map_details (fun d -> {d with conflicts = d.conflicts @ !conflicts})
   )
