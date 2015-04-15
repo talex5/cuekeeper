@@ -220,15 +220,17 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
     let projects = ref [] in
     let random_apa ~contacts ~contexts ~uuid ~name ~description ~ctime =
       let contact = choose contacts in
-      begin match rand_int 3 with
+      match rand_int 3 with
       | 0 ->
           let parent = choose (Array.of_list !areas) in
           areas := uuid :: !areas;
-          Ck_disk_node.make_area ?contact ~name ~description ~ctime ~parent ()
+          let node = Ck_disk_node.make_area ?contact ~name ~description ~ctime ~parent () in
+          (node :> Ck_disk_node.Types.apa_node)
       | 1 ->
           let parent = choose (Array.of_list (!areas @ !projects)) in
           projects := uuid :: !projects;
-          Ck_disk_node.make_project ?contact ~name ~description ~ctime ~state:(choose [| `Active; `SomedayMaybe; `Done |]) ~parent ()
+          let node = Ck_disk_node.make_project ?contact ~name ~description ~ctime ~state:(choose [| `Active; `SomedayMaybe; `Done |]) ~parent () in
+          (node :> Ck_disk_node.Types.apa_node)
       | _ ->
           let context = choose contexts in
           let parent = choose (Array.of_list (!areas @ !projects)) in
@@ -237,16 +239,16 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
             | None -> choose [| `Next; `Waiting; `Waiting_until (rand_date ()); `Future; `Done |]
             | Some _ -> choose [| `Next; `Waiting; `Waiting_until (rand_date ()); `Waiting_for_contact; `Future; `Done |] in
           let a = Ck_disk_node.make_action ?contact ?context ~name ~description ~ctime ~state ~parent () in
-          match state with
+          let node = match state with
           | `Done -> a
           | _ ->
               if rand_int 5 = 0 then
-                Ck_disk_node.with_repeat a (Some (
+                a#with_repeat (Some (
                   Ck_time.make_repeat ~from:(rand_date ()) (1 + rand_int 2) (choose Ck_time.([| Day ; Week ; Month ; Year |]))
                 ))
-              else a
-      end
-      |> Ck_disk_node.unwrap_apa in
+              else a in
+          (node :> Ck_disk_node.Types.apa_node)
+      in
 
     make_n (rand_int 2) "contact" random_contact >>= fun contacts ->
     make_n (rand_int 2) "context" random_context >>= fun contexts ->

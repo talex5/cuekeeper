@@ -225,10 +225,6 @@ let make ~name ~description ~parent ~ctime ~contact = {
   conflicts = [];
 }
 
-let with_name node name = ((unwrap node)#map_details (fun d -> {d with name}))#ty
-let with_description node description = ((unwrap node)#map_details (fun d -> {d with description}))#ty
-let with_parent node parent = ((unwrap_apa node)#map_details (fun d -> {d with parent}))#apa_ty
-let with_contact node contact = ((unwrap_apa node)#map_details (fun d -> {d with contact}))#apa_ty
 let equal a b =
   (a :> node)#equals (b :> node)
 
@@ -240,25 +236,14 @@ let starred = function
   | `Project n -> n#starred
   | `Action n -> n#starred
 
-let with_repeat (`Action a) repeat = `Action (a#with_repeat repeat)
-let with_astate (`Action a) state = `Action (a#with_state state)
-let with_pstate (`Project p) state = `Project (p#with_state state)
-
-let with_starred node s =
-  match node with
-  | `Action a -> `Action (a#with_starred s)
-  | `Project p -> `Project (p#with_starred s)
-
-let with_context (`Action a) context = `Action (a#with_context context)
-
 let make_action ~state ?context ?contact ~name ~description ~parent ~ctime () =
-  `Action (action_node { astate = state; astarred = false; context; repeat = None } (make ~name ~description ~parent ~ctime ~contact))
+  action_node { astate = state; astarred = false; context; repeat = None } (make ~name ~description ~parent ~ctime ~contact)
 
 let make_project ~state ?contact ~name ~description ~parent ~ctime () =
-  `Project (project_node { pstate = state; pstarred = false } (make ~name ~description ~parent ~ctime ~contact))
+  project_node { pstate = state; pstarred = false } (make ~name ~description ~parent ~ctime ~contact)
 
 let make_area ?contact ~name ~description ~parent ~ctime () =
-  `Area (area_node (make ~name ~description ~parent ~ctime ~contact))
+  area_node (make ~name ~description ~parent ~ctime ~contact)
 
 let make_contact ~name ~description ~ctime () =
   contact_node (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)

@@ -104,21 +104,11 @@ val context_of_string : string -> context
 
 val equal : #node -> #node -> bool
 
-val make_action : state:action_state -> ?context:Ck_id.t -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> [> action]
-val make_project : state:project_state -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> [> project]
-val make_area : ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> [> area]
+val make_action : state:action_state -> ?context:Ck_id.t -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> action_node
+val make_project : state:project_state -> ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> project_node
+val make_area : ?contact:Ck_id.t -> name:string -> description:string -> parent:Ck_id.t -> ctime:float -> unit -> area_node
 val make_contact : name:string -> description:string -> ctime:float -> unit -> contact_node
 val make_context : name:string -> description:string -> ctime:float -> unit -> context_node
-
-val with_name : generic -> string -> generic
-val with_description : generic -> string -> generic
-val with_parent : [< area | project | action] -> Ck_id.t -> [area | project | action]
-val with_contact : [< area | project | action] -> Ck_id.t option -> [area | project | action]
-val with_repeat : action -> Ck_time.repeat option -> [> action]
-val with_astate : action -> action_state -> action
-val with_pstate : project -> [ `Active | `SomedayMaybe | `Done ] -> project
-val with_starred : [< project | action] -> bool -> [project | action]
-val with_context : action -> Ck_id.t option -> action
 
 val merge : ?base:apa_node -> theirs:apa_node -> apa_node -> apa_node
 val merge_context : ?base:context_node -> theirs:context_node -> context_node -> context_node

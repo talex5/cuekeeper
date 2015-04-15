@@ -173,19 +173,18 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     updated >>= fun () ->         (* [on_update] has been called. *)
     return result
 
-  let create t ~base ?uuid (node:[< Ck_disk_node.generic]) =
+  let create t ~base ?uuid (node:#Ck_disk_node.Types.apa_node) =
     let uuid =
       match uuid with
       | Some uuid -> uuid
       | None -> Ck_id.mint () in
     assert (not (mem uuid base));
-    let parent = Ck_disk_node.parent node in
+    let parent = node#parent in
     if parent <> Ck_id.root && not (mem parent base) then
       bug "Parent '%a' does not exist!" Ck_id.fmt parent;
-    let s = Ck_disk_node.to_string (Ck_disk_node.unwrap_apa node) in
-    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name node) in
+    let msg = Printf.sprintf "Create '%s'" node#name in
     merge_to_master t ~base ~msg (fun view ->
-      Git.Staging.update view ["db"; Ck_id.to_string uuid] s
+      Git.Staging.update view [node#dir; Ck_id.to_string uuid] (Sexplib.Sexp.to_string node#sexp)
     ) >|= fun () -> uuid
 
   let update t ~msg node new_disk_node =
