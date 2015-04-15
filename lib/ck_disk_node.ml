@@ -168,7 +168,7 @@ and action_node action_details details =
     method as_action = self
   end
 
-let of_string s =
+let apa_of_string s =
   match disk_apa_of_sexp (Sexplib.Sexp.of_string s) with
   | `Action (a, d) -> (action_node a d :> apa_node)
   | `Project (p, d) -> (project_node p d :> apa_node)
@@ -303,7 +303,7 @@ let merge_action ~log ~base ~theirs ours =
   } in
   action_node act details
 
-let merge ?base ~theirs ours =
+let merge_apa ?base ~theirs ours =
   let base = base |> default (area_node default_base) in
   if equal base theirs then ours
   else if equal base ours then theirs

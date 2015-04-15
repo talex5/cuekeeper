@@ -78,7 +78,7 @@ module Types : sig
 end
 open Types
 
-val of_string : string -> apa_node
+val apa_of_string : string -> apa_node
 val contact_of_string : string -> contact
 val context_of_string : string -> context
 
@@ -90,6 +90,6 @@ val make_area : ?contact:Ck_id.t -> name:string -> description:string -> parent:
 val make_contact : name:string -> description:string -> ctime:float -> unit -> contact_node
 val make_context : name:string -> description:string -> ctime:float -> unit -> context_node
 
-val merge : ?base:apa_node -> theirs:apa_node -> apa_node -> apa_node
+val merge_apa : ?base:apa_node -> theirs:apa_node -> apa_node -> apa_node
 val merge_context : ?base:context_node -> theirs:context_node -> context_node -> context_node
 val merge_contact : ?base:contact_node -> theirs:contact_node -> contact_node -> contact_node

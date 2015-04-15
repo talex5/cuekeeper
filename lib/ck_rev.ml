@@ -249,7 +249,7 @@ module Make(Git : Git_storage_s.S) : S with type commit = Git.Commit.t = struct
           let uuid = Ck_id.of_string uuid in
           assert (uuid <> Ck_id.root);
           Git.Staging.read_exn tree key >|= fun s ->
-          let disk_node = Ck_disk_node.of_string s in
+          let disk_node = Ck_disk_node.apa_of_string s in
           let node =
             match disk_node#apa_ty with
             | `Action disk_node -> `Action {rev = t; uuid; disk_node}

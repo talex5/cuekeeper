@@ -39,7 +39,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     let dir = "db"
     let get = R.get
     let to_disk n = R.apa_node n
-    let merge = Ck_disk_node.merge
+    let merge = Ck_disk_node.merge_apa
     let to_string x = Sexplib.Sexp.to_string x#sexp
     let diff p = p.nodes
     let with_conflict msg n = n#with_conflict msg
@@ -156,7 +156,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
       | ["db"; uuid] as key ->
           let uuid = Ck_id.of_string uuid in
           Git.Staging.read_exn staging key >|= fun node ->
-          Ck_disk_node.of_string node |> Hashtbl.add nodes uuid
+          Ck_disk_node.apa_of_string node |> Hashtbl.add nodes uuid
       | _ -> assert false
     ) >>= fun () ->
     let get uuid =
