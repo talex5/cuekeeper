@@ -8,14 +8,15 @@ Copyright Thomas Leonard, 2015
 Installation
 ------------
 
-Pin a couple of patches we require:
+Pin a few patches we require:
 
     opam pin add irmin 'https://github.com/mirage/irmin.git'
     opam pin add sexplib 'https://github.com/talex5/sexplib.git#js_of_ocaml'
+    opam pin add tar-format https://github.com/mirage/ocaml-tar.git
 
 Install the dependencies:
 
-    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64
+    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64 tar-format
 
 Build:
 
@@ -49,3 +50,10 @@ are released under the MIT license.
 
 This project includes the Pikaday date picker (https://github.com/dbushell/Pikaday).
 These files are released under the BSD & MIT licenses.
+
+
+This project includes FileSaver.js (https://github.com/eligrey/FileSaver.js), which
+is released under a permissive license.
+
+
+Full details of all licenses can be found in the LICENSE file.

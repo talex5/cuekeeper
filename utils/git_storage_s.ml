@@ -43,6 +43,7 @@ module type S = sig
     val merge : t -> t -> [ `Conflict of string | `Ok of t ] Lwt.t
     val equal : t -> t -> bool
     val history : ?depth:int -> t -> Log_entry.t Log_entry_map.t Lwt.t
+    val export_tar : t -> string Lwt.t
   end
 
   module Branch : sig

@@ -39,3 +39,29 @@ let auto_focus input =
     elem##select ();
     Lwt.return ()
   )
+
+class type blobPropertyBag =
+  object
+    method _type : Js.js_string Js.t Js.prop
+  end
+
+let blob_constr :
+  ( Js.js_string Js.t Js.js_array Js.t ->
+    blobPropertyBag Js.t ->
+    File.blob Js.t
+  ) Js.constr
+  = Js.Unsafe.global##_Blob
+
+let make_blob ~mime data =
+  let ar = jsnew Js.array_empty () in
+  Js.array_set ar 0 (Js.string data);
+  let options : blobPropertyBag Js.t = Js.Unsafe.obj [||] in
+  options##_type <- Js.string mime;
+  jsnew blob_constr (ar, options)
+
+let save_as blob name =
+  let open Js in
+  Unsafe.fun_call (Unsafe.global##saveAs) [|
+    Unsafe.inject blob;
+    Unsafe.inject (string name)
+  |]

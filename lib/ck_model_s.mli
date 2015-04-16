@@ -110,4 +110,7 @@ module type MODEL = sig
 
   val alert : t -> bool React.S.t
   (** Alert the user that action is required (the Work view will show what) *)
+
+  val export_tar : t -> string Lwt.t
+  (** Export the current state as a tar file *)
 end

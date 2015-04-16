@@ -1212,6 +1212,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     )
     |> rlist_of
 
+  let export m _ev =
+    (* TODO: iOS requires running from the click event *)
+    async ~name:"export" (fun () ->
+      M.export_tar m >|= fun data ->
+      let data = make_blob ~mime:"application/x-tar" data in
+      save_as data "cuekeeper-export.tar"
+    );
+    false
+
   let make_top m =
     let current_tree = M.tree m in
     let details_area, show_node, show_history, close_all = make_details_area m in
@@ -1249,6 +1258,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         R.Html5.div ~a:[a_class ["medium-6"; "columns"]] (
           details_area;
         );
+      ];
+      footer [
+        div ~a:[a_class ["row"]] [
+          div ~a:[a_class ["small-12"; "columns"]] [
+            a ~a:[a_onclick (export m)] [pcdata "Export"];
+          ]
+        ];
       ];
     ]
 end

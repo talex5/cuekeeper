@@ -18,3 +18,8 @@ val async : name:string -> (unit -> unit Lwt.t) -> unit
 
 val auto_focus : [< Html5_types.input] Tyxml_js.Html5.elt -> unit
 (** [auto_focus i] gives [i] the focus after this turn (giving it a chance to be rendered first). *)
+
+val make_blob : mime:string -> string -> File.blob Js.t
+
+val save_as : File.blob Js.t -> string -> unit
+(** [save_as blob name] prompts the user to save the blob to a local file. *)

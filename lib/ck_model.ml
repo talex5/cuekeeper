@@ -876,4 +876,7 @@ module Make(Clock : Ck_clock.S)
     ) else return t
 
   let alert t = t.alert
+
+  let export_tar t =
+    Up.head t.master |> R.commit |> Git.Commit.export_tar
 end

@@ -24,5 +24,6 @@ depends: [
   "js_of_ocaml"
   "omd"
   "ounit"
+  "tar-format"
   "ocamlfind" {build}
 ]

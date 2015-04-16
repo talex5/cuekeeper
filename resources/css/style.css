@@ -1038,3 +1038,8 @@ div.ck-details div.description blockquote {
 	margin-left: 0.5em;
 	padding-left: 0.5em;
 }
+
+footer {
+	border-top: 1px solid #ccc;
+	margin-top: 1em;
+}

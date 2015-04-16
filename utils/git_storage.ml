@@ -3,6 +3,17 @@
 
 open Lwt
 
+module IO = struct
+  type in_channel = unit
+  type out_channel = Buffer.t
+  let really_input _ch _buf _pos _len = failwith "unused"
+  let input = really_input
+  let output = Buffer.add_substring
+  let close_out _ = ()
+end
+
+module T = Tar.Make(IO)
+
 module Make (I : Irmin.BASIC with type key = string list and type value = string) = struct
   module V = Irmin.View(I)
   module Top = Graph.Topological.Make(I.History)
@@ -86,6 +97,27 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       I.merge_head (tmp "Merge") (id b) >|= function
       | `Ok () -> `Ok {a with store = tmp}
       | `Conflict _ as c -> c
+
+    let export_tar t =
+      let s = t.store "export_tar" in
+      let buf = Buffer.create 10240 in
+      let files = ref [] in
+      let rec scan dir =
+        I.list s dir >>=
+        Lwt_list.iter_s (fun path ->
+          I.read s path >>= function
+          | None -> scan path
+          | Some data ->
+              let header = T.Header.make
+                ~file_mode:0o644
+                (String.concat "/" path) (String.length data |> Int64.of_int) in
+              let write b = Buffer.add_string b data in
+              files := (header, write) :: !files;
+              return ()
+        ) in
+      scan [] >|= fun () ->
+      T.Archive.create_gen (Stream.of_list !files) buf;
+      Buffer.contents buf
   end
 
   module Branch = struct
