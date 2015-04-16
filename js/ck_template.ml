@@ -148,14 +148,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | `Future -> "f"
       | `Active -> "a"
       | `SomedayMaybe -> "sm" in
-    let cl =
-      if due && l = "w" then "ck-active-alert"
-      else if l = "✓" && is_repeat_action item then "ck-toggle-hidden"
-      else if current = details then "ck-active-" ^ l else "ck-inactive" in
-    let changed ev =
-      set_details ev details;
-      true in
-    a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
+    if l = "✓" && is_repeat_action item then
+      span ~a:[a_class ["ck-toggle-hidden"]] [span [pcdata l]]
+    else (
+      let cl =
+        if due && l = "w" then "ck-active-alert"
+        else if current = details then "ck-active-" ^ l else "ck-inactive" in
+      let changed ev =
+        set_details ev details;
+        true in
+      a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
+    )
 
   let make_toggles ~m ~set_details ~item ?(due=false) current options =
     let starred = M.Item.starred item in
