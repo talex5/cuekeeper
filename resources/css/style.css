@@ -1,3 +1,13 @@
+code {
+  font-family: Consolas, "Liberation Mono", Courier, monospace;
+  font-weight: normal;
+  color: #333333;
+  background-color: #f8f8f8;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #dfdfdf;
+  padding: 0.125rem 0.3125rem 0.0625rem; }
+
 .alert-box {
   border-style: solid;
   border-width: 1px;
@@ -997,4 +1007,15 @@ div.ck-conflicts {
 div.ck-details div.ck-conflicts ul {
 	margin-left: 0;
 	padding-left: 1.1rem;
+}
+
+div.ck-details div.description pre {
+	/* (as overflow: hidden clips the border) */
+	padding: 2px;
+}
+
+div.ck-details div.description blockquote {
+	border-left: 2px solid #888;
+	margin-left: 0.5em;
+	padding-left: 0.5em;
 }
