@@ -465,7 +465,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       false in
     [
       h4 [pcdata "Contacts"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]];
-      R.Html5.ul (
+      R.Html5.ul ~a:[a_class ["ck-contacts"]] (
         ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
       )
     ]
@@ -557,7 +557,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         if (mode_of t) = mode then ["active"] else []
       ) in
       let cl = R.Html5.a_class (React.S.l2 (@) alert_attr active_attr) in
-      let button = a ~a:[a_onclick clicked] [pcdata name] in
+      let button = a ~a:[a_onclick clicked]
+        [pcdata (String.sub name 0 1); span ~a:[a_class ["ck-long-label"]] [pcdata (tail name 1)]] in
       li ~a:[cl] [button] in
     ul ~a:[a_class ["ck-mode-selector"]] [
       item "Process" `Process;

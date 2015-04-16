@@ -843,6 +843,16 @@ div.pika-single {
 	border: none;
 }
 
+@media only screen and (max-width: 30em) {
+	ul.ck-review-everything > li > ul,
+	ul.ck-review-future ul,
+	ul.ck-review-waiting ul,
+	ul.ck-contacts ul,
+	div.ck-next-actions ul {
+		margin-left: 0;
+	}
+}
+
 div.ck-problems > ul,
 div.ck-next-actions > ul,
 div.ck-next-actions > ul > li > ul > li > ul {
@@ -959,6 +969,18 @@ ul.ck-mode-selector li {
 	font-family: "Helvetica Neue",Helvetica,Roboto,Arial,sans-serif;
 	font-weight: normal;
 	font-size: 0.875rem;
+}
+
+@media only screen and (max-width: 60em) {
+	ul.ck-mode-selector span.ck-long-label {
+		display: none;
+	}
+}
+
+@media only screen and (max-width: 30em) {
+	ul.ck-mode-selector li {
+		margin: 0 0.2em 0 0;
+	}
 }
 
 ul.ck-mode-selector li.active {
