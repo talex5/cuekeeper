@@ -19,6 +19,21 @@ module Gui_tree_data = struct
   type t = Dom_html.element Js.t
 end
 
+(* Recognise {yyyy-mm-dd} at the start of a line and format it nicely *)
+let omd_date_ext =
+  let open Omd_representation in
+  object (_ : extension)
+    method parser_extension r p l =
+      match p, l with
+      | (Newline :: _ | []),
+        Obrace :: Number year :: Minus :: Number month :: Minus :: Number day :: Cbrace :: ls ->
+          let date = Ck_time.make ~year:(int_of_string year) ~month:(int_of_string month - 1) ~day:(int_of_string day) in
+          let html = Bold [Text (Ck_time.string_of_user_date date)] in
+          Some (html :: Br :: r, p, ls)
+      | _ -> None
+    method to_string = "date_ext"
+  end
+
 let show_modal, modal_div =
   let dropdown, set_dropdown = ReactiveData.RList.make [] in
   let dropdown_style, set_dropdown_style = React.S.create "" in
@@ -729,16 +744,20 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                     set_editing (Some (item, descr));
                     false in
                   let append_log _ev =
-                    let today = Ck_time.(string_of_user_date (Unix.gettimeofday () |> of_unix_time)) in
+                    let today =
+                      let open Unix in
+                      let tm = gettimeofday () |> localtime in
+                      Printf.sprintf "%04d-%02d-%02d"
+                        (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday in
                     let descr =
                       match M.Item.description item with
                       | "" -> ""
-                      | descr -> descr ^ "\n\n" in
-                    set_editing (Some (item, Printf.sprintf "%s**%s**: " descr today));
+                      | descr -> descr ^ "\n" in
+                    set_editing (Some (item, Printf.sprintf "%s{%s} " descr today));
                     false in
                   let description =
                     try
-                      let raw_html = M.Item.description item |> Omd.of_string |> Omd.to_html in
+                      let raw_html = M.Item.description item |> Omd.of_string ~extensions:[omd_date_ext] |> Omd.to_html in
                       let description = div [] in
                       let elem = Tyxml_js.To_dom.of_div description in
                       elem##innerHTML <- Js.string raw_html;

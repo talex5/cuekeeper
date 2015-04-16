@@ -620,15 +620,6 @@ div.description-form div.actions {
 	display: block;
 }
 
-div.description p {
-	margin: 0.2rem;
-	margin-bottom: 0;
-}
-
-div.description p + p {
-	margin-top: 0.5rem;
-}
-
 div.tabs-content div.content {
 	padding-top: 0;
 }
