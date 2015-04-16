@@ -1212,13 +1212,20 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     )
     |> rlist_of
 
-  let export m _ev =
-    (* TODO: iOS requires running from the click event *)
+  let export m ev =
+    let s, set_s = React.S.create (pcdata "Exporting...") in
     async ~name:"export" (fun () ->
       M.export_tar m >|= fun data ->
       let data = make_blob ~mime:"application/x-tar" data in
-      save_as data "cuekeeper-export.tar"
+      let name = "cuekeeper-export.tar" in
+      let download _ev =
+        save_as data name;
+        Ck_modal.close ();
+        false in
+      set_s (a ~a:[a_onclick download] [pcdata name])
     );
+    [R.Html5.div ~a:[a_class ["ck-export"]] (ReactiveData.RList.singleton_s s)]
+    |> show_modal ~parent:(ev##target);
     false
 
   let make_top m =
@@ -1236,6 +1243,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         div ~a:[a_class ["medium-4"; "columns"]] [
           search_create_bar m ~show_node;
           div ~a:[a_class ["ck-actions"]] [
+            a ~a:[a_onclick (export m)] [pcdata "Export"];
             a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
             a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
           ]
@@ -1258,13 +1266,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         R.Html5.div ~a:[a_class ["medium-6"; "columns"]] (
           details_area;
         );
-      ];
-      footer [
-        div ~a:[a_class ["row"]] [
-          div ~a:[a_class ["small-12"; "columns"]] [
-            a ~a:[a_onclick (export m)] [pcdata "Export"];
-          ]
-        ];
       ];
     ]
 end
