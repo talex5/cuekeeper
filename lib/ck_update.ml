@@ -191,9 +191,10 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       | Some uuid -> uuid
       | None -> Ck_id.mint () in
     assert (not (mem uuid base));
-    let parent = Ck_disk_node.parent node in
-    if parent <> Ck_id.root && not (mem parent base) then
-      bug "Parent '%a' does not exist!" Ck_id.fmt parent;
+    begin match Ck_disk_node.parent node with
+    | Some parent when not (mem parent base) ->
+        bug "Parent '%a' does not exist!" Ck_id.fmt parent;
+    | _ -> () end;
     let s = Ck_disk_node.to_string node in
     let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name node) in
     merge_to_master t ~base ~msg (fun view ->
@@ -207,9 +208,10 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       match new_disk_node with
       | `Area _ | `Project _ | `Action _ as new_disk_node ->
           assert (mem uuid base);
-          let parent = Ck_disk_node.parent new_disk_node in
-          if parent <> Ck_id.root && not (mem parent base) then
-            bug "Parent '%a' does not exist!" Ck_id.fmt parent;
+          begin match Ck_disk_node.parent new_disk_node with
+          | Some parent when not (mem parent base) ->
+              bug "Parent '%a' does not exist!" Ck_id.fmt parent;
+          | _ -> () end;
           let s = Ck_disk_node.to_string new_disk_node in
           Git.Staging.update view ["db"; Ck_id.to_string uuid] s
       | `Contact _ as new_disk_node ->
@@ -253,10 +255,10 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
   let add t ?uuid ~parent maker =
     let base, parent =
       match parent with
-      | `Toplevel rev -> (rev, Ck_id.root)
-      | `Node p -> (R.Node.rev p, R.Node.uuid p) in
+      | `Toplevel rev -> (rev, None)
+      | `Node p -> (R.Node.rev p, Some (R.Node.uuid p)) in
     let disk_node =
-      maker ~parent ~ctime:(Unix.gettimeofday ()) () in
+      maker ?parent ~ctime:(Unix.gettimeofday ()) () in
     create t ?uuid ~base disk_node
 
   let add_contact t ~base contact =
@@ -371,13 +373,13 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
 
   let set_pa_parent t node new_parent =
     assert (R.Node.rev node == R.Node.rev new_parent);
-    let new_node = Ck_disk_node.with_parent (R.apa_node node) (R.Node.uuid new_parent) in
+    let new_node = Ck_disk_node.with_parent (R.apa_node node) (Some (R.Node.uuid new_parent)) in
     let msg = Printf.sprintf "Move %s under %s" (R.Node.name node) (R.Node.name new_parent) in
     update t ~msg node new_node
   let set_a_parent = set_pa_parent
 
   let remove_parent t node =
-    let new_node = Ck_disk_node.with_parent (R.apa_node node) Ck_id.root in
+    let new_node = Ck_disk_node.with_parent (R.apa_node node) None in
     let msg = Printf.sprintf "Move %s to top level" (R.Node.name node) in
     update t ~msg node new_node
 

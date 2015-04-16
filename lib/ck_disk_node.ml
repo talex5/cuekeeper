@@ -5,7 +5,7 @@ open Sexplib.Conv
 open Ck_utils
 
 type node_details = {
-  parent : Ck_id.t;
+  parent : Ck_id.t sexp_option;
   name : string;
   description : string;
   ctime : float;
@@ -125,20 +125,20 @@ let with_starred node s =
 
 let with_context (`Action (a, details)) context = `Action ({a with context}, details)
 
-let make_action ~state ?context ?contact ~name ~description ~parent ~ctime () =
+let make_action ~state ?context ?contact ~name ~description ?parent ~ctime () =
   `Action ({ astate = state; astarred = false; context; repeat = None }, make ~name ~description ~parent ~ctime ~contact)
 
-let make_project ~state ?contact ~name ~description ~parent ~ctime () =
+let make_project ~state ?contact ~name ~description ?parent ~ctime () =
   `Project ({ pstate = state; pstarred = false }, make ~name ~description ~parent ~ctime ~contact)
 
-let make_area ?contact ~name ~description ~parent ~ctime () =
+let make_area ?contact ~name ~description ?parent ~ctime () =
   `Area (make ~name ~description ~parent ~ctime ~contact)
 
 let make_contact ~name ~description ~ctime () =
-  `Contact (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)
+  `Contact (make ~name ~description ~parent:None ~ctime ~contact:None)
 
 let make_context ~name ~description ~ctime () =
-  `Context (make ~name ~description ~parent:Ck_id.root ~ctime ~contact:None)
+  `Context (make ~name ~description ~parent:None ~ctime ~contact:None)
 
 let is_done = function
   | `Action ({ astate; _}, _) -> astate = `Done
@@ -169,7 +169,7 @@ let merge_detail ~log ~fmt ~base ~theirs ours =
   )
 
 (* Used for the (unlikely) case of a merge with no common ancestor *)
-let default_base = make ~name:"" ~description:"" ~parent:Ck_id.root ~ctime:0.0 ~contact:None
+let default_base = make ~name:"" ~description:"" ~parent:None ~ctime:0.0 ~contact:None
 
 let opt_uuid = function
   | None -> "(none)"
@@ -202,7 +202,7 @@ let dedup xs =
 
 let merge_details ~log ~base ~theirs ours =
   let {parent; name; description; ctime; contact; conflicts} = ours in
-  let parent      = merge_detail ~log ~fmt:Ck_id.to_string ~base:base.parent ~theirs:theirs.parent parent in
+  let parent      = merge_detail ~log ~fmt:opt_uuid ~base:base.parent ~theirs:theirs.parent parent in
   let name        = merge_detail ~log ~fmt:str ~base:base.name ~theirs:theirs.name name in
   let description = merge_detail ~log ~fmt:str ~base:base.description ~theirs:theirs.description description in
   let ctime       = min (min base.ctime theirs.ctime) ctime in

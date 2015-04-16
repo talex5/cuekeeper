@@ -26,7 +26,7 @@ module type DISK_NODE = sig
 
   type generic = [ area | project | action | contact | context ]
 
-  val parent : [< area | project | action ] -> Ck_id.t
+  val parent : [< area | project | action ] -> Ck_id.t option
   val name : [< generic ] -> string
   val description : [< generic] -> string
   val ctime : [< generic ] -> float

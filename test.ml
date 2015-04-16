@@ -217,19 +217,19 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
       Ck_disk_node.make_context ~name ~description ~ctime ()
       |> Ck_disk_node.context_to_string in
 
-    let areas = ref [Ck_id.root] in
+    let areas = ref [None] in
     let projects = ref [] in
     let random_apa ~contacts ~contexts ~uuid ~name ~description ~ctime =
       let contact = choose contacts in
       begin match rand_int 3 with
       | 0 ->
           let parent = choose (Array.of_list !areas) in
-          areas := uuid :: !areas;
-          Ck_disk_node.make_area ?contact ~name ~description ~ctime ~parent ()
+          areas := Some uuid :: !areas;
+          Ck_disk_node.make_area ?contact ~name ~description ~ctime ?parent ()
       | 1 ->
           let parent = choose (Array.of_list (!areas @ !projects)) in
-          projects := uuid :: !projects;
-          Ck_disk_node.make_project ?contact ~name ~description ~ctime ~state:(choose [| `Active; `SomedayMaybe; `Done |]) ~parent ()
+          projects := Some uuid :: !projects;
+          Ck_disk_node.make_project ?contact ~name ~description ~ctime ~state:(choose [| `Active; `SomedayMaybe; `Done |]) ?parent ()
       | _ ->
           let context = choose contexts in
           let parent = choose (Array.of_list (!areas @ !projects)) in
@@ -237,7 +237,7 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
             match contact with
             | None -> choose [| `Next; `Waiting; `Waiting_until (rand_date ()); `Future; `Done |]
             | Some _ -> choose [| `Next; `Waiting; `Waiting_until (rand_date ()); `Waiting_for_contact; `Future; `Done |] in
-          let a = Ck_disk_node.make_action ?contact ?context ~name ~description ~ctime ~state ~parent () in
+          let a = Ck_disk_node.make_action ?contact ?context ~name ~description ~ctime ~state ?parent () in
           match state with
           | `Done -> a
           | _ ->

@@ -9,6 +9,11 @@ let (>|?=) x f =
   | None -> None
   | Some x -> Some (f x)
 
+let (>>?=) x f =
+  match x with
+  | None -> None
+  | Some x -> f x
+
 let default d = function
   | None -> d
   | Some x -> x

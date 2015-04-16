@@ -5,6 +5,8 @@ open Lwt
 
 open Ck_utils
 
+let root_id = Ck_id.of_string "" (* Convenient magic value for hashtables *)
+
 module type S = sig
   include Ck_sigs.REV
   open Node.Types
@@ -177,7 +179,7 @@ module Make(Git : Git_storage_s.S) = struct
     | _ -> false
 
   let roots t =
-    try Ck_id.M.find Ck_id.root t.children
+    try Ck_id.M.find root_id t.children
     with Not_found -> M.empty
 
   let ensure_no_cycles t =
@@ -248,7 +250,6 @@ module Make(Git : Git_storage_s.S) = struct
     Lwt_list.iter_s (function
       | ["db"; uuid] as key ->
           let uuid = Ck_id.of_string uuid in
-          assert (uuid <> Ck_id.root);
           Git.Staging.read_exn tree key >|= fun s ->
           let disk_node = Ck_disk_node.of_string s in
           let node =
@@ -257,7 +258,7 @@ module Make(Git : Git_storage_s.S) = struct
             | `Project disk_node -> `Project {rev = t; uuid; disk_node}
             | `Area disk_node -> `Area {rev = t; uuid; disk_node} in
           apa_nodes := !apa_nodes |> Ck_id.M.add uuid node;
-          let parent = Ck_disk_node.parent disk_node in
+          let parent = Ck_disk_node.parent disk_node |> default root_id in
           let old_children =
             try Hashtbl.find children parent
             with Not_found -> [] in
@@ -289,7 +290,7 @@ module Make(Git : Git_storage_s.S) = struct
     ) >>= fun () ->
     (* todo: reject cycles *)
     children |> Hashtbl.iter (fun parent children ->
-      if parent <> Ck_id.root && not (Ck_id.M.mem parent apa_nodes) then (
+      if parent <> root_id && not (Ck_id.M.mem parent apa_nodes) then (
         bug "Parent UUID '%a' of child nodes %s missing!" Ck_id.fmt parent (String.concat ", " (List.map Ck_id.to_string children))
       )
     );
@@ -334,7 +335,7 @@ module Make(Git : Git_storage_s.S) = struct
     try Some (`Context (Ck_id.M.find uuid !(t.contexts)))
     with Not_found -> None
 
-  let parent t node = get t (Node.parent node)
+  let parent t node = Node.parent node >>?= get t
 
   let context (`Action node as action) =
     match Node.context action with

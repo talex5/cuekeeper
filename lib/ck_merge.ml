@@ -164,16 +164,15 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     (* Look up the parent node. [None] if there is no parent
      * or the parent is missing. *)
     let parent node =
-      let parent = Ck_disk_node.parent node in
-      if parent <> Ck_id.root then (
-        try Some (Hashtbl.find nodes parent)
+      Ck_disk_node.parent node >>?= (fun uuid ->
+        try Some (Hashtbl.find nodes uuid)
         with Not_found -> None
-      ) else None in
+      ) in
     let to_clear = ref [] in
     let ignore_node : [< Ck_disk_node.generic] -> unit = ignore in
     let clear_parent ~msg uuid node =
       let node =
-        Ck_disk_node.with_parent node Ck_id.root
+        Ck_disk_node.with_parent node None
         |> Ck_disk_node.with_conflict msg in
       Hashtbl.replace nodes uuid node;
       to_clear := (uuid, node) :: !to_clear;
@@ -187,20 +186,21 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
         | Checking -> clear_parent ~msg:"Removed parent due to cycle" uuid node
         | Rooted -> node    (* Already checked this one *)
       with Not_found ->
-        let parent = Ck_disk_node.parent node in
-        if parent = Ck_id.root then (
-          Hashtbl.add rooted uuid Rooted;
-          node
-        ) else match get parent with
+        match Ck_disk_node.parent node with
         | None ->
-            (* Maybe prevent this case from happening? *)
-            Hashtbl.replace rooted uuid Rooted;
-            clear_parent ~msg:"Parent was deleted" uuid node
-        | Some parent_node ->
-            Hashtbl.add rooted uuid Checking;
-            ensure_rooted parent parent_node |> ignore_node;
-            Hashtbl.replace rooted uuid Rooted;
+            Hashtbl.add rooted uuid Rooted;
             node
+        | Some parent ->
+            match get parent with
+            | None ->
+                (* Maybe prevent this case from happening? *)
+                Hashtbl.replace rooted uuid Rooted;
+                clear_parent ~msg:"Parent was deleted" uuid node
+            | Some parent_node ->
+                Hashtbl.add rooted uuid Checking;
+                ensure_rooted parent parent_node |> ignore_node;
+                Hashtbl.replace rooted uuid Rooted;
+                node
         in
     (* Scan all nodes *)
     nodes |> Hashtbl.iter (fun uuid node ->

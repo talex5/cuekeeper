@@ -3,7 +3,6 @@
 
 type t = private string with sexp
 
-val root : t
 val mint : unit -> t
 val to_string : t -> string
 val of_string : string -> t

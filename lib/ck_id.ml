@@ -5,7 +5,6 @@ open Sexplib.Std
 
 type t = string with sexp
 
-let root = ""
 let mint () = Uuidm.(create `V4 |> to_string)
 let to_string t = t
 let of_string t = t
