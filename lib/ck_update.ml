@@ -6,6 +6,12 @@ open Lwt
 
 let async : (unit -> unit Lwt.t) -> unit = Lwt.async
 
+(* Annoyingly, if you suspend the computer during a Lwt_js.sleep then the time spent suspended isn't
+ * counted and we wake up too late. As a work-around, we do a quick check every 10s. See:
+ * http://stackoverflow.com/questions/29656686/how-to-wait-until-a-given-time-even-when-laptop-is-suspended
+ *)
+let max_sleep_time = 10.0
+
 module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type commit = Git.Commit.t) = struct
   open R.Node.Types
 
@@ -28,14 +34,20 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     | None -> ()
     | Some date ->
         let time = Ck_time.unix_time_of date in
-        let sleeper = Clock.sleep (time -. Clock.now ()) in
+        let delay = min max_sleep_time (time -. Clock.now ()) in
+        let sleeper = Clock.sleep delay in
         t.alarm <- sleeper;
         async (fun () ->
           Lwt.catch
             (fun () ->
               sleeper >>= fun () ->
-              Lwt_mutex.with_lock t.mutex (fun () ->
-                update_head t (R.commit t.head)
+              if Clock.now () >= time then (
+                Lwt_mutex.with_lock t.mutex (fun () ->
+                  update_head t (R.commit t.head)
+                )
+              ) else (
+                update_alarm t;
+                return ()
               )
             )
             (function
