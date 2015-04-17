@@ -702,38 +702,48 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ) in
     show_modal ~parent:button [content]
 
+  let make_node_chooser ~edit ~show_node ~if_none current =
+    let clicked ev =
+      edit ev;
+      false in
+    match current with
+    | None -> [a ~a:[a_onclick clicked] [pcdata if_none]]
+    | Some current ->
+        let current = (current :> M.Item.generic) in
+        let cl = ["ck-item"; class_of_node_type current] in
+        let show_clicked _ev = show_node current; false in
+        let show_button = a ~a:[a_onclick show_clicked] [pcdata " (show)"] in
+        [
+          span ~a:[a_class cl] [
+            a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name current)]
+          ];
+          show_button;
+        ]
+
   let make_parent_details m ~show_node details =
-    let title =
-      details.M.details_parent >|~= function
-        | None -> pcdata "(no parent)"
-        | Some parent ->
-            let parent = (parent :> M.Item.generic) in
-            let cl = ["ck-item"; class_of_node_type parent] in
-            let clicked _ev = show_node parent; true in
-            span ~a:[a_class cl] [
-              a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name parent)]
-            ] in
-    let title_elem = R.Html5.span (ReactiveData.RList.singleton_s title) in
-    let descr =
-      details.M.details_item >|~= function
-        | None -> [pcdata "(deleted)"]
-        | Some (`Contact _) -> [ck_label "A contact"]
-        | Some (`Context _) -> [ck_label "A context"]
-        | Some (`Area _ | `Project _ | `Action _ as item) ->
-            let change_type label =
-              let on_click ev =
-                show_type_modal m ~button:(ev##target) item; false in
-              a ~a:[a_onclick on_click] [pcdata label] in
-            let change_clicked ev =
-              let content = ul (parent_candidates m item) in
-              show_modal ~parent:(ev##target) [content];
-              false in
-            let change_button = a ~a:[a_onclick change_clicked] [pcdata " (change)"] in
-            match item with
-            | `Action _ -> [ck_label "An "; change_type "action"; ck_label " in "; title_elem; change_button]
-            | `Project _ -> [ck_label "A "; change_type "project"; ck_label " in "; title_elem; change_button]
-            | `Area _ -> [ck_label "An "; change_type "area"; ck_label " in "; title_elem; change_button] in
-    rlist_of ~init:(React.S.value descr) descr
+    let pair = React.S.l2 (fun a b -> (a, b)) details.M.details_item details.M.details_parent in
+    rlist_of (pair >|~= fun (item, parent) ->
+      match item with
+      | None -> [pcdata "(deleted)"]
+      | Some item ->
+      let make_parent item =
+        let edit ev =
+          let content = ul (parent_candidates m item) in
+          show_modal ~parent:(ev##target) [content] in
+        make_node_chooser ~edit ~show_node ~if_none:"(no parent)" parent in
+      match item with
+      | `Contact _ -> [ck_label "A contact"]
+      | `Context _ -> [ck_label "A context"]
+      | `Area _ | `Project _ | `Action _ as item ->
+          let change_type label =
+            let on_click ev =
+              show_type_modal m ~button:(ev##target) item; false in
+            a ~a:[a_onclick on_click] [pcdata label] in
+          match item with
+          | `Action _ -> ck_label "An " :: change_type "action" :: ck_label " in " :: make_parent item
+          | `Project _ -> ck_label "A " :: change_type "project" :: ck_label " in " :: make_parent item
+          | `Area _ -> ck_label "An " :: change_type "area" :: ck_label " in " :: make_parent item
+    )
 
   let make_editable_description m item =
     let editing, set_editing = React.S.create None in
@@ -853,10 +863,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           li [a ~a:[a_onclick select] [pcdata (M.candidate_label candidate)]]
         ) in
         let content = ul (new_contact_form :: contexts) in
-        show_modal ~parent:(ev##target) [content];
-        false
+        show_modal ~parent:(ev##target) [content]
     end
-    | _ -> false
+    | _ -> ()
 
   let edit_contact m ~show_node item ev =
     match React.S.value item with
@@ -887,10 +896,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           li [a ~a:[a_onclick select] [pcdata (M.candidate_label candidate)]]
         ) in
         let content = ul (new_contact_form :: contacts) in
-        show_modal ~parent:(ev##target) [content];
-        false
+        show_modal ~parent:(ev##target) [content]
     end
-    | _ -> false
+    | _ -> ()
 
   let unit_options = Ck_time.([| Day; Week; Month; Year |])
   let edit_repeat m action ev =
@@ -1036,14 +1044,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ) in
           let value =
             signal >|~= (fun opt_contact ->
-              let contact_name =
-                match opt_contact with
-                | None -> pcdata "(no contact)"
-                | Some c -> render_item m ~show_node (c :> M.Item.generic) in
-              [
-                contact_name;
-                a ~a:[a_onclick (edit_contact m ~show_node item)] [pcdata " (change)"]
-              ]
+              let edit = edit_contact m ~show_node item in
+              make_node_chooser ~edit ~show_node ~if_none:"(no contact)" opt_contact
             ) |> rlist_of in
           [
             span ~a:[a_class ["ck-label"]] [R.Html5.pcdata label];
@@ -1053,15 +1055,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       details.M.details_context >|~= (function
         | None -> []            (* Item type doesn't have contexts *)
         | Some opt_context ->
-            let context_name =
-              match opt_context with
-              | None -> pcdata "(no context)"
-              | Some c -> render_item m ~show_node (c :> M.Item.generic) in
-            [
-              ck_label "Context: ";
-              context_name;
-              a ~a:[a_onclick (edit_context m ~show_node item)] [pcdata " (change)"]
-            ]
+            let edit ev = edit_context m ~show_node item ev in
+            ck_label "Context: " :: make_node_chooser ~edit ~show_node ~if_none:"(no context)" opt_context
       ) |> rlist_of in
     let contents =
       [
