@@ -1237,14 +1237,16 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         ];
         div ~a:[a_class ["medium-4"; "columns"]] [
           search_create_bar m ~show_node;
+        ]
+      ];
+      div ~a:[a_class ["row"]] [
+        div ~a:[a_class ["medium-12"; "columns"]] [
           div ~a:[a_class ["ck-actions"]] [
             a ~a:[a_onclick (export m)] [pcdata "Export"];
             a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
             a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
           ]
-        ]
-      ];
-      div ~a:[a_class ["row"]] [
+        ];
       ];
       div ~a:[a_class ["row"]] [
         R.Html5.div ~a:[a_class ["medium-12"; "columns"]] (
