@@ -926,13 +926,39 @@ div.ck-repeat-interval > select {
 	width: auto;
 }
 
-form.ck-main-entry {
+div.ck-top-bar {
+	display: table;
 	position: relative;
+	width: 100%
 }
 
 form.ck-main-entry input {
 	margin-top: 1px;
 	width: 100%;
+}
+
+@media only screen and (min-width: 30em) {
+	form.ck-main-entry {
+		display: inline-block;
+		position: relative;
+		max-width: 20em;
+	}
+
+	div.ck-top-bar ul.ck-mode-selector {
+		display: table-cell;
+		vertical-align: top;
+	}
+
+	div.ck-top-bar div.ck-search-create {
+		display: table-cell;
+		white-space: nowrap;
+		width: 100%;
+		text-align: right;
+	}
+
+	div.ck-search-create div.ck-menu-dropdown {
+		text-align: left;
+	}
 }
 
 div.ck-menu-dropdown {
@@ -966,7 +992,7 @@ div.ck-menu-dropdown li {
       color: #555555; }
 
 ul.ck-mode-selector li {
-	float: left;
+	display: inline;
 	list-style: none;
 	background: #f4f4f4;
 	margin: 0 1em 0 0;
@@ -977,13 +1003,13 @@ ul.ck-mode-selector li {
 	font-size: 0.875rem;
 }
 
-@media only screen and (max-width: 60em) {
+@media only screen and (max-width: 50em) {
 	ul.ck-mode-selector span.ck-long-label {
 		display: none;
 	}
 }
 
-@media only screen and (max-width: 30em) {
+@media only screen and (max-width: 25em) {
 	ul.ck-mode-selector li {
 		margin: 0 0.2em 0 0;
 	}

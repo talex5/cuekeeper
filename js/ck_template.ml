@@ -1232,12 +1232,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     [
       modal_div;
       div ~a:[a_class ["row"]] [
-        div ~a:[a_class ["medium-8"; "columns"]] [
-          make_mode_switcher m current_tree;
+        div ~a:[a_class ["medium-12"; "columns"]] [
+          div ~a:[a_class ["ck-top-bar"]] [
+            make_mode_switcher m current_tree;
+            div ~a:[a_class ["ck-search-create"]] [
+              search_create_bar m ~show_node
+            ];
+          ];
         ];
-        div ~a:[a_class ["medium-4"; "columns"]] [
-          search_create_bar m ~show_node;
-        ]
       ];
       div ~a:[a_class ["row"]] [
         div ~a:[a_class ["medium-12"; "columns"]] [
