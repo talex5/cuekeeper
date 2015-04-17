@@ -99,13 +99,13 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       | `Conflict _ as c -> c
 
     let export_tar t =
-      let s = t.store "export_tar" in
+      V.of_path (t.store "export_tar") I.Key.empty >>= fun v ->
       let buf = Buffer.create 10240 in
       let files = ref [] in
       let rec scan dir =
-        I.list s dir >>=
+        V.list v dir >>=
         Lwt_list.iter_s (fun path ->
-          I.read s path >>= function
+          V.read v path >>= function
           | None -> scan path
           | Some data ->
               let header = T.Header.make
