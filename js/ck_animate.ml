@@ -78,27 +78,35 @@ let fade_in_move ~full_height elem =
     elem##style##opacity <- Js.string "" |> Js.Optdef.return;
     elem##style##maxHeight <- Js.string ""
 
-let animate_scroll_to target_y =
-  let start = Unix.gettimeofday () in
-  let _, start_y = Dom_html.getDocumentScroll () in
-  let root = Dom_html.document##documentElement in
-  let rec aux () =
-    let f = (Unix.gettimeofday () -. start) /. scroll_time |> min 1.0 in
-    let dy = float_of_int (target_y - start_y) *. f in
-    root##scrollTop <- start_y + truncate dy;
-    if f < 1.0 then Dom_html._requestAnimationFrame (Js.wrap_callback aux) in
-  aux ()
-
-(** Animate scrolling the window so that the range (top, bottom) is visible. *)
-let scroll_to_show (top, bottom) =
-  Js.Optdef.iter (Dom_html.window##innerHeight) (fun page_height ->
-    let region_height = (bottom - top + 2) in
-    let region_height = min region_height page_height in
-    let _left, scroll_top = Dom_html.getDocumentScroll () in
-    if top < scroll_top then (
-      animate_scroll_to top
-    ) else if top + region_height > scroll_top + page_height then (
-      (* Put top + region_height at the bottom of the viewport *)
-      animate_scroll_to (top + region_height - page_height)
-    )
+let animate_scroll_to (target_x, target_y) =
+  let start_x, start_y = Dom_html.getDocumentScroll () in
+  if start_x <> target_x || start_y <> target_y then (
+    let start = Unix.gettimeofday () in
+    let root = Dom_html.document##documentElement in
+    let rec aux () =
+      let f = (Unix.gettimeofday () -. start) /. scroll_time |> min 1.0 in
+      let dx = float_of_int (target_x - start_x) *. f in
+      let dy = float_of_int (target_y - start_y) *. f in
+      root##scrollLeft <- start_x + truncate dx;
+      root##scrollTop <- start_y + truncate dy;
+      if f < 1.0 then Dom_html._requestAnimationFrame (Js.wrap_callback aux) in
+    aux ()
   )
+
+(** Animate scrolling the window so that the range (top, bottom) is visible.
+ * Also, ensure we're fully scrolled to the right. *)
+let scroll_to_show (top, bottom) =
+  let vp_height = Dom_html.document##documentElement##clientHeight in
+  let vp_width = Dom_html.document##documentElement##clientWidth in
+  let full_width = Dom_html.document##body##offsetWidth in
+  let region_height = (bottom - top + 2) in
+  let region_height = min region_height vp_height in
+  let _scroll_left, scroll_top = Dom_html.getDocumentScroll () in
+  let target_y =
+    if top < scroll_top then top
+    else if top + region_height > scroll_top + vp_height then (
+      (* Put top + region_height at the bottom of the viewport *)
+      top + region_height - vp_height
+    ) else scroll_top in
+  let target_x = full_width - vp_width in
+  animate_scroll_to (target_x, target_y)

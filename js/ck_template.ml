@@ -1231,38 +1231,24 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       rlist_of ~init:(React.S.value live) live in
     [
       modal_div;
-      div ~a:[a_class ["row"]] [
-        div ~a:[a_class ["medium-12"; "columns"]] [
-          div ~a:[a_class ["ck-top-bar"]] [
-            make_mode_switcher m current_tree;
-            div ~a:[a_class ["ck-search-create"]] [
-              search_create_bar m ~show_node
-            ];
-          ];
+      div ~a:[a_class ["ck-top-bar"]] [
+        make_mode_switcher m current_tree;
+        div ~a:[a_class ["ck-search-create"]] [
+          search_create_bar m ~show_node
         ];
       ];
-      div ~a:[a_class ["row"]] [
-        div ~a:[a_class ["medium-12"; "columns"]] [
-          div ~a:[a_class ["ck-actions"]] [
-            a ~a:[a_onclick (export m)] [pcdata "Export"];
-            a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
-            a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
-          ]
-        ];
+      div ~a:[a_class ["ck-actions"]] [
+        a ~a:[a_onclick (export m)] [pcdata "Export"];
+        a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
+        a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
       ];
-      div ~a:[a_class ["row"]] [
-        R.Html5.div ~a:[a_class ["medium-12"; "columns"]] (
-          time_travel_warning m;
-        );
-        R.Html5.div ~a:[a_class ["medium-12"; "columns"]] (
-          make_error_box current_error;
-        )
-      ];
-      div ~a:[a_class ["row"]] [
-        R.Html5.div ~a:[a_class ["medium-6"; "columns"; "ck-tree"]] (
+      R.Html5.div (time_travel_warning m);
+      R.Html5.div (make_error_box current_error);
+      div ~a:[a_class ["ck-columns"]] [
+        R.Html5.div ~a:[a_class ["ck-tree"]] (
           left_panel;
         );
-        R.Html5.div ~a:[a_class ["medium-6"; "columns"]] (
+        R.Html5.div ~a:[a_class ["ck-details-column"]] (
           details_area;
         );
       ];

@@ -808,7 +808,6 @@ div.ck-actions a + a {
 
 div.ck-tree {
 	margin-left: 0;
-	overflow: auto;
 }
 
 ul.vcard {
@@ -937,7 +936,6 @@ form.ck-main-entry input {
 	width: 100%;
 }
 
-@media only screen and (min-width: 30em) {
 	form.ck-main-entry {
 		display: inline-block;
 		position: relative;
@@ -959,7 +957,6 @@ form.ck-main-entry input {
 	div.ck-search-create div.ck-menu-dropdown {
 		text-align: left;
 	}
-}
 
 div.ck-menu-dropdown {
 	position: absolute;
@@ -1049,6 +1046,10 @@ div.ck-conflicts {
 	padding: 0.3rem;
 }
 
+div.ck-details {
+	background: white;
+}
+
 div.ck-details div.ck-conflicts ul {
 	margin-left: 0;
 	padding-left: 1.1rem;
@@ -1067,4 +1068,48 @@ div.ck-details div.description blockquote {
 
 div.ck-export {
 	padding: 0.5rem;
+}
+
+div.ck-main {
+	padding: 0 1em 1em 1em;
+}
+
+div.ck-columns {
+	display: table;
+}
+
+div.ck-tree,
+div.ck-details-column {
+	display: table-cell;
+	vertical-align: top;
+}
+
+/* Narrow screen: each column is the width of the screen and we
+ * scroll horizontally between them. */
+@media only screen and (max-width: 40em) {
+	div.ck-main {
+		padding: 0 2px 2px 2px;
+	}
+
+	div.ck-tree {
+		overflow: hidden;
+	}
+
+	div.ck-tree,
+	div.ck-details-column {
+		width: 100vw;
+		max-width: 100vw;
+	}
+	body {
+		min-width: 200vw;
+	}
+}
+
+/* Wide screen. Each column is half the width and we see both at once. */
+@media only screen and (min-width: 40em) {
+	div.ck-tree,
+	div.ck-details-column {
+		width: 50vw;
+		max-width: 50vw;
+	}
 }
