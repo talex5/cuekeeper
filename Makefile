@@ -10,7 +10,7 @@ all: test _build/js/client.js
 test: build-byte
 	ocamlrun _build/test.byte
 
-build-byte:
+build-byte: ck_init.ml
 	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte test.byte
 
 _build/js/client.js: build-byte
@@ -19,6 +19,9 @@ _build/js/client.js: build-byte
 slow_test:
 	ocamlbuild -cflag -g -no-links -use-ocamlfind test.native
 	env CK_TEST_ITERS=10000 ./_build/test.native
+
+ck_init.ml: init/*/*
+	ocaml-crunch init -o ck_init.ml -m plain
 
 clean:
 	ocamlbuild -clean

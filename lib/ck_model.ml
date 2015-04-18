@@ -732,70 +732,6 @@ module Make(Clock : Ck_clock.S)
         let none = ("(no context)", fun () -> Up.set_context t.master action None) in
         none :: contexts
 
-  let initialise t =
-    let add ~uuid ?parent disk_node =
-      let parent =
-        match parent with
-        | None -> `Toplevel t.r
-        | Some (`Area _ | `Project _ as p) -> `Node p
-        | Some _ -> assert false in
-      Up.add t.master ~uuid:(Ck_id.of_string uuid) ~parent disk_node >>= fun uuid ->
-      match R.get t.r uuid with
-      | None -> failwith "Created node does not exist!"
-      | Some node -> return node
-      in
-    (* Add some default entries for first-time use.
-     * Use fixed UUIDs for unit-testing and in case we want to merge stores later. *)
-    add
-      ~uuid:"ad8c5bb1-f6b7-4a57-b090-d6ef2e3326c1"
-      (Ck_disk_node.make_area
-        ?contact:None
-        ~name:"Personal"
-        ~description:"Add personal sub-areas here (Family, Car, Home, Exercise, etc).")
-    >>= fun personal ->
-
-    add
-      ~uuid:"1a7c8ea2-18ac-41cb-8f79-3566e49445f4"
-      ~parent:personal
-      (Ck_disk_node.make_project
-        ?contact:None
-        ~name:"Start using CueKeeper"
-        ~description:""
-        ~state:`Active)
-    >>= fun switch_to_ck ->
-
-    Up.add_context t.master ~base:t.r ~uuid:(Ck_id.of_string "c6776794-d53e-460a-ada7-7e3b98c2f126")
-      (Ck_disk_node.make_context
-        ~name:"Reading"
-        ~description:"Reading books, web-sites, etc."
-        ~ctime:(Clock.now ())
-        ())
-    >>= fun reading ->
-
-    let switch_to_ck =
-      match R.get t.r (R.Node.uuid switch_to_ck) with
-      | None -> assert false
-      | Some n -> n in
-    add
-      ~uuid:"6002ea71-6f1c-4ba9-8728-720f4b4c9845"
-      ~parent:switch_to_ck
-      (Ck_disk_node.make_action
-        ~state:`Next
-        ~context:reading
-        ?contact:None
-        ~name:"Read wikipedia page on GTD"
-        ~description:"http://en.wikipedia.org/wiki/Getting_Things_Done")
-    >>= fun _ ->
-
-    add
-      ~uuid:"1c6a6964-e6c8-499a-8841-8cb437e2930f"
-      (Ck_disk_node.make_area
-        ?contact:None
-        ~name:"Work"
-        ~description:"Add work-related sub-areas here.")
-    >>= fun _ ->
-    return ()
-
   let rtree r fn =
     let rtree = WidgetTree.make (fn r) in
     let update_tree r =
@@ -842,7 +778,28 @@ module Make(Clock : Ck_clock.S)
 
   let init_repo repo =
     Git.Repository.empty repo >>= fun staging ->
-    Git.Staging.update staging ["ck-version"] "0.1" >>= fun () ->
+    Ck_init.file_list |> Lwt_list.iter_p (fun path ->
+      match Ck_init.read path with
+      | None -> assert false
+      | Some value ->
+          let value =
+            (* Move weekly review to next Sunday *)
+            if path = "db/af66bb30-5488-4b8b-a171-ba4a048d6fd1" then (
+              match Ck_disk_node.of_string value with
+              | `Action _ as a ->
+                  begin match Ck_disk_node.action_repeat a with
+                  | None -> assert false
+                  | Some repeat ->
+                      let next = repeat |> Ck_time.next_repeat ~now:(Clock.now () |> Ck_time.of_unix_time) in
+                      let a = Ck_disk_node.with_repeat a
+                        (Some (Ck_time.(make_repeat ~from:next repeat.repeat_n repeat.repeat_unit))) in
+                      let a = Ck_disk_node.with_astate a (`Waiting_until next) in
+                      Ck_disk_node.to_string a end
+              | _ -> assert false
+            ) else value in
+          let key = Irmin.Path.String_list.of_hum path in
+          Git.Staging.update staging key value
+    ) >>= fun () ->
     Git.Commit.commit staging ~msg:"Initialise repository"
 
   let make repo =
@@ -876,9 +833,7 @@ module Make(Clock : Ck_clock.S)
       if not (Up.fixed_head t.master) then set_fixed_head None;
       get_log master >|= set_log
     );
-    if M.is_empty (R.roots r) then (
-      initialise t >>= fun () -> return t
-    ) else return t
+    return t
 
   let alert t = t.alert
 

@@ -185,11 +185,8 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     updated >>= fun () ->         (* [on_update] has been called. *)
     return result
 
-  let create t ~base ?uuid (node:[< Ck_disk_node.generic]) =
-    let uuid =
-      match uuid with
-      | Some uuid -> uuid
-      | None -> Ck_id.mint () in
+  let create t ~base (node:[< Ck_disk_node.generic]) =
+    let uuid = Ck_id.mint () in
     assert (not (mem uuid base));
     begin match Ck_disk_node.parent node with
     | Some parent when not (mem parent base) ->
@@ -252,14 +249,14 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
           error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
         with Not_found -> remove ["db"; uuid]
 
-  let add t ?uuid ~parent maker =
+  let add t ~parent maker =
     let base, parent =
       match parent with
       | `Toplevel rev -> (rev, None)
       | `Node p -> (R.Node.rev p, Some (R.Node.uuid p)) in
     let disk_node =
       maker ?parent ~ctime:(Unix.gettimeofday ()) () in
-    create t ?uuid ~base disk_node
+    create t ~base disk_node
 
   let add_contact t ~base contact =
     let uuid = Ck_id.mint () in
@@ -270,11 +267,8 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
 
-  let add_context t ?uuid ~base context =
-    let uuid =
-      match uuid with
-      | Some u -> u
-      | None -> Ck_id.mint () in
+  let add_context t ~base context =
+    let uuid = Ck_id.mint () in
     assert (not (Ck_id.M.mem uuid (R.contexts base)));
     let s = Ck_disk_node.context_to_string context in
     let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name context) in

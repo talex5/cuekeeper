@@ -560,11 +560,18 @@ let suite =
                 n "GC unused signals" [];
                 n "+Write unit tests" [];
               ]
+            ];
+            n "Review" [
+              n "Weekly review" [];
             ]
           ];
           n "Recently completed" [];
         ];
 
+        let units = lookup ["Next actions"; "Review"; "Weekly review"] next_actions |> expect_action in
+        M.delete m units >>= function
+        | `Error msg -> assert_failure msg
+        | `Ok () ->
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         M.set_action_state m units (`Waiting_until (day 6)) >>= fun () ->
         M.add_action m ~state:(`Waiting_until (day 7)) ~parent:work ~name:"Implement scheduing" () >>= fun _ ->
@@ -575,6 +582,9 @@ let suite =
                 n "GC unused signals" [];
                 n "-Write unit tests" [];
               ]
+            ];
+            n "-Review" [
+              n "Weekly review" [];
             ]
           ];
           n "Recently completed" [];
