@@ -721,7 +721,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         ]
 
   let make_parent_details m ~show_node details =
-    let pair = React.S.l2 (fun a b -> (a, b)) details.M.details_item details.M.details_parent in
+    let pair = React.S.l2 ~eq:assume_changed (fun a b -> (a, b)) details.M.details_item details.M.details_parent in
     rlist_of (pair >|~= fun (item, parent) ->
       match item with
       | None -> [pcdata "(deleted)"]
@@ -780,8 +780,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                     ] in
                   try
                     let raw_html = M.Item.description item |> Omd.of_string ~extensions:[omd_date_ext] |> Omd.to_html in
-                    let description = div [] in
                     if raw_html <> "" then (
+                      let description = div [] in
                       let elem = Tyxml_js.To_dom.of_div description in
                       elem##innerHTML <- Js.string raw_html;
                       [description; buttons]

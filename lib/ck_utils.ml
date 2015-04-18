@@ -2,7 +2,7 @@
  * See the README file for details. *)
 
 let (>>~=) x f = React.S.bind x f
-let (>|~=) x f = React.S.map f x
+let (>|~=) x f = React.S.map ~eq:(==) f x
 
 let (>|?=) x f =
   match x with
