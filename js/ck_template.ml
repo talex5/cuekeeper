@@ -769,17 +769,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                       | descr -> descr ^ "\n" in
                     set_editing (Some (item, Printf.sprintf "%s{%s} " descr today));
                     false in
-                  let description =
-                    try
-                      let raw_html = M.Item.description item |> Omd.of_string ~extensions:[omd_date_ext] |> Omd.to_html in
-                      let description = div [] in
-                      let elem = Tyxml_js.To_dom.of_div description in
-                      elem##innerHTML <- Js.string raw_html;
-                      description
-                    with ex ->
-                      div [pcdata (Printexc.to_string ex)] in
-                  [
-                    description;
+                  let buttons =
                     div ~a:[a_class ["row"]] [
                       div ~a:[a_class ["small-6"; "columns"; "ck-add-log"]] [
                         a ~a:[a_onclick append_log] [pcdata "(add log entry)"];
@@ -787,8 +777,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                       div ~a:[a_class ["small-6"; "columns"; "ck-edit"]] [
                         a ~a:[a_onclick edit] [pcdata "(edit)"];
                       ]
-                    ]
-                  ]
+                    ] in
+                  try
+                    let raw_html = M.Item.description item |> Omd.of_string ~extensions:[omd_date_ext] |> Omd.to_html in
+                    let description = div [] in
+                    if raw_html <> "" then (
+                      let elem = Tyxml_js.To_dom.of_div description in
+                      elem##innerHTML <- Js.string raw_html;
+                      [description; buttons]
+                    ) else [buttons]
+                  with ex ->
+                    [div [pcdata (Printexc.to_string ex)]; buttons]
             );
         | Some (item, descr) ->
             let cancel _ev = set_editing None; false in

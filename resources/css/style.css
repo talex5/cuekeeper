@@ -609,9 +609,19 @@ div.ck-details h4 {
 
 div.ck-details div.description {
 	border: 1px solid #DDDDDD;
-	padding: 0.2rem;
 	background: #ffc;
 }
+
+div.description > div {
+	padding: 0.2rem;
+}
+
+div.description > div.row {
+	background: #f3f3a9;
+}
+
+div.ck-add-log { padding-left: 0; }
+div.ck-edit { padding-right: 0; }
 
 div.description-form textarea {
 	margin-bottom: 0.5rem;
