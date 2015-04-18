@@ -68,6 +68,8 @@ module Make(Clock : Ck_clock.S)
       | Add_action of [area | project] option * context option * contact option * action_state
       | Add_project of [area | project] option * project_state
       | Add_area of area option
+      | Add_contact
+      | Add_context
 
     type t = {
       item :
@@ -224,10 +226,13 @@ module Make(Clock : Ck_clock.S)
     | `Context _ as context -> add_action t ~state:`Next ~context ~name ~description:"" ()
 
   let apply_adder t adder name =
+    let ok x = (x :> Item.generic option) in
     match adder with
-    | TreeNode.Add_action (parent, context, contact, state) -> add_action t ~state ?parent ?context ?contact ~name ()
-    | TreeNode.Add_project (parent, state) -> add_project t ~state ?parent ~name ()
-    | TreeNode.Add_area parent -> add_area t ?parent ~name ()
+    | TreeNode.Add_action (parent, context, contact, state) -> add_action t ~state ?parent ?context ?contact ~name () >|= ok
+    | TreeNode.Add_project (parent, state) -> add_project t ~state ?parent ~name () >|= ok
+    | TreeNode.Add_area parent -> add_area t ?parent ~name () >|= ok
+    | TreeNode.Add_contact -> add_contact t ~name () >|= ok
+    | TreeNode.Add_context -> add_context t ~name () >|= ok
 
   let clear_conflicts t node =
     Up.clear_conflicts t.master node
@@ -398,9 +403,9 @@ module Make(Clock : Ck_clock.S)
         acc |> TreeNode.add (TreeNode.unique_of_node item)
       ) (R.contacts r) TreeNode.Child_map.empty in
     TreeNode.Child_map.empty
-    |> TreeNode.(add (group ~pri:0 ~children:main "Areas"))
-    |> TreeNode.(add (group ~pri:1 ~children:contexts "Contexts"))
-    |> TreeNode.(add (group ~pri:2 ~children:contacts "Contacts"))
+    |> TreeNode.(add (group ~adder:(Add_area None) ~pri:0 ~children:main "Areas"))
+    |> TreeNode.(add (group ~adder:Add_context ~pri:1 ~children:contexts "Contexts"))
+    |> TreeNode.(add (group ~adder:Add_contact ~pri:2 ~children:contacts "Contacts"))
 
   let make_review_tree ~mode r =
     match mode with

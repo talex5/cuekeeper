@@ -63,7 +63,7 @@ module type MODEL = sig
   val set_context : t -> action -> context -> unit or_error Lwt.t
 
   val add_child : t -> [< area | project | context] -> string -> [area | project | action] option Lwt.t
-  val apply_adder : t -> Widget.adder -> string -> [area | project | action] option Lwt.t
+  val apply_adder : t -> Widget.adder -> string -> Item.generic option Lwt.t
 
   val clear_conflicts : t -> [< Item.generic] -> unit Lwt.t
   val delete : t -> [< Item.generic] -> unit or_error Lwt.t
