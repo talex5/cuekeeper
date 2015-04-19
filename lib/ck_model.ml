@@ -243,7 +243,7 @@ module Make(Clock : Ck_clock.S)
   let delete_done t =
     let to_delete = ref [] in
     let rec aux items =
-      M.fold (fun uuid item acc ->
+      M.fold (fun _uuid item acc ->
         match item with
         | `Area _ ->
             let _children : bool = aux (R.child_nodes item) in true
@@ -357,34 +357,37 @@ module Make(Clock : Ck_clock.S)
     !results
 
   let make_future_tree r =
-    let projects = ref TreeNode.Child_map.empty in
-    let actions = ref TreeNode.Child_map.empty in
-    let add ~parent item =
+    let add ~parent item lst =
       let group_item =
         match parent with
         | None ->
             TreeNode.unique_of_node item
         | Some p ->
-            let adder = TreeNode.Add_action (parent, None, None, `Future) in
+            let adder =
+              match item with
+              | `Project _ -> TreeNode.Add_project (parent, `SomedayMaybe)
+              | `Action _ -> TreeNode.Add_action (parent, None, None, `Future) in
             TreeNode.group ~adder ~pri:1 (Node.name p)
-            |> or_existing !actions
+            |> or_existing !lst
             |> TreeNode.with_child (TreeNode.unique_of_node item) in
-      actions := !actions |> TreeNode.add group_item in
+      lst := !lst |> TreeNode.add group_item in
+    let projects = ref TreeNode.Child_map.empty in
+    let actions = ref TreeNode.Child_map.empty in
     let rec scan ?parent _key = function
       | `Project _ as node when Node.project_state node = `SomedayMaybe ->
-          projects := !projects |> TreeNode.add (TreeNode.unique_of_node node)
+          projects |> add ~parent node
       | `Area _ | `Project _ as node ->
           R.child_nodes node |> M.iter (scan ~parent:node)
       | `Action _ as node ->
           match Node.action_state node with
-          | `Future -> add ~parent node
+          | `Future -> actions |> add ~parent node
           | _ -> () in
     R.roots r |> M.iter (scan ?parent:None);
     let add_action = TreeNode.Add_action (None, None, None, `Future) in
     let add_project = TreeNode.Add_project (None, `SomedayMaybe) in
     TreeNode.Child_map.empty
     |> TreeNode.add (TreeNode.group ~pri:0 ~adder:add_action ~children:!actions "Actions")
-    |> TreeNode.add (TreeNode.group ~pri:0 ~adder:add_project ~children:!projects"Projects")
+    |> TreeNode.add (TreeNode.group ~pri:0 ~adder:add_project ~children:!projects "Projects")
 
   let make_areas_tree r =
     let rec aux items =
