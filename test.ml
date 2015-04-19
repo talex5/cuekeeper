@@ -641,6 +641,45 @@ let suite =
           n "Recently completed" [];
         ];
 
+        (* Rename conflict (e.g. two edits in different tabs *)
+        M.add_action m ~state:`Next ~parent:work ~name:"Implement merging" () >>= fun conflict ->
+        let conflict = expect_action (expect_some conflict) in
+        let live_conflict = M.details m conflict in
+        M.set_name m conflict "Test conflicts" >>= fun () ->
+        wait 2.0;
+        M.set_name m conflict "Fix merging" >>= fun () ->
+        next_actions |> assert_tree ~label:"conflicts" [
+          n "Problems" [
+            n "+Unread merge conflicts report" [
+              n "@Fix merging" []
+            ]
+          ];
+          n "Next actions" [
+            n "Coding" [
+              n "Dev" [
+                n "GC unused signals" [];
+                n "Write unit tests" [];
+              ]
+            ];
+            n "(no context)" [
+              n "Dev" [
+                n "+Fix merging" [];
+                n "Implement scheduing" [];
+                n "-Fix merging" [];
+              ]
+            ];
+          ];
+          n "Recently completed" [
+          ];
+        ];
+        let conflict = React.S.value live_conflict.M.details_item |> expect_some in
+        M.Item.conflicts conflict |> assert_equal ["Discarded change Implement merging -> Test conflicts"];
+        M.delete m conflict >>= function
+        | `Error msg -> assert_failure msg
+        | `Ok () ->
+        wait 2.0;
+
+        (* Mark as Done *)
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         M.set_action_state m units `Done >>= fun () ->
         next_actions |> assert_tree ~label:"done" [
@@ -651,9 +690,9 @@ let suite =
                 n "-Write unit tests" [];
               ]
             ];
-            n "+(no context)" [
+            n "(no context)" [
               n "Dev" [
-                n "@Implement scheduing" [];
+                n "Implement scheduing" [];
               ]
             ];
           ];
@@ -678,13 +717,6 @@ let suite =
           ];
           n "Recently completed" []
         ];
-
-(*
-        (* Rename conflict (e.g. two edits in different tabs *)
-        let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
-        M.set_name m units "Test conflicts" >>= fun () ->
-        M.set_name m units "Fix merging" >>= fun () ->
-*)
 
         return ()
       end
