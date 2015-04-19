@@ -1123,3 +1123,7 @@ div.ck-details-column {
 		max-width: 50vw;
 	}
 }
+
+div.ck-tree > button {
+	margin-bottom: 1em;
+}

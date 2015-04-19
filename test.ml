@@ -641,6 +641,44 @@ let suite =
           n "Recently completed" [];
         ];
 
+        let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
+        M.set_action_state m units `Done >>= fun () ->
+        next_actions |> assert_tree ~label:"done" [
+          n "Next actions" [
+            n "Coding" [
+              n "Dev" [
+                n "GC unused signals" [];
+                n "-Write unit tests" [];
+              ]
+            ];
+            n "+(no context)" [
+              n "Dev" [
+                n "@Implement scheduing" [];
+              ]
+            ];
+          ];
+          n "Recently completed" [
+            n "+Write unit tests" [];
+          ]
+        ];
+        M.delete_done m >>= fun () ->
+        wait 2.0;
+        next_actions |> assert_tree ~label:"done deleted" [
+          n "Next actions" [
+            n "Coding" [
+              n "Dev" [
+                n "GC unused signals" [];
+              ]
+            ];
+            n "(no context)" [
+              n "Dev" [
+                n "Implement scheduing" [];
+              ]
+            ];
+          ];
+          n "Recently completed" []
+        ];
+
 (*
         (* Rename conflict (e.g. two edits in different tabs *)
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in

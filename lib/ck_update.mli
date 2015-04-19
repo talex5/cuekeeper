@@ -47,7 +47,7 @@ module Make(Git : Git_storage_s.S)
     Ck_id.t Lwt.t
   val add_contact : t -> base:R.t -> Ck_disk_node.Types.contact -> Ck_id.t Lwt.t
   val add_context : t -> base:R.t -> Ck_disk_node.Types.context -> Ck_id.t Lwt.t
-  val delete : t -> [< R.Node.generic] -> unit or_error Lwt.t
+  val delete : t -> ?msg:string -> [< R.Node.generic] list -> unit or_error Lwt.t
   val clear_conflicts : t -> [< R.Node.generic] -> unit Lwt.t
 
   val set_name : t -> [< R.Node.generic ] -> string -> unit Lwt.t

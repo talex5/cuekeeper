@@ -67,6 +67,7 @@ module type MODEL = sig
 
   val clear_conflicts : t -> [< Item.generic] -> unit Lwt.t
   val delete : t -> [< Item.generic] -> unit or_error Lwt.t
+  val delete_done : t -> unit Lwt.t
 
   val set_name : t ->  [< Item.generic] -> string -> unit Lwt.t
   val set_description : t ->  [< Item.generic] -> string -> unit Lwt.t

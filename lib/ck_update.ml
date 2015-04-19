@@ -221,33 +221,50 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
           Git.Staging.update view ["context"; Ck_id.to_string uuid] s
     )
 
-  let delete t node =
-    let uuid = R.Node.uuid node |> Ck_id.to_string in
-    let base = R.Node.rev node in
-    let msg = Printf.sprintf "Delete '%s'" (R.Node.name node) in
-    let remove path =
-      merge_to_master ~base ~msg t (fun view ->
-        Git.Staging.remove view path
-      ) >|= fun () ->
-      `Ok () in
-    match node with
-    | `Contact _ as node ->
-        begin match R.nodes_of_contact node with
-        | [] -> remove ["contact"; uuid]
-        | child :: _ ->
-            error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
-        end
-    | `Context _ as node ->
-        begin match R.actions_of_context node with
-        | [] -> remove ["context"; uuid]
-        | child :: _ ->
-            error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
-        end
-    | `Area _ | `Project _ | `Action _ as node ->
-        try
-          let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
-          error "Can't delete because it has a child (%s)" (R.Node.name child) |> return
-        with Not_found -> remove ["db"; uuid]
+  let delete t ?msg nodes =
+    match nodes with
+    | [] -> return (`Ok ())
+    | x :: _ ->
+        let base = R.Node.rev x in
+        let msg =
+          match msg with
+          | None ->
+              nodes
+              |> List.map (fun node -> Printf.sprintf "'%s'" (R.Node.name node))
+              |> String.concat ", "
+              |> Printf.sprintf "Delete %s"
+          | Some msg -> msg in
+        let paths = nodes |> List.fold_left (fun acc node ->
+          match acc with
+          | `Error _ as e -> e
+          | `Ok acc ->
+              let uuid = R.Node.uuid node |> Ck_id.to_string in
+              match node with
+              | `Contact _ as node ->
+                  begin match R.nodes_of_contact node with
+                  | [] -> `Ok (["contact"; uuid] :: acc)
+                  | child :: _ ->
+                      error "Can't delete because it has a child (%s)" (R.Node.name child)
+                  end
+              | `Context _ as node ->
+                  begin match R.actions_of_context node with
+                  | [] -> `Ok (["context"; uuid] :: acc)
+                  | child :: _ ->
+                      error "Can't delete because it has a child (%s)" (R.Node.name child)
+                  end
+              | `Area _ | `Project _ | `Action _ as node ->
+                  try
+                    let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
+                    error "Can't delete because it has a child (%s)" (R.Node.name child)
+                  with Not_found -> `Ok (["db"; uuid] :: acc)
+        ) (`Ok []) in
+        match paths with
+        | `Error _ as e -> return e
+        | `Ok paths ->
+            merge_to_master ~base ~msg t (fun view ->
+              paths |> Lwt_list.iter_s (Git.Staging.remove view)
+            ) >|= fun () ->
+            `Ok ()
 
   let add t ~parent maker =
     let base, parent =

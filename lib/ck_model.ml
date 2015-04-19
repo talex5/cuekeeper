@@ -238,7 +238,31 @@ module Make(Clock : Ck_clock.S)
     Up.clear_conflicts t.master node
 
   let delete t node =
-    Up.delete t.master node
+    Up.delete t.master [node]
+
+  let delete_done t =
+    let to_delete = ref [] in
+    let rec aux items =
+      M.fold (fun uuid item acc ->
+        match item with
+        | `Area _ ->
+            let _children : bool = aux (R.child_nodes item) in true
+        | `Project _ as p ->
+            let children = aux (R.child_nodes item) in
+            if R.Node.project_state p = `Done && not children then (
+              to_delete := item :: !to_delete;
+              acc
+            ) else true
+        | `Action _ as a ->
+            if R.Node.action_state a = `Done then (
+              to_delete := item :: !to_delete;
+              acc
+            ) else true
+      ) items false in
+    let _children : bool = aux (R.roots t.r) in
+    Up.delete t.master ~msg:"Delete done items" !to_delete >|= function
+    | `Error msg -> failwith msg
+    | `Ok () -> ()
 
   let set_name t item name =
     Up.set_name t.master item name

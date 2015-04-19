@@ -525,19 +525,27 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     | `Areas -> "ck-review-areas"
     | `Everything -> "ck-review-everything"
 
+  let delete_done_button m =
+    let delete_done _ev =
+      async ~name:"delete_done" (fun () -> M.delete_done m);
+      false in
+    button ~a:[a_onclick delete_done] [pcdata "Delete done items"]
+
   let make_tree ~show_node m = function
     | `Process tree ->
         [R.Html5.ul (ReactiveData.RList.map (make_tree_node_view m ~show_node) tree)]
+    | `Work work_tree -> make_work_view m ~show_node work_tree
+    | `Contact tree -> make_contact_view m ~show_node tree
+    | `Schedule tree -> make_schedule_view m ~show_node tree
     | `Review (review_mode, tree) ->
-        [
-          review_mode_switcher ~current:review_mode m;
+        let switcher = review_mode_switcher ~current:review_mode m in
+        let tree_view =
           R.Html5.ul ~a:[a_class [class_of_review_mode review_mode]] (
             ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
-          );
-        ]
-    | `Contact tree -> make_contact_view m ~show_node tree
-    | `Work work_tree -> make_work_view m ~show_node work_tree
-    | `Schedule tree -> make_schedule_view m ~show_node tree
+          ) in
+        match review_mode with
+        | `Done -> [switcher; delete_done_button m; tree_view]
+        | _ -> [switcher; tree_view]
 
   let mode_of = function
     | `Process _ -> `Process
