@@ -1,4 +1,5 @@
 open Lwt
+open Ck_utils
 
 (* let () = Log.(set_log_level INFO) *)
 
@@ -26,6 +27,14 @@ let start (main:#Dom.node Js.t) =
         let date = Unix.time () |> Int64.of_float in
         Irmin.Task.create ~date ~owner:"User" s in
       Git.make config task >>= M.make >>= fun m ->
+      let icon =
+        let open Tyxml_js in
+        let href = M.alert m >|~= (function
+          | false -> "resources/ico/ck.ico"
+          | true -> "resources/ico/ck-alert.ico"
+        ) in
+        R.Html5.link ~rel:(React.S.const [`Icon]) ~href ~a:[Html5.a_mime_type "image/ico"] () in
+      Dom_html.document##head##appendChild (Tyxml_js.To_dom.of_node icon) |> ignore;
       T.make_top m
       |> List.iter (fun child -> main##appendChild (Tyxml_js.To_dom.of_node child) |> ignore);
       return ()
