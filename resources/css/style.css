@@ -1,3 +1,15 @@
+div.ck-details div.description ul.vcard {
+  display: inline-block;
+  margin: 0 0 1.25rem 0;
+  border: 1px solid #DDDDDD;
+  padding: 0.625rem 0.75rem; }
+  .vcard li {
+    margin: 0;
+    display: block; }
+  .vcard .fn {
+    font-weight: bold;
+    font-size: 0.9375rem; }
+
 code {
   font-family: Consolas, "Liberation Mono", Courier, monospace;
   font-weight: normal;
