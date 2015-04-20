@@ -866,4 +866,21 @@ module Make(Clock : Ck_clock.S)
 
   let export_tar t =
     Up.head t.master |> R.commit |> Git.Commit.export_tar
+
+  let search t ~n test =
+    let n = ref n in
+    let results = ref M.empty in
+    let consider _id node =
+      match test (node :> Item.generic) with
+      | None -> ()
+      | Some result ->
+          results := !results |> M.add (R.Node.key node) result;
+          decr n;
+          if !n = 0 then raise Exit in
+    begin try
+      Ck_id.M.iter consider (R.nodes t.r);
+      Ck_id.M.iter consider (R.contacts t.r);
+      Ck_id.M.iter consider (R.contexts t.r);
+    with Exit -> () end;
+    !results
 end

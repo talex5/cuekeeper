@@ -114,4 +114,8 @@ module type MODEL = sig
 
   val export_tar : t -> string Lwt.t
   (** Export the current state as a tar file *)
+
+  val search : t -> n:int -> (Item.generic -> 'a option) -> 'a Ck_utils.M.t
+  (** [search t ~n test] finds up to [n] non-None results from [test item], which it calls
+   * for all areas, projects, actions, contacts and contexts (until it has enough results). *)
 end

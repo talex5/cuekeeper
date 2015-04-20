@@ -1084,6 +1084,26 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ] in
     (title, div contents)
 
+  module SearchResult = struct
+    type t = M.Item.generic
+    let equal a b =
+      M.Item.name a = M.Item.name b
+  end
+
+  module SearchResults = Delta_RList.Make(Ck_utils.Sort_key)(SearchResult)(Ck_utils.M)
+
+  let make_search_result ~show_node item =
+    let cl = ["ck-item"; class_of_node_type item] in
+    let clicked _ev =
+      Ck_modal.close ();
+      show_node item;
+      false in
+    li [
+      span ~a:[a_class cl] [
+        a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name item)]
+      ]
+    ]
+
   let search_create_bar m ~show_node =
     let my_input = ref None in
     let my_form = ref None in
@@ -1091,6 +1111,18 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let cl = value |> React.S.map (function
       | "" -> ["ck-menu-hidden"]
       | _ -> ["ck-menu-dropdown"]
+    ) in
+    let search_results = value >|~= (function
+      | "" -> Ck_utils.M.empty
+      | query ->
+          let re =
+            try Regexp.regexp_case_fold query
+            with _ex -> Regexp.regexp_string_case_fold query in
+          M.search m ~n:10 (fun item ->
+            match Regexp.search_forward re (M.Item.name item) 0 with
+            | None -> None
+            | Some _start -> Some item
+          )
     ) in
     let close () =
       begin match !my_input with
@@ -1112,7 +1144,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         )
       );
       true in
-    let input_box = input ~a:[a_oninput oninput; a_name "v"; a_placeholder "Add item"; a_size 20; a_autocomplete `Off] () in
+    let input_box = input ~a:[a_oninput oninput; a_name "v"; a_placeholder "Add or search"; a_size 20; a_autocomplete `Off] () in
     let add adder _ev =
       match React.S.value value with
       | "" -> ()
@@ -1122,13 +1154,19 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             adder m ~name () >|= opt_show ~show_node
           )
       in
-    let submit = add (M.add_action ~state:`Next ?context:None ?contact:None ?parent:None ?description:None) in
+    let submit ev =
+      try
+        Ck_utils.M.min_binding (React.S.value search_results) |> snd |> show_node;
+        Ck_modal.close ()
+      with Not_found ->
+        add (M.add_action ~state:`Next ?context:None ?contact:None ?parent:None ?description:None) ev in
     my_input := Some input_box;
     let action adder label =
       li [a ~a:[a_onclick (fun ev -> add adder ev; false)] [pcdata label]] in
     let f = form ~a:[a_onsubmit submit; a_class ["ck-main-entry"]] [
       input_box;
       div ~a:[R.Html5.a_class cl] [
+        R.Html5.ul (SearchResults.make search_results |> ReactiveData.RList.map (make_search_result ~show_node));
         ul [
           action (M.add_action ~state:`Next ?context:None ?contact:None ?parent:None ?description:None) "Add action";
           action (M.add_project ~state:`Active ?parent:None ?description:None) "Add project";
