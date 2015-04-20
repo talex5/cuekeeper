@@ -950,7 +950,8 @@ div.ck-repeat-interval > select {
 div.ck-top-bar {
 	display: table;
 	position: relative;
-	width: 100%
+	width: 100%;
+	margin-bottom: 0.2em;
 }
 
 form.ck-main-entry input {
@@ -1035,7 +1036,7 @@ ul.ck-mode-selector li {
 }
 
 ul.ck-mode-selector li.active {
-	background: #258FAF;
+	background: #008CBA;
 }
 
 ul.ck-mode-selector li.alert {
@@ -1138,4 +1139,44 @@ div.ck-details-column {
 
 div.ck-tree > button {
 	margin-bottom: 1em;
+}
+
+div.ck-filters {
+  display: block;
+  width: auto;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+  }
+  div.ck-filters ul {
+    display: inline;
+  }
+  div.ck-filters li {
+    display: inline;
+    margin-right: 1rem;
+    margin-bottom: 0;
+    font-family: "Helvetica Neue", Helvetica, Roboto, Arial, sans-serif;
+    font-weight: normal;
+    font-size: 0.875rem;
+    color: #999999; }
+    div.ck-filters li a {
+      text-decoration: none;
+      color: #999999;
+      padding: 0.1875rem 0.5rem; }
+      div.ck-filters li a:hover {
+        color: #737373; }
+    div.ck-filters li.active a {
+      border-radius: 5px;
+      font-weight: normal;
+      background: #008CBA;
+      cursor: default;
+      color: #FFFFFF; }
+      div.ck-filters li.active a:hover {
+        background: #0078a0; }
+
+div.ck-tree > h4:first-child {
+	margin-top: 0.5rem;
+}
+
+div.ck-tree > div.ck-problems {
+	margin-bottom: 0.5rem;
 }

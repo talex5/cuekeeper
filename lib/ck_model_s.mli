@@ -98,9 +98,11 @@ module type MODEL = sig
   val fix_head : t -> Git_storage_s.Log_entry.t option -> unit Lwt.t
   val fixed_head : t -> Git_storage_s.Log_entry.t option React.S.t
 
+  type filter = (area * bool) list
+
   val set_mode : t -> [ `Process | `Work | `Contact | `Review | `Schedule ] -> unit
   val tree : t -> [ `Process of Widget.t ReactiveData.RList.t
-                  | `Work of Widget.t ReactiveData.RList.t
+                  | `Work of filter React.S.t * Widget.t ReactiveData.RList.t
                   | `Contact of Widget.t ReactiveData.RList.t
                   | `Review of review_mode * Widget.t ReactiveData.RList.t
                   | `Schedule of Widget.t ReactiveData.RList.t] React.S.t
@@ -118,4 +120,7 @@ module type MODEL = sig
   val search : t -> n:int -> (Item.generic -> 'a option) -> 'a Ck_utils.M.t
   (** [search t ~n test] finds up to [n] non-None results from [test item], which it calls
    * for all areas, projects, actions, contacts and contexts (until it has enough results). *)
+
+  val set_hidden : t -> area -> bool -> unit
+  (** Set whether to hide this top-level area in the work tab. *)
 end

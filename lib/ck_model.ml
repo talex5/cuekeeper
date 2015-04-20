@@ -144,9 +144,11 @@ module Make(Clock : Ck_clock.S)
 
   type review_mode = [ `Done | `Waiting | `Future | `Areas | `Everything ]
 
+  type filter = (area * bool) list
+
   type tree_view =
     [ `Process of Widget.t ReactiveData.RList.t
-    | `Work of Widget.t ReactiveData.RList.t
+    | `Work of filter React.S.t * Widget.t ReactiveData.RList.t
     | `Contact of Widget.t ReactiveData.RList.t
     | `Review of review_mode * Widget.t ReactiveData.RList.t
     | `Schedule of Widget.t ReactiveData.RList.t ]
@@ -174,6 +176,7 @@ module Make(Clock : Ck_clock.S)
     mutable keep_me : unit React.S.t list;
     alert : bool React.S.t;
     mutable review_mode : review_mode;
+    hidden_areas : Ck_id.S.t ref;   (* Filter in Work tab *)
   }
 
   let assume_changed _ _ = false
@@ -482,7 +485,22 @@ module Make(Clock : Ck_clock.S)
     );
     !parent
 
-  let make_work_tree r =
+  let make_work_tree ~hidden_areas r =
+    let hidden_areas = !hidden_areas
+      |> Ck_id.S.filter (fun uuid ->
+          match R.get r uuid with
+          | Some (`Area _ as a) when Node.parent a = None -> true
+          | _ -> false
+        ) in
+    let filter = 
+      M.fold (fun _key item acc ->
+        match item with
+        | `Area _ as a ->
+            let hidden = Ck_id.S.mem (R.Node.uuid a) hidden_areas in
+            (a, not hidden) :: acc
+        | _ -> acc
+      ) (R.roots r) []
+      |> List.rev in
     let next_actions = ref TreeNode.Child_map.empty in
     let add_next context parent item =
       let context_item =
@@ -503,33 +521,38 @@ module Make(Clock : Ck_clock.S)
       next_actions := !next_actions |> TreeNode.add context_item in
 
     let done_items = ref TreeNode.Child_map.empty in
-    let rec scan ?parent ~in_someday nodes =
+    let rec scan ?parent ~in_hidden ~in_someday nodes =
       nodes |> M.iter (fun _k node ->
         match node with
         | `Project _ as project when Node.project_state project = `Done ->
-            let item = TreeNode.unique_of_node node in
-            done_items := !done_items |> TreeNode.add item
+            if not in_hidden then (
+              let item = TreeNode.unique_of_node node in
+              done_items := !done_items |> TreeNode.add item
+            )
         | `Project _ as node ->
             let in_someday = in_someday || is_someday_project node in
-            R.child_nodes node |> scan ~parent:node ~in_someday
+            R.child_nodes node |> scan ~parent:node ~in_someday ~in_hidden
         | `Area _ as node ->
-            R.child_nodes node |> scan ~parent:node ~in_someday
+            let in_hidden = in_hidden || Ck_id.S.mem (Node.uuid node) hidden_areas in
+            R.child_nodes node |> scan ~parent:node ~in_someday ~in_hidden
         | `Action _ as action ->
             let add () =
               add_next (R.context action) parent node in
             match Node.action_state action with
-            | `Next when not in_someday -> add ()
+            | `Next when not (in_someday || in_hidden) -> add ()
             | `Waiting_until _ when Node.is_due action -> add ()
-            | `Done ->
+            | `Done when not in_hidden ->
                 let item = TreeNode.unique_of_node node in
                 done_items := !done_items |> TreeNode.add item
             | _ -> ()
       ) in
-    scan ?parent:None ~in_someday:false (R.roots r);
-    TreeNode.Child_map.empty
-    |> TreeNode.(add (group ~pri:(-1) ~children:(get_problems (R.problems r)) "Problems"))
-    |> TreeNode.(add (group ~pri:0 ~children:!next_actions "Next actions"))
-    |> TreeNode.(add (group ~pri:1 ~children:!done_items "Recently completed"))
+    scan ?parent:None ~in_someday:false ~in_hidden:false (R.roots r);
+    let tree =
+      TreeNode.Child_map.empty
+      |> TreeNode.(add (group ~pri:(-1) ~children:(get_problems (R.problems r)) "Problems"))
+      |> TreeNode.(add (group ~pri:0 ~children:!next_actions "Next actions"))
+      |> TreeNode.(add (group ~pri:1 ~children:!done_items "Recently completed")) in
+    (filter, tree)
 
   let opt_node_equal a b =
     match a, b with
@@ -767,13 +790,32 @@ module Make(Clock : Ck_clock.S)
     let widgets = WidgetTree.widgets rtree in
     (widgets, update_tree)
 
+  let rec filters_eq a b =
+    match a, b with
+    | [], [] -> true
+    | (x,xstate)::xs, (y,ystate)::ys ->
+        Node.equal x y && xstate = ystate && filters_eq xs ys
+    | _ -> false
+
+  let filter_rtree r fn =
+    let init_filter, init_tree = fn r in
+    let filter, set_filter = React.S.create ~eq:filters_eq init_filter in
+    let rtree = WidgetTree.make init_tree in
+    let update r =
+      let on_remove node = (R.get r (Node.uuid node) :> Node.generic option) in
+      let new_filter, new_tree = fn r in
+      set_filter new_filter;
+      WidgetTree.update rtree new_tree ~on_remove in
+    let widgets = WidgetTree.widgets rtree in
+    ((filter, widgets), update)
+
   let get_log master =
     Up.branch_head master
     |> Git.Commit.history ~depth:10
 
-  let make_tree r = function
+  let make_tree r ~hidden_areas = function
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u
-    | `Work -> let t, u = rtree r make_work_tree in `Work t, u
+    | `Work -> let t, u = filter_rtree r (make_work_tree ~hidden_areas) in `Work t, u
     | `Review mode -> let t, u = rtree r (make_review_tree ~mode) in `Review (mode, t), u
     | `Contact -> let t, u = rtree r make_contact_tree in `Contact t, u
     | `Schedule -> let t, u = rtree r make_schedule_tree in `Schedule t, u
@@ -783,7 +825,7 @@ module Make(Clock : Ck_clock.S)
       match mode with
       | `Process | `Work | `Contact | `Schedule as m -> m
       | `Review -> `Review t.review_mode in
-    let tree_view, update_tree = make_tree t.r mode in
+    let tree_view, update_tree = make_tree t.r ~hidden_areas:t.hidden_areas mode in
     t.update_tree <- update_tree;
     t.set_tree tree_view
 
@@ -840,7 +882,8 @@ module Make(Clock : Ck_clock.S)
     let log =
       Slow_history.make ~delay:1.0 ~eq:Git_storage_s.Log_entry.equal log
       |> Delta_history.make in
-    let rtree, update_tree = make_tree r `Work in
+    let hidden_areas = ref Ck_id.S.empty in
+    let rtree, update_tree = make_tree r ~hidden_areas `Work in
     let tree, set_tree = React.S.create ~eq:assume_changed rtree in
     let t = {
       repo; master; r;
@@ -850,7 +893,8 @@ module Make(Clock : Ck_clock.S)
       fixed_head; set_fixed_head;
       details = Ck_id.M.empty;
       review_mode = `Done;
-      keep_me = []
+      keep_me = [];
+      hidden_areas;
     } in
     Lwt.wakeup set_on_update (fun r ->
       set_alert (R.alert r);
@@ -883,4 +927,16 @@ module Make(Clock : Ck_clock.S)
       Ck_id.M.iter consider (R.contexts t.r);
     with Exit -> () end;
     !results
+
+  let set_hidden t area h =
+    let areas =
+      !(t.hidden_areas)
+      |> (if h then Ck_id.S.remove else Ck_id.S.add) (R.Node.uuid area)
+      |> Ck_id.S.filter (fun uuid ->
+          match R.get t.r uuid with
+          | Some (`Area _ as a) when Node.parent a = None -> true
+          | _ -> false  (* Clean up invalid areas *)
+      ) in
+    t.hidden_areas := areas;
+    t.update_tree t.r
 end

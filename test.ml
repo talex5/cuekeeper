@@ -257,7 +257,7 @@ end
 
 let expect_tree s =
   match React.S.value s with
-  | `Process rl | `Work rl -> rl
+  | `Process rl | `Work (_, rl) -> rl
   | _ -> assert false
 
 let expect_area = function

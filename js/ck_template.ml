@@ -347,7 +347,24 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       R.Html5.ul children;
     ]
 
-  let make_work_view m ~show_node top =
+  let make_process_view m ~show_node tree =
+    [
+      R.Html5.ul (ReactiveData.RList.map (make_tree_node_view m ~show_node) tree)
+    ]
+
+  let make_work_view m ~show_node filters top =
+    let filters = (
+      filters >|~=
+        List.map (fun (item, active) ->
+          let toggle _ev =
+            M.set_hidden m item (not active);
+            false in
+          let cl = if active then ["active"] else [] in
+          li ~a:[a_class cl] [
+            a ~a:[a_onclick toggle] [pcdata (M.Item.name item)]
+          ]
+        )
+      ) |> rlist_of in
     let make_work_actions group =
       let item_html =
         match W.item group with
@@ -390,6 +407,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let next_children = W.children groups |> ReactiveData.RList.map make_work_actions in
     let done_children = W.children done_actions |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
     [
+      div ~a:[a_class ["ck-filters"]] [
+        R.Html5.ul filters
+      ];
       div ~a:[a_class ["ck-problems"]] [
         R.Html5.ul (W.children problems |> ReactiveData.RList.map (make_tree_node_view m ~always_full:true ~show_node));
       ];
@@ -532,9 +552,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     button ~a:[a_onclick delete_done] [pcdata "Delete done items"]
 
   let make_tree ~show_node m = function
-    | `Process tree ->
-        [R.Html5.ul (ReactiveData.RList.map (make_tree_node_view m ~show_node) tree)]
-    | `Work work_tree -> make_work_view m ~show_node work_tree
+    | `Process tree -> make_process_view m ~show_node tree
+    | `Work (filters, work_tree) -> make_work_view m ~show_node filters work_tree
     | `Contact tree -> make_contact_view m ~show_node tree
     | `Schedule tree -> make_schedule_view m ~show_node tree
     | `Review (review_mode, tree) ->
@@ -1282,20 +1301,20 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           search_create_bar m ~show_node
         ];
       ];
-      div ~a:[a_class ["ck-actions"]] [
-        a ~a:[a_onclick (export m)] [pcdata "Export"];
-        a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
-        a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
-      ];
       R.Html5.div (time_travel_warning m);
       R.Html5.div (make_error_box current_error);
       div ~a:[a_class ["ck-columns"]] [
         R.Html5.div ~a:[a_class ["ck-tree"]] (
           left_panel;
         );
-        R.Html5.div ~a:[a_class ["ck-details-column"]] (
-          details_area;
-        );
+        div ~a:[a_class ["ck-details-column"]] [
+          div ~a:[a_class ["ck-actions"]] [
+            a ~a:[a_onclick (export m)] [pcdata "Export"];
+            a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
+            a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
+          ];
+          R.Html5.div details_area;
+        ];
       ];
     ]
 end
