@@ -414,12 +414,12 @@ let suite =
         Git.make config task >>= M.make >>= fun m ->
         M.set_mode m `Process;
         let process_tree = M.tree m |> expect_tree in
-        let work = lookup ["Work"] process_tree |> expect_area in
+        let job = lookup ["Job"] process_tree |> expect_area in
 
         M.set_mode m `Work;
         let next_actions = M.tree m |> expect_tree in
 
-        M.add_action m ~state:`Next ~parent:work ~name:"Write unit tests" () >>= fun _ ->
+        M.add_action m ~state:`Next ~parent:job ~name:"Write unit tests" () >>= fun _ ->
 
         (* Initially, we have a single Next action *)
         next_actions |> assert_tree ~label:"start" [
@@ -430,7 +430,7 @@ let suite =
               ];
             ];
             n "+(no context)" [
-              n "@Work" [
+              n "@Job" [
                 n "@Write unit tests" []
               ]
             ];
@@ -440,7 +440,7 @@ let suite =
 
         let read = lookup ["Next actions"; "Reading"; "Start using CueKeeper"; "Read wikipedia page on GTD"] next_actions in
         let start_using_ck = lookup ["Next actions"; "Reading"; "Start using CueKeeper"] next_actions |> expect_project in
-        let units = lookup ["Next actions"; "(no context)"; "Work"; "Write unit tests"] next_actions |> expect_action in
+        let units = lookup ["Next actions"; "(no context)"; "Job"; "Write unit tests"] next_actions |> expect_action in
 
         (* After changing it to Waiting, it disappears from the list. *)
         M.set_action_state m units `Waiting >>= fun () ->
@@ -460,7 +460,7 @@ let suite =
               ];
             ];
             n "-(no context)" [
-              n "@Work" [
+              n "@Job" [
                 n "@Write unit tests" []
               ]
             ];
@@ -474,7 +474,7 @@ let suite =
           n "Recently completed" [];
         ];
 
-        M.add_action m ~state:`Next ~parent:work ~name:"GC unused signals" () >>= function
+        M.add_action m ~state:`Next ~parent:job ~name:"GC unused signals" () >>= function
         | None | Some (`Area _ | `Project _) -> assert false
         | Some (`Action _ as gc) ->
         M.add_context m ~name:"Coding" () >>= function
@@ -489,12 +489,12 @@ let suite =
         next_actions |> assert_tree [
           n "Next actions" [
             n "+Coding" [
-              n "@Work" [
+              n "@Job" [
                 n "@GC unused signals" [];
               ]
             ];
             n "-(no context)" [
-              n "@Work" [
+              n "@Job" [
                 n "@GC unused signals" [];
               ]
             ];
@@ -511,13 +511,13 @@ let suite =
         next_actions |> assert_tree [
           n "Next actions" [
             n "+Coding" [
-              n "@Work" [
+              n "@Job" [
                 n "@GC unused signals" [];
                 n "+Write unit tests" []
               ];
             ];
             n "-(no context)" [
-              n "@Work" [
+              n "@Job" [
                 n "@GC unused signals" [];
               ]
             ];
@@ -531,7 +531,7 @@ let suite =
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
-              n "Work" [
+              n "Job" [
                 n "GC unused signals" [];
               ]
             ]
@@ -544,7 +544,7 @@ let suite =
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
-              n "Work" [
+              n "Job" [
                 n "GC unused signals" [];
               ]
             ]
@@ -556,7 +556,7 @@ let suite =
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
-              n "Work" [
+              n "Job" [
                 n "GC unused signals" [];
                 n "+Write unit tests" [];
               ]
@@ -574,11 +574,11 @@ let suite =
         | `Ok () ->
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         M.set_action_state m units (`Waiting_until (day 6)) >>= fun () ->
-        M.add_action m ~state:(`Waiting_until (day 7)) ~parent:work ~name:"Implement scheduing" () >>= fun _ ->
+        M.add_action m ~state:(`Waiting_until (day 7)) ~parent:job ~name:"Implement scheduing" () >>= fun _ ->
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
-              n "Work" [
+              n "Job" [
                 n "GC unused signals" [];
                 n "-Write unit tests" [];
               ]
@@ -594,7 +594,7 @@ let suite =
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
-              n "Work" [
+              n "Job" [
                 n "GC unused signals" [];
                 n "+Write unit tests" [];
               ]
@@ -608,13 +608,13 @@ let suite =
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
-              n "Work" [
+              n "Job" [
                 n "GC unused signals" [];
                 n "Write unit tests" [];
               ]
             ];
             n "+(no context)" [
-              n "@Work" [
+              n "@Job" [
                 n "@Implement scheduing" [];
               ]
             ];
@@ -623,7 +623,7 @@ let suite =
         ];
 
         (* Renaming a group *)
-        M.set_name m work "Dev" >>= fun () ->
+        M.set_name m job "Dev" >>= fun () ->
         next_actions |> assert_tree [
           n "Next actions" [
             n "Coding" [
@@ -642,7 +642,7 @@ let suite =
         ];
 
         (* Rename conflict (e.g. two edits in different tabs *)
-        M.add_action m ~state:`Next ~parent:work ~name:"Implement merging" () >>= fun conflict ->
+        M.add_action m ~state:`Next ~parent:job ~name:"Implement merging" () >>= fun conflict ->
         let conflict = expect_action (expect_some conflict) in
         let live_conflict = M.details m conflict in
         M.set_name m conflict "Test conflicts" >>= fun () ->
