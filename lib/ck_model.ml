@@ -447,8 +447,14 @@ module Make(Clock : Ck_clock.S)
 
   let make_contact_tree r =
     R.contacts r |> TreeNode.of_id_map (fun item ->
-      let children = R.nodes_of_contact item |> TreeNode.(of_list unique_of_node) in
-      let adder = TreeNode.Add_action (None, None, Some item, `Next) in
+      let children =
+        R.nodes_of_contact item
+        |> List.filter (function
+          | `Action _ as a -> Node.action_state a = `Waiting_for_contact
+          | _ -> false
+        )
+        |> TreeNode.(of_list unique_of_node) in
+      let adder = TreeNode.Add_action (None, None, Some item, `Waiting_for_contact) in
       TreeNode.unique_of_node ~children ~adder item
     )
 
@@ -639,10 +645,23 @@ module Make(Clock : Ck_clock.S)
   let contact_details ~details_stop rs initial_node =
     let uuid = R.Node.uuid initial_node in
     let child_nodes c =
+      let tree = ref TreeNode.Child_map.empty in
+      let make_group ~pri name =
+        let group = TreeNode.group ~pri name in
+        tree := !tree |> TreeNode.add group;
+        group in
+      let responsible_for = lazy (make_group ~pri:1 "Responsible for") in
+      let contact_for = lazy (make_group ~pri:2 "Contact for") in
       R.nodes_of_contact c
-      |> List.fold_left (fun acc node ->
-        acc |> TreeNode.add (TreeNode.unique_of_node node)
-      ) TreeNode.Child_map.empty in
+      |> List.iter (fun node ->
+        let group =
+          match node with
+          | `Action _ as a when Node.action_state a = `Waiting_for_contact -> responsible_for
+          | _ -> contact_for in
+        let group = Lazy.force group |> TreeNode.with_child (TreeNode.unique_of_node node) in
+        tree := !tree |> TreeNode.add group
+      );
+      !tree in
     let tree = WidgetTree.make (child_nodes initial_node) in
     let details_item = rs |> React.S.map ~eq:opt_node_equal (fun r ->
       let item = R.get_contact r uuid in

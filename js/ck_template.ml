@@ -759,8 +759,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           show_modal ~parent:(ev##target) [content] in
         make_node_chooser ~edit ~show_node ~if_none:"(no parent)" parent in
       match item with
-      | `Contact _ -> [ck_label "A contact"]
-      | `Context _ -> [ck_label "A context"]
+      | `Contact _ | `Context _ -> []
       | `Area _ | `Project _ | `Action _ as item ->
           let change_type label =
             let on_click ev =
@@ -1096,8 +1095,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         R.Html5.ul ~a:[a_class ["ck-groups"]] children;
         make_child_adder m ~show_node item;
         description;
+        let created_msg =
+          match React.S.value item with
+          | Some (`Contact _) -> "Contact created "
+          | Some (`Context _) -> "Context created "
+          | _ -> "Created " in
         div [
-          ck_label ("Created " ^ ctime);
+          ck_label (created_msg ^ ctime);
           a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata " (delete)"];
         ];
       ] in

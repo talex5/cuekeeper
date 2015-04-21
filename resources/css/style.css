@@ -375,7 +375,10 @@ textarea {
 /* CueKeeper */
 
 div.ck-tree li { list-style-type: none; }
-div.ck-details ul.ck-groups li { list-style-type: none; }
+div.ck-details ul.ck-groups li {
+	list-style-type: none;
+	margin-bottom: 0.2rem;
+}
 
 ol.ck-history li {
 	list-style-type: none;
@@ -630,6 +633,7 @@ div.description > div {
 
 div.description > div.row {
 	background: #f3f3a9;
+	clear: both;
 }
 
 div.ck-add-log { padding-left: 0; }
@@ -1089,6 +1093,17 @@ div.ck-details div.description blockquote {
 	padding-left: 0.5em;
 }
 
+div.description hr {
+	color: #ddd;
+	margin-top: 0.5 rem;
+	margin-bottom: 0.5 rem;
+}
+
+div.ck-details div.description img {
+	margin: 0 0.3rem 0.5rem 0.5rem;
+	border: 1px solid #ddd;
+}
+
 div.ck-export {
 	padding: 0.5rem;
 }
@@ -1173,10 +1188,18 @@ div.ck-filters {
       div.ck-filters li.active a:hover {
         background: #0078a0; }
 
+div.ck-tree > h4 {
+	font-size: 1.2rem;
+}
+
 div.ck-tree > h4:first-child {
 	margin-top: 0.5rem;
 }
 
 div.ck-tree > div.ck-problems {
 	margin-bottom: 0.5rem;
+}
+
+div.ck-tree > ul.ck-contacts {
+	margin-left: 1rem;
 }
