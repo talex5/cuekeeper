@@ -1,6 +1,13 @@
 open OUnit
 open Lwt
 
+module StringList = OUnitDiff.ListSimpleMake(struct
+  type t = string
+  let compare = String.compare
+  let pp_printer = Format.pp_print_string
+  let pp_print_sep = Format.pp_print_newline
+end)
+
 (* let () = Log.(set_log_level INFO) *)
 
 let () = Random.self_init ()
@@ -568,8 +575,8 @@ let suite =
           n "Recently completed" [];
         ];
 
-        let units = lookup ["Next actions"; "Review"; "Weekly review"] next_actions |> expect_action in
-        M.delete m units >>= function
+        let review = lookup ["Next actions"; "Review"; "Weekly review"] next_actions |> expect_action in
+        M.delete m review >>= function
         | `Error msg -> assert_failure msg
         | `Ok () ->
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
@@ -640,6 +647,7 @@ let suite =
           ];
           n "Recently completed" [];
         ];
+        let job = lookup ["Next actions"; "Coding"; "Dev"] next_actions |> expect_area in
 
         (* Rename conflict (e.g. two edits in different tabs *)
         M.add_action m ~state:`Next ~parent:job ~name:"Implement merging" () >>= fun conflict ->
@@ -716,6 +724,37 @@ let suite =
             ];
           ];
           n "Recently completed" []
+        ];
+
+        (* Check history *)
+        let log = M.log m in
+        ReactiveData.RList.value log
+        |> List.map (fun entry -> (Slow_set.data entry).Git_storage_s.Log_entry.msg |> List.hd)
+        |> StringList.assert_equal
+        [
+          "Delete done items";
+          "Change state of 'Write unit tests'";
+          "Delete 'Fix merging'";
+          "Merge";
+          "Rename 'Implement merging' to 'Fix merging'";
+          "Rename 'Implement merging' to 'Test conflicts'";
+          "Create 'Implement merging'";
+          "Rename 'Job' to 'Dev'";
+          "Create 'Implement scheduing'";
+          "Change state of 'Write unit tests'";
+          "Delete 'Weekly review'";
+          "Change state of 'Write unit tests'";
+          "Change state of 'Write unit tests'";
+          "Change state of 'Write unit tests'";
+          "Change context of 'Write unit tests'";
+          "Change context of 'GC unused signals'";
+          "Create 'Coding'";
+          "Create 'GC unused signals'";
+          "Change state of 'Start using CueKeeper'";
+          "Delete 'Read wikipedia page on GTD'";
+          "Change state of 'Write unit tests'";
+          "Create 'Write unit tests'";
+          "Initialise repository";
         ];
 
         return ()

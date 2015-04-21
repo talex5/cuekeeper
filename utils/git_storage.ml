@@ -16,7 +16,6 @@ module T = Tar.Make(IO)
 
 module Make (I : Irmin.BASIC with type key = string list and type value = string) = struct
   module V = Irmin.View(I)
-  module Top = Graph.Topological.Make(I.History)
 
   type repo = {
     config : Irmin.config;
@@ -74,23 +73,47 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       >|= fun store -> { repo; store }
 
     let history ?depth t =
+      let store = t.store "Read history" in
       let open Git_storage_s in
-      I.history ?depth (t.store "Read history") >>= fun history ->
-      let h = ref [] in
-      history |> Top.iter (fun head ->
-        h := head :: !h
+      let task_of_hash = Hashtbl.create 100 in
+      let module Top = Graph.Topological.Make_stable(struct
+        type t = I.History.t
+        let in_degree = I.History.in_degree
+        let iter_succ = I.History.iter_succ
+        let iter_vertex = I.History.iter_vertex
+        module V = struct
+          include I.History.V
+          let compare a b =
+            let ta = Hashtbl.find task_of_hash a in
+            let tb = Hashtbl.find task_of_hash b in
+            match Int64.compare (Irmin.Task.date ta) (Irmin.Task.date tb) with
+            | 0 -> I.History.V.compare a b
+            | r -> r
+        end
+      end) in
+
+      let entries = ref [] in
+      I.history ?depth store >>= fun history ->
+      (* Start fetching all commits in the history *)
+      history |> I.History.iter_vertex (fun hash ->
+        entries := (hash, I.task_of_head store hash) :: !entries
       );
+      (* Wait for them to complete and put in a hash table *)
+      !entries |> Lwt_list.iter_s (fun (hash, task) ->
+        task >|= Hashtbl.add task_of_hash hash
+      ) >>= fun () ->
+      (* Set rank field according to topological order and build final result map *)
       let map = ref Log_entry_map.empty in
       let rank = ref 0 in
-      !h |> Lwt_list.iter_s (fun hash ->
-          I.task_of_head (t.store "Read log entry") hash >|= fun task ->
-          incr rank;
-          let msg = Irmin.Task.messages task in
-          let date = Irmin.Task.date task |> Int64.to_float in
-          let entry = {Log_entry.date; rank = !rank; msg; id = hash} in
-          map := !map |> Log_entry_map.add entry entry
-      ) >|= fun () ->
-      !map
+      history |> Top.iter (fun hash ->
+        let task = Hashtbl.find task_of_hash hash in
+        incr rank;
+        let msg = Irmin.Task.messages task in
+        let date = Irmin.Task.date task |> Int64.to_float in
+        let entry = {Log_entry.date; rank = !rank; msg; id = hash} in
+        map := !map |> Log_entry_map.add entry entry
+      );
+      return !map
 
     let merge a b =
       I.of_head a.repo.config a.repo.task_maker (id a) >>= fun tmp ->

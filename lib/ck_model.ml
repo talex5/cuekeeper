@@ -179,13 +179,34 @@ module Make(Clock : Ck_clock.S)
     hidden_areas : Ck_id.S.t ref;   (* Filter in Work tab *)
   }
 
+  module X : sig
+    val freshen : t -> ([< Node.generic] as 'a) -> 'a
+  end = struct
+    let freshen t node = Obj.magic @@
+      let uuid = Node.uuid node in
+      match node with
+      | `Area _ | `Project _ | `Action _ as node ->
+          begin match R.get t.r uuid with
+          | Some current when Node.equal current node -> (current :> Node.generic)
+          | _ -> node end
+      | `Contact _ as node ->
+          begin match R.get_contact t.r uuid with
+          | Some current when Node.equal current node -> (current :> Node.generic)
+          | _ -> node end
+      | `Context _ as node ->
+          begin match R.get_context t.r uuid with
+          | Some current when Node.equal current node -> (current :> Node.generic)
+          | _ -> node end
+  end
+  let freshen = X.freshen
+
   let assume_changed _ _ = false
 
   let add maker t ?parent ~name ?(description="") () =
     let parent =
       match parent with
       | None -> `Toplevel t.r
-      | Some p -> `Node p in
+      | Some p -> `Node (freshen t p) in
     let disk_node = maker ~name ~description in
     Up.add t.master ~parent disk_node >|= fun id ->
     R.get t.r id
@@ -238,10 +259,10 @@ module Make(Clock : Ck_clock.S)
     | TreeNode.Add_context -> add_context t ~name () >|= ok
 
   let clear_conflicts t node =
-    Up.clear_conflicts t.master node
+    Up.clear_conflicts t.master (freshen t node)
 
   let delete t node =
-    Up.delete t.master [node]
+    Up.delete t.master [freshen t node]
 
   let delete_done t =
     let to_delete = ref [] in
@@ -268,31 +289,31 @@ module Make(Clock : Ck_clock.S)
     | `Ok () -> ()
 
   let set_name t item name =
-    Up.set_name t.master item name
+    Up.set_name t.master (freshen t item) name
 
   let set_description t item v =
-    Up.set_description t.master item v
+    Up.set_description t.master (freshen t item) v
 
   let set_action_state t item state =
-    Up.set_action_state t.master item state
+    Up.set_action_state t.master (freshen t item) state
 
   let set_repeat t item repeat =
-    Up.set_repeat t.master item repeat
+    Up.set_repeat t.master (freshen t item) repeat
 
   let set_project_state t item state =
-    Up.set_project_state t.master item state
+    Up.set_project_state t.master (freshen t item) state
 
   let set_starred t item s =
-    Up.set_starred t.master item s
+    Up.set_starred t.master (freshen t item) s
 
   let convert_to_project t item =
-    Up.convert_to_project t.master item
+    Up.convert_to_project t.master (freshen t item)
 
   let convert_to_area t item =
-    Up.convert_to_area t.master item
+    Up.convert_to_area t.master (freshen t item)
 
   let convert_to_action t item =
-    Up.convert_to_action t.master item
+    Up.convert_to_action t.master (freshen t item)
 
   let make_full_tree r =
     let rec aux items =
@@ -766,40 +787,30 @@ module Make(Clock : Ck_clock.S)
     List.rev !results
 
   let candidate_parents_for t item =
-    (* Item may be from an older revision, but we want the current parents as options. *)
-    match R.get t.r (Item.uuid item) with
-    | None -> []    (* Item has been deleted *)
-    | Some item ->
+    let item = freshen t item in
     match item with
     | `Project _ | `Action _ as node -> candidate_parents_for_pa t node
     | `Area _ as node -> candidate_parents_for_a t node
 
   let candidate_contacts_for t item =
-    (* Item may be from an older revision, but we want the current contacts as options. *)
-    match R.get t.r (Item.uuid item) with
-    | None -> []    (* Item has been deleted *)
-    | Some node ->
-        let contacts =
-          R.contacts t.r |> Ck_id.M.bindings |> List.map (fun (_id, contact) ->
-            (Node.name contact, fun () -> Up.set_contact t.master node (Some contact))
-          )
-          |> List.sort (fun a b -> compare (fst a) (fst b)) in
-        let none = ("(no contact)", fun () -> Up.set_contact t.master node None) in
-        none :: contacts
+    let item = freshen t item in
+    let contacts =
+      R.contacts t.r |> Ck_id.M.bindings |> List.map (fun (_id, contact) ->
+        (Node.name contact, fun () -> Up.set_contact t.master item (Some contact))
+      )
+      |> List.sort (fun a b -> compare (fst a) (fst b)) in
+    let none = ("(no contact)", fun () -> Up.set_contact t.master item None) in
+    none :: contacts
 
   let candidate_contexts_for t item =
-    (* Item may be from an older revision, but we want the current contexts as options. *)
-    match R.get t.r (Item.uuid item) with
-    | None -> []    (* Item has been deleted *)
-    | Some (`Area _ | `Project _) -> []   (* Action has been converted to something else *)
-    | Some (`Action _ as action) ->
-        let contexts =
-          R.contexts t.r |> Ck_id.M.bindings |> List.map (fun (_id, context) ->
-            (Node.name context, fun () -> Up.set_context t.master action (Some context))
-          )
-          |> List.sort (fun a b -> compare (fst a) (fst b)) in
-        let none = ("(no context)", fun () -> Up.set_context t.master action None) in
-        none :: contexts
+    let item = freshen t item in
+    let contexts =
+      R.contexts t.r |> Ck_id.M.bindings |> List.map (fun (_id, context) ->
+        (Node.name context, fun () -> Up.set_context t.master item (Some context))
+      )
+      |> List.sort (fun a b -> compare (fst a) (fst b)) in
+    let none = ("(no context)", fun () -> Up.set_context t.master item None) in
+    none :: contexts
 
   let rtree r fn =
     let rtree = WidgetTree.make (fn r) in
@@ -830,7 +841,7 @@ module Make(Clock : Ck_clock.S)
 
   let get_log master =
     Up.branch_head master
-    |> Git.Commit.history ~depth:10
+    |> Git.Commit.history ~depth:30
 
   let make_tree r ~hidden_areas = function
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u

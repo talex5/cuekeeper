@@ -14,7 +14,7 @@ module Log_entry = struct
     date : float;
     msg : string list;
   }
-  let compare a b = (* Newest first *)
+  let compare b a = (* Newest first *)
     compare a.rank b.rank
   let id x = x.id
   let show x = String.concat "\n" x.msg
