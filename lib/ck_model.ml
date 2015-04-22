@@ -328,7 +328,7 @@ module Make(Clock : Ck_clock.S)
       M.fold (fun _key item acc ->
         match item with
         | `Action _ -> acc
-        | `Project _ as p when Node.project_state p = `SomedayMaybe -> acc
+        | `Project _ as p when Node.project_state p <> `Active -> acc
         | `Area _ | `Project _ ->
             let children = aux (R.child_nodes item) in
             acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
