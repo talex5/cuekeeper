@@ -603,15 +603,21 @@ div.ck-details.ck-highlight .ck-heading {
 	background: yellow;
 }
 
+div.ck-details > div.ck-heading {
+	display: flex;
+	justify-content: space-between;
+}
+
+div.ck-details > div.ck-heading > div.ck-heading {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 div.ck-details a.close {
 	font-size: 1.375rem;
-	padding: 0 6px 4px;
 	line-height: .9;
-	position: absolute;
-	right: 0.25rem;
 	color: #333333;
 	opacity: 0.3;
-	display: inline-block;
 }
 
 div.ck-details div.panel a.close:hover {
@@ -932,6 +938,10 @@ form.ck-review-mode input {
 	margin-bottom: 0;
 }
 
+form.ck-review-mode input:first-child {
+	margin-left: 0;
+}
+
 form.ck-repeat {
 	text-align: center;
 }
@@ -955,7 +965,10 @@ div.ck-top-bar {
 	display: table;
 	position: relative;
 	width: 100%;
-	margin-bottom: 0.2em;
+	padding: 0 0.2em 0.2em 0.2em;
+}
+div.ck-details-column > div.ck-actions {
+	padding: 0 0.2em 0.2em 0.2em;
 }
 
 form.ck-main-entry input {
@@ -1108,8 +1121,17 @@ div.ck-export {
 	padding: 0.5rem;
 }
 
-div.ck-main {
-	padding: 0 1em 1em 1em;
+@media only screen and (max-width: 25em) {
+	div.ck-tree,
+	div.ck-panels {
+		padding: 0 0.2rem 1rem 0.2rem;
+	}
+}
+@media only screen and (min-width: 25em) {
+	div.ck-tree,
+	div.ck-panels {
+		padding: 0 1rem 1rem 1rem;
+	}
 }
 
 div.ck-columns {

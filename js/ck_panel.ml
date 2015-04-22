@@ -51,8 +51,10 @@ let make ~id ~closed ~set_closed ~on_destroy ~title ~contents =
       )
     ) in
   let result = div ~a:[R.Html5.a_class cl] [
-    a ~a:[a_onclick (fun _ -> set_closed true; true); a_class ["close"]] [entity "#215"];
-    div ~a:[a_class ["ck-heading"]] [title];
+    div ~a:[a_class ["ck-heading"]] [
+      (title :> Html5_types.div_content_fun Tyxml_js.Html5.elt);
+      a ~a:[a_onclick (fun _ -> set_closed true; true); a_class ["close"]] [entity "#215"];
+    ];
     (contents :> [Html5_types.div_content_fun] Html5.elt);
   ] in
   elem := Some result;

@@ -1317,7 +1317,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
             a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
           ];
-          R.Html5.div details_area;
+          R.Html5.div ~a:[a_class ["ck-panels"]] details_area;
         ];
       ];
     ]
