@@ -92,15 +92,15 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
         end
       end) in
 
-      let entries = ref [] in
       I.history ?depth store >>= fun history ->
+      let hashes_needed = ref [] in
       (* Start fetching all commits in the history *)
       history |> I.History.iter_vertex (fun hash ->
-        entries := (hash, I.task_of_head store hash) :: !entries
+        hashes_needed := hash :: !hashes_needed
       );
       (* Wait for them to complete and put in a hash table *)
-      !entries |> Lwt_list.iter_s (fun (hash, task) ->
-        task >|= Hashtbl.add task_of_hash hash
+      !hashes_needed |> Lwt_list.iter_s (fun hash ->
+        I.task_of_head store hash >|= Hashtbl.add task_of_hash hash
       ) >>= fun () ->
       (* Set rank field according to topological order and build final result map *)
       let map = ref Log_entry_map.empty in

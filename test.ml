@@ -727,7 +727,7 @@ let suite =
         ];
 
         (* Check history *)
-        let log = M.log m in
+        let log = M.enable_log m in
         ReactiveData.RList.value log
         |> List.map (fun entry -> (Slow_set.data entry).Git_storage_s.Log_entry.msg |> List.hd)
         |> StringList.assert_equal

@@ -162,13 +162,15 @@ module Make(Clock : Ck_clock.S)
     details_stop : stop;
   }
 
+  type log = Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t
+
   type t = {
     repo : Git.Repository.t;
     master : Up.t;
     mutable r : R.t;
     tree : tree_view React.S.t;
     set_tree : tree_view -> unit;
-    log : Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t;
+    mutable log : (log * (?step:React.step -> Git_storage_s.Log_entry.t Git_storage_s.Log_entry_map.t -> unit)) option;
     fixed_head : Git_storage_s.Log_entry.t option React.S.t;
     set_fixed_head : Git_storage_s.Log_entry.t option -> unit;
     mutable details : (details * (R.t -> unit)) Ck_id.M.t;
@@ -849,7 +851,7 @@ module Make(Clock : Ck_clock.S)
 
   let get_log master =
     Up.branch_head master
-    |> Git.Commit.history ~depth:30
+    |> Git.Commit.history ~depth:100
 
   let make_tree r ~hidden_areas = function
     | `Process -> let t, u = rtree r make_process_tree in `Process t, u
@@ -872,7 +874,6 @@ module Make(Clock : Ck_clock.S)
     set_mode t `Review
 
   let tree t = t.tree
-  let log t = t.log
   let fix_head t entry =
     t.set_fixed_head entry;
     match entry with
@@ -909,24 +910,42 @@ module Make(Clock : Ck_clock.S)
     ) >>= fun () ->
     Git.Commit.commit staging ~msg:"Initialise repository"
 
+  let log_lock = Lwt_mutex.create ()
+
+  let enable_log t =
+    assert (t.log = None);
+    let log, set_log = React.S.create Git_storage_s.Log_entry_map.empty in
+    let log =
+      Slow_history.make ~delay:1.0 ~eq:Git_storage_s.Log_entry.equal log
+      |> Delta_history.make in
+    t.log <- Some (log, set_log);
+    async (fun () ->
+      Lwt_mutex.with_lock log_lock (fun () ->
+        get_log t.master >|= set_log
+      )
+    );
+    log
+
+  let disable_log t =
+    match t.log with
+    | None -> assert false
+    | Some (_log, set_log) ->
+        set_log Git_storage_s.Log_entry_map.empty;
+        t.log <- None
+
   let make repo =
     let on_update, set_on_update = Lwt.wait () in
     Git.Repository.branch ~if_new:(lazy (init_repo repo)) repo "master" >>= Up.make ~on_update >>= fun master ->
     let r = Up.head master in
-    get_log master >>= fun initial_log ->
     let alert, set_alert = React.S.create (R.alert r) in
-    let log, set_log = React.S.create initial_log in
     let fixed_head, set_fixed_head = React.S.create None in
-    let log =
-      Slow_history.make ~delay:1.0 ~eq:Git_storage_s.Log_entry.equal log
-      |> Delta_history.make in
     let hidden_areas = ref Ck_id.S.empty in
     let rtree, update_tree = make_tree r ~hidden_areas `Work in
     let tree, set_tree = React.S.create ~eq:assume_changed rtree in
     let t = {
       repo; master; r;
       tree; set_tree; update_tree;
-      log;
+      log = None;
       alert;
       fixed_head; set_fixed_head;
       details = Ck_id.M.empty;
@@ -940,7 +959,13 @@ module Make(Clock : Ck_clock.S)
       t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
       t.update_tree r;
       if not (Up.fixed_head t.master) then set_fixed_head None;
-      get_log master >|= set_log
+      match t.log with
+      | None -> return ()
+      | Some (_, set_log) ->
+          (* If we're still processing an [enable_log], finish that first *)
+          Lwt_mutex.with_lock log_lock (fun () ->
+            get_log master >|= set_log
+          )
     );
     return t
 

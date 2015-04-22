@@ -381,10 +381,13 @@ div.ck-details ul.ck-groups li {
 
 ol.ck-history li {
 	list-style-type: none;
+	white-space: nowrap;
 }
 
 ol.ck-history {
 	margin-left: 0;
+	max-height: 20em;
+	overflow: scroll;
 }
 
 ol.ck-history a {
@@ -975,27 +978,28 @@ form.ck-main-entry input {
 	width: 100%;
 }
 
-	form.ck-main-entry {
-		display: inline-block;
-		position: relative;
-		max-width: 20em;
-	}
+form.ck-main-entry {
+	display: inline-block;
+	position: relative;
+	max-width: 20em;
+}
 
-	div.ck-top-bar ul.ck-mode-selector {
-		display: table-cell;
-		vertical-align: top;
-	}
+div.ck-top-bar ul.ck-mode-selector {
+	display: table-cell;
+	vertical-align: top;
+	white-space: nowrap;
+}
 
-	div.ck-top-bar div.ck-search-create {
-		display: table-cell;
-		white-space: nowrap;
-		width: 100%;
-		text-align: right;
-	}
+div.ck-top-bar div.ck-search-create {
+	display: table-cell;
+	white-space: nowrap;
+	width: 100%;
+	text-align: right;
+}
 
-	div.ck-search-create div.ck-menu-dropdown {
-		text-align: left;
-	}
+div.ck-search-create div.ck-menu-dropdown {
+	text-align: left;
+}
 
 div.ck-menu-dropdown {
 	position: absolute;
@@ -1028,7 +1032,7 @@ div.ck-menu-dropdown li {
       color: #555555; }
 
 ul.ck-mode-selector li {
-	display: inline;
+	display: inline-block;
 	list-style: none;
 	background: #f4f4f4;
 	margin: 0 1em 0 0;
@@ -1223,4 +1227,9 @@ div.ck-tree > div.ck-problems {
 
 div.ck-tree > ul.ck-contacts {
 	margin-left: 1rem;
+}
+
+div.ck-time-travel-warning.alert-box,
+div.ck-bug.alert-box.alert {
+	margin-bottom: 0;
 }

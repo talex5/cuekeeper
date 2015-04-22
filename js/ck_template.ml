@@ -62,7 +62,7 @@ let make_error_box error =
   |> React.S.map (function
     | None -> pcdata ""
     | Some err ->
-        div ~a:[a_class ["alert-box"; "alert"]] [
+        div ~a:[a_class ["ck-bug"; "alert-box"; "alert"]] [
           p [pcdata err]; p [pcdata "Refresh this page to continue."];
         ]
   )
@@ -413,7 +413,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ]
 
   let make_sync m =
-    let items = M.log m
+    let items = M.enable_log m
       |> ReactiveData.RList.map (fun slow_item ->
           let item_ref = ref None in
           let cancel = ref ignore in
@@ -442,8 +442,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           let date = Ck_time.string_of_unix_time log_entry.date in
           let item =
             li ~a:[R.Html5.a_class cl] [
-              a ~a:[a_onclick view] [pcdata date];
-              p [pcdata summary];
+              a ~a:[a_onclick view] [pcdata (date ^ ": " ^ summary)];
             ] in
           item_ref := Some item;
           item
@@ -1229,7 +1228,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       show_or_create history_uuid (fun closed set_closed ->
         let title = b [pcdata "History"] in
         let contents = make_sync m in
-        Ck_panel.make ~on_destroy:(fun () -> remove history_uuid) ~closed ~set_closed ~title ~contents ~id:history_uuid
+        let on_destroy () =
+          remove history_uuid;
+          M.disable_log m in
+        Ck_panel.make ~on_destroy ~closed ~set_closed ~title ~contents ~id:history_uuid
       ) in
     let close_all () =
       ReactiveData.RList.value details_pane
@@ -1249,7 +1251,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     M.fixed_head m >|~= (function
       | None -> showing := false; []
       | Some log_entry ->
-          let cl = ["alert-box"; "radius"; "ck-time-travel-warning"] in
+          let cl = ["alert-box"; "ck-time-travel-warning"] in
           let cl = if !showing then cl else "new" :: cl in
           showing := true;
           [
@@ -1288,14 +1290,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       rlist_of ~init:(React.S.value live) live in
     [
       modal_div;
+      R.Html5.div (make_error_box current_error);
+      R.Html5.div (time_travel_warning m);
       div ~a:[a_class ["ck-top-bar"]] [
         make_mode_switcher m current_tree;
         div ~a:[a_class ["ck-search-create"]] [
           search_create_bar m ~show_node
         ];
       ];
-      R.Html5.div (time_travel_warning m);
-      R.Html5.div (make_error_box current_error);
       div ~a:[a_class ["ck-columns"]] [
         R.Html5.div ~a:[a_class ["ck-tree"]] (
           left_panel;
