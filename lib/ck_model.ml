@@ -318,8 +318,13 @@ module Make(Clock : Ck_clock.S)
   let make_full_tree r =
     let rec aux items =
       M.fold (fun _key item acc ->
+        let adder =
+          match item with
+          | `Area _ as item -> Some (TreeNode.Add_project (Some item, `Active))
+          | `Project _ as item -> Some (TreeNode.Add_action (Some item, None, None, `Next))
+          | `Action _ -> None in
         let children = aux (R.child_nodes item) in
-        acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
+        acc |> TreeNode.add (TreeNode.unique_of_node ?adder ~children item)
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
 
@@ -329,10 +334,12 @@ module Make(Clock : Ck_clock.S)
         match item with
         | `Action _ -> acc
         | `Project _ as p when Node.project_state p <> `Active -> acc
-        | `Area _ | `Project _ ->
-            let children = aux (R.child_nodes item) in
-            acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
-      ) items TreeNode.Child_map.empty in
+        | `Area _ as item -> add_group (TreeNode.Add_project (Some item, `Active)) item acc
+        | `Project _ as item -> add_group (TreeNode.Add_action (Some item, None, None, `Next)) item acc
+      ) items TreeNode.Child_map.empty
+    and add_group adder item acc =
+      let children = aux (R.child_nodes item) in
+      acc |> TreeNode.add (TreeNode.unique_of_node ~adder ~children item) in
     aux (R.roots r)
 
   let or_existing parent item =
@@ -418,8 +425,9 @@ module Make(Clock : Ck_clock.S)
       M.fold (fun _key item acc ->
         match item with
         | `Area _ as item ->
+            let adder = TreeNode.Add_project (Some item, `Active) in
             let children = aux (R.child_nodes item) in
-            acc |> TreeNode.add (TreeNode.unique_of_node ~children item)
+            acc |> TreeNode.add (TreeNode.unique_of_node ~adder ~children item)
         | `Project _ | `Action _ -> acc
       ) items TreeNode.Child_map.empty in
     aux (R.roots r)
