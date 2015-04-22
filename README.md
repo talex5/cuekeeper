@@ -1,9 +1,8 @@
-cue-keeper
-==========
+CueKeeper
+=========
 
 Copyright Thomas Leonard, 2015
 
-* Note: this project doesn't do anything yet *
 
 Installation
 ------------
