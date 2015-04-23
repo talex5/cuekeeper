@@ -518,17 +518,17 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ]
 
   let review_mode_switcher ~current m =
-    let item mode =
+    let item mode label =
       let clicked _ev = M.set_review_mode m mode; false in
       let attrs = [a_input_type `Radio; a_onclick clicked] in
       let attrs = if mode = current then a_checked `Checked :: attrs else attrs in
-      input ~a:attrs () in
+      div [input ~a:attrs (); pcdata label] in
     form ~a:[a_class ["ck-review-mode"]] [
-      item `Done; pcdata "Done";
-      item `Waiting; pcdata "Waiting";
-      item `Future; pcdata "Future";
-      item `Areas; pcdata "Areas";
-      item `Everything; pcdata "Everything";
+      item `Done "Done";
+      item `Waiting "Waiting";
+      item `Future "Future";
+      item `Areas "Areas";
+      item `Everything "Everything";
     ]
 
   let class_of_review_mode = function

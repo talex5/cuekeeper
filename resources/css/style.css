@@ -930,8 +930,10 @@ form.ck-review-mode {
 	margin-bottom: 1.0em;
 }
 
-form.ck-review-mode span.ck-label {
-	margin-left: 2px;
+form.ck-review-mode > div {
+	display: inline-block;
+	white-space: nowrap;
+	margin-right: 1em;
 }
 
 form.ck-review-mode input {
