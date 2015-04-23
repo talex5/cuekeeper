@@ -168,6 +168,16 @@ let merge_detail ~log ~fmt ~base ~theirs ours =
     keep
   )
 
+let merge_description ~log ~base ~theirs ours =
+  if base = theirs then ours
+  else if base = ours then theirs
+  else if theirs = ours then theirs
+  else (
+    log "Conflicting descriptions; keeping both";
+    List.sort String.compare [ours; theirs]
+    |> String.concat "\n\n----\n\n"
+  )
+
 (* Used for the (unlikely) case of a merge with no common ancestor *)
 let default_base = make ~name:"" ~description:"" ~parent:None ~ctime:0.0 ~contact:None
 
@@ -204,7 +214,7 @@ let merge_details ~log ~base ~theirs ours =
   let {parent; name; description; ctime; contact; conflicts} = ours in
   let parent      = merge_detail ~log ~fmt:opt_uuid ~base:base.parent ~theirs:theirs.parent parent in
   let name        = merge_detail ~log ~fmt:str ~base:base.name ~theirs:theirs.name name in
-  let description = merge_detail ~log ~fmt:str ~base:base.description ~theirs:theirs.description description in
+  let description = merge_description ~log ~base:base.description ~theirs:theirs.description description in
   let ctime       = min (min base.ctime theirs.ctime) ctime in
   let contact     = merge_detail ~log ~fmt:opt_uuid ~base:base.contact ~theirs:theirs.contact contact in
   let conflicts   = dedup (conflicts @ theirs.conflicts) in
