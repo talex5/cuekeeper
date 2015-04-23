@@ -204,7 +204,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
             return (error "Update while we were trying to revert - aborting")
 
   let sync t ~from:theirs =
-    let ours = head t |> R.commit in
+    let ours = branch_head t in
     Git.Commit.lcas ours theirs >|= (function
     | lca :: _ -> Some lca
     | _ -> None
