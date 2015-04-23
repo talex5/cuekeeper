@@ -203,6 +203,20 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
         | `Not_fast_forward, _updated ->
             return (error "Update while we were trying to revert - aborting")
 
+  let sync t ~from:theirs =
+    let ours = head t |> R.commit in
+    Git.Commit.lcas ours theirs >|= (function
+    | lca :: _ -> Some lca
+    | _ -> None
+    ) >>= fun base ->
+    Merge.merge ?base ~theirs ours >>= function
+    | `Nothing_to_do -> return (`Ok ())
+    | `Ok merge ->
+        ff_master t merge >>= function
+        | `Ok, updated -> updated >|= fun () -> `Ok ()
+        | `Not_fast_forward, _updated ->
+            return (error "Update while we were trying to merge - aborting")
+
   let create t ~base (node:[< Ck_disk_node.generic]) =
     let uuid = Ck_id.mint () in
     assert (not (mem uuid base));

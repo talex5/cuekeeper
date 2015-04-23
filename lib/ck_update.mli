@@ -69,4 +69,6 @@ module Make(Git : Git_storage_s.S)
   val convert_to_action : t -> project -> unit or_error Lwt.t
 
   val revert : t -> repo:Git.Repository.t -> Git_storage_s.Log_entry.t -> unit or_error Lwt.t
+
+  val sync : t -> from:Git.Commit.t -> unit or_error Lwt.t
 end

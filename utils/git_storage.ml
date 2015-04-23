@@ -158,6 +158,12 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
 
     let task t =
       I.task_of_head (t.store "task") (id t)
+
+    let lcas t other =
+      I.lcas "lcas" t.store other.store >>= function
+      | `Ok ids -> ids |> Lwt_list.map_s (of_id t.repo)
+      | `Max_depth_reached |`Too_many_lcas -> assert false  (* Can't happen *)
+
   end
 
   module Branch = struct

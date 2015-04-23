@@ -46,6 +46,9 @@ module type S = sig
     val export_tar : t -> string Lwt.t
     val parents : t -> t list Lwt.t
     val task : t -> Irmin.Task.t Lwt.t
+    val lcas : t -> t -> t list Lwt.t
+    (** Find the least common ancestor(s) of two commits.
+     * This is used as the base when doing a 3-way merge. *)
   end
 
   module Branch : sig

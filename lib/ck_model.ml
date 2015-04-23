@@ -931,9 +931,9 @@ module Make(Clock : Ck_clock.S)
   let revert t entry =
     Up.revert ~repo:t.repo t.master entry
 
-  let make repo =
+  let make ?(branch="master") repo =
     let on_update, set_on_update = Lwt.wait () in
-    Git.Repository.branch ~if_new:(lazy (init_repo repo)) repo "master" >>= Up.make ~on_update >>= fun master ->
+    Git.Repository.branch ~if_new:(lazy (init_repo repo)) repo branch >>= Up.make ~on_update >>= fun master ->
     let r = Up.head master in
     let alert, set_alert = React.S.create (R.alert r) in
     let fixed_head, set_fixed_head = React.S.create None in
@@ -1000,4 +1000,7 @@ module Make(Clock : Ck_clock.S)
       ) in
     t.hidden_areas := areas;
     t.update_tree t.r
+
+  let sync t ~from:commit =
+    Up.sync t.master ~from:commit
 end
