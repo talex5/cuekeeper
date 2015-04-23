@@ -94,7 +94,7 @@ module type MODEL = sig
   val candidate_label : candidate -> string
   val choose_candidate : candidate -> unit Lwt.t
 
-  val enable_log : t -> Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t
+  val enable_log : t -> Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t Lwt.t
   val disable_log : t -> unit
 
   val fix_head : t -> Git_storage_s.Log_entry.t option -> unit Lwt.t

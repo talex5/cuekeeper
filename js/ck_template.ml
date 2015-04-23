@@ -412,44 +412,49 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ];
     ]
 
+  let make_log_entry m slow_item =
+    let item_ref = ref None in
+    let cancel = ref ignore in
+    let cl =
+      Slow_set.state slow_item >|~= fun state ->
+        !cancel ();
+        match state with
+        | `New -> ["new"]
+        | `Init | `Current -> []
+        | `Removed _ ->
+            begin match !item_ref with
+            | None -> ()
+            | Some item ->
+                let elem = Tyxml_js.To_dom.of_li item in
+                cancel := Ck_animate.fade_out elem end;
+            [] in
+    let log_entry = Slow_set.data slow_item in
+    let view _ev =
+      async ~name:"fix_head" (fun () -> M.fix_head m (Some log_entry));
+      false in
+    let open Git_storage_s.Log_entry in
+    let summary =
+      match log_entry.msg with
+      | [] -> "(no log message)"
+      | x::_ -> x in
+    let date = Ck_time.string_of_unix_time log_entry.date in
+    let item =
+      li ~a:[R.Html5.a_class cl] [
+        a ~a:[a_onclick view] [pcdata (date ^ ": " ^ summary)];
+      ] in
+    item_ref := Some item;
+    item
+
   let make_sync m =
-    let items = M.enable_log m
-      |> ReactiveData.RList.map (fun slow_item ->
-          let item_ref = ref None in
-          let cancel = ref ignore in
-          let cl =
-            Slow_set.state slow_item >|~= fun state ->
-              !cancel ();
-              match state with
-              | `New -> ["new"]
-              | `Init | `Current -> []
-              | `Removed _ ->
-                  begin match !item_ref with
-                  | None -> ()
-                  | Some item ->
-                      let elem = Tyxml_js.To_dom.of_li item in
-                      cancel := Ck_animate.fade_out elem end;
-                  [] in
-          let log_entry = Slow_set.data slow_item in
-          let view _ev =
-            async ~name:"fix_head" (fun () -> M.fix_head m (Some log_entry));
-            false in
-          let open Git_storage_s.Log_entry in
-          let summary =
-            match log_entry.msg with
-            | [] -> "(no log message)"
-            | x::_ -> x in
-          let date = Ck_time.string_of_unix_time log_entry.date in
-          let item =
-            li ~a:[R.Html5.a_class cl] [
-              a ~a:[a_onclick view] [pcdata (date ^ ": " ^ summary)];
-            ] in
-          item_ref := Some item;
-          item
-      ) in
-    div [
-      R.Html5.ol ~a:[a_class ["ck-history"]] items;
-    ]
+    let log_elem, log_elem_h = ReactiveData.RList.make [] in
+    let log_t = M.enable_log m in
+    async ~name:"make_sync" (fun () ->
+      log_t >|= fun items ->
+      log_elem_h |> ReactiveData.RList.append (
+        R.Html5.ol ~a:[a_class ["ck-history"]] (ReactiveData.RList.map (make_log_entry m) items)
+      )
+    );
+    R.Html5.div log_elem
 
   let show_add_contact m ~show_node ~parent =
     let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 25] () in

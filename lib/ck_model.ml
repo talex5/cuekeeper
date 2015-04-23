@@ -162,15 +162,13 @@ module Make(Clock : Ck_clock.S)
     details_stop : stop;
   }
 
-  type log = Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t
-
   type t = {
     repo : Git.Repository.t;
     master : Up.t;
     mutable r : R.t;
     tree : tree_view React.S.t;
     set_tree : tree_view -> unit;
-    mutable log : (log * (?step:React.step -> Git_storage_s.Log_entry.t Git_storage_s.Log_entry_map.t -> unit)) option;
+    mutable update_log : (?step:React.step -> Git_storage_s.Log_entry.t Git_storage_s.Log_entry_map.t -> unit) option;
     fixed_head : Git_storage_s.Log_entry.t option React.S.t;
     set_fixed_head : Git_storage_s.Log_entry.t option -> unit;
     mutable details : (details * (R.t -> unit)) Ck_id.M.t;
@@ -913,25 +911,22 @@ module Make(Clock : Ck_clock.S)
   let log_lock = Lwt_mutex.create ()
 
   let enable_log t =
-    assert (t.log = None);
+    assert (t.update_log = None);
     let log, set_log = React.S.create Git_storage_s.Log_entry_map.empty in
-    let log =
+    t.update_log <- Some set_log;
+    Lwt_mutex.with_lock log_lock (fun () ->
+      get_log t.master >|= fun initial_log ->
+      set_log initial_log;
       Slow_history.make ~delay:1.0 ~eq:Git_storage_s.Log_entry.equal log
-      |> Delta_history.make in
-    t.log <- Some (log, set_log);
-    async (fun () ->
-      Lwt_mutex.with_lock log_lock (fun () ->
-        get_log t.master >|= set_log
-      )
-    );
-    log
+      |> Delta_history.make
+    )
 
   let disable_log t =
-    match t.log with
+    match t.update_log with
     | None -> assert false
-    | Some (_log, set_log) ->
+    | Some set_log ->
         set_log Git_storage_s.Log_entry_map.empty;
-        t.log <- None
+        t.update_log <- None
 
   let make repo =
     let on_update, set_on_update = Lwt.wait () in
@@ -945,7 +940,7 @@ module Make(Clock : Ck_clock.S)
     let t = {
       repo; master; r;
       tree; set_tree; update_tree;
-      log = None;
+      update_log = None;
       alert;
       fixed_head; set_fixed_head;
       details = Ck_id.M.empty;
@@ -959,9 +954,9 @@ module Make(Clock : Ck_clock.S)
       t.details |> Ck_id.M.iter (fun _id (_, set) -> set r);
       t.update_tree r;
       if not (Up.fixed_head t.master) then set_fixed_head None;
-      match t.log with
+      match t.update_log with
       | None -> return ()
-      | Some (_, set_log) ->
+      | Some set_log ->
           (* If we're still processing an [enable_log], finish that first *)
           Lwt_mutex.with_lock log_lock (fun () ->
             get_log master >|= set_log
