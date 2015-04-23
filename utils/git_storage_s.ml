@@ -39,11 +39,12 @@ module type S = sig
     type t
 
     val checkout : t -> Staging.t Lwt.t
-    val commit : ?parents:t list -> Staging.t -> msg:string -> t Lwt.t
+    val commit : ?parents:t list -> Staging.t -> msg:string list -> t Lwt.t
     val merge : t -> t -> [ `Conflict of string | `Ok of t ] Lwt.t
     val equal : t -> t -> bool
     val history : ?depth:int -> t -> Log_entry.t Log_entry_map.t Lwt.t
     val export_tar : t -> string Lwt.t
+    val parents : t -> t list Lwt.t
   end
 
   module Branch : sig

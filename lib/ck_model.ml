@@ -906,7 +906,7 @@ module Make(Clock : Ck_clock.S)
           let key = Irmin.Path.String_list.of_hum path in
           Git.Staging.update staging key value
     ) >>= fun () ->
-    Git.Commit.commit staging ~msg:"Initialise repository"
+    Git.Commit.commit staging ~msg:["Initialise repository"]
 
   let log_lock = Lwt_mutex.create ()
 
@@ -927,6 +927,9 @@ module Make(Clock : Ck_clock.S)
     | Some set_log ->
         set_log Git_storage_s.Log_entry_map.empty;
         t.update_log <- None
+
+  let revert t entry =
+    Up.revert ~repo:t.repo t.master entry
 
   let make repo =
     let on_update, set_on_update = Lwt.wait () in

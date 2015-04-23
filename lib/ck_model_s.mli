@@ -96,6 +96,7 @@ module type MODEL = sig
 
   val enable_log : t -> Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t Lwt.t
   val disable_log : t -> unit
+  val revert : t -> Git_storage_s.Log_entry.t -> unit or_error Lwt.t
 
   val fix_head : t -> Git_storage_s.Log_entry.t option -> unit Lwt.t
   val fixed_head : t -> Git_storage_s.Log_entry.t option React.S.t

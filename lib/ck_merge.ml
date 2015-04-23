@@ -254,10 +254,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
                 |> Git.Staging.update stage path
     )
 
-  let merge ?base ~theirs ours =
-    match base with
-    | Some base when Git.Commit.equal base theirs -> ok ours  (* The common case *)
-    | _ ->
+  let stage_merge ?base ~theirs ours =
     Git.Commit.checkout theirs >>= fun stage ->
     let time = Ck_time.make ~year:2000 ~month:0 ~day:1 in
     begin match base with
@@ -278,7 +275,31 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     | Some base_rev ->
         keep (module Contact) ~base_rev required.required_contacts stage >>= fun () ->
         keep (module Context) ~base_rev required.required_contexts stage
-    end >>= fun () ->
+    end >|= fun () -> stage
+
+  let merge ?base ~theirs ours =
+    match base with
+    | Some base when Git.Commit.equal base theirs -> ok ours  (* The common case *)
+    | _ ->
+    stage_merge ?base ~theirs ours >>= fun stage ->
     (* We could perhaps avoid a merge here if stage = theirs, but probably not worth it. *)
-    Git.Commit.commit ~parents:[theirs; ours] stage ~msg:"Merge" >>= ok
+    Git.Commit.commit ~parents:[theirs; ours] stage ~msg:["Merge"] >>= ok
+
+  let revert ~repo ~master log_entry =
+    let open Git_storage_s in
+    Git.Repository.commit repo log_entry.Log_entry.id >>= function
+    | None -> return (`Error "Commit to revert does not exist!")
+    | Some commit ->
+    let orig_summary = match log_entry.Log_entry.msg with [] -> "-" | summary::_ -> summary in
+    let msg = [
+      Printf.sprintf "Revert \"%s\"" orig_summary;
+      "";
+      Printf.sprintf "This reverts commit %s." (Irmin.Hash.SHA1.to_hum log_entry.Log_entry.id)
+    ] in
+    Git.Commit.parents commit >>= function
+    | [] -> return (`Error "Can't revert initial commit!")
+    | _::_::_ -> return (`Error "Can't revert merges, sorry")
+    | [parent] ->
+    stage_merge ~base:commit ~theirs:master parent >>= fun stage ->
+    Git.Commit.commit ~parents:[master] stage ~msg >>= ok
 end

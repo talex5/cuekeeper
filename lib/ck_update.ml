@@ -139,13 +139,34 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
   let mem uuid rev =
     R.get rev uuid <> None
 
+  let ff_master t commit =
+    (* Check that the commit is readable *)
+    let time = Clock.now () |> Ck_time.of_unix_time in
+    Lwt.catch (fun () -> R.make ~time commit >|= ignore)
+      (fun ex -> bug "Change generated an invalid commit:\n%s\n\nThis is a BUG. The invalid change has been discarded."
+        (Printexc.to_string ex)) >>= fun () ->
+    Lwt_mutex.with_lock t.mutex (fun () ->
+      (* At this point, head cannot contain our commit because we haven't merged it yet,
+       * and no updates can happen while we hold the lock. *)
+      let updated = Lwt_condition.wait t.updated in
+      Git.Branch.fast_forward_to t.branch commit >|= fun merge_result ->
+      (* If `Ok, [updated] cannot have fired yet because we still hold the lock. When it does
+       * fire next, it must contain our update. It must fire soon, as head has changed. *)
+      if merge_result = `Ok then (
+        (* If we were on a fixed head then return to tracking master. Otherwise, the user won't
+         * see the update. *)
+        t.fixed_head <- false;
+      );
+      (merge_result, updated)
+    )
+
   (* Branch from base, apply [fn branch] to it, then merge the result back to master.
    * Returns only once [on_update] has been run for the new revision. *)
   let merge_to_master t ~base ~msg fn =
     let base_commit = R.commit base in
     Git.Commit.checkout base_commit >>= fun view ->
     fn view >>= fun result ->
-    Git.Commit.commit ~msg view >>= fun pull_rq ->
+    Git.Commit.commit ~msg:[msg] view >>= fun pull_rq ->
     let rec aux () =
       (* Merge to branch tip, even if we're on a fixed head *)
       let old_head = branch_head t in
@@ -154,36 +175,28 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
           (* Our change had no effect, so there's nothing to do. *)
           return (return ())
       | `Ok merged ->
-      (* Check that the merge is readable *)
-      let time = Clock.now () |> Ck_time.of_unix_time in
-      Lwt.catch (fun () -> R.make ~time merged >|= ignore)
-        (fun ex -> bug "Change generated an invalid commit:\n%s\n\nThis is a BUG. The invalid change has been discarded."
-          (Printexc.to_string ex)) >>= fun () ->
-      Lwt_mutex.with_lock t.mutex (fun () ->
-        (* At this point, head cannot contain our commit because we haven't merged it yet,
-         * and no updates can happen while we hold the lock. *)
-        let updated = Lwt_condition.wait t.updated in
-        Git.Branch.fast_forward_to t.branch merged >|= fun merge_result ->
-        (* If `Ok, [updated] cannot have fired yet because we still hold the lock. When it does
-         * fire next, it must contain our update. It must fire soon, as head has changed. *)
-        if merge_result = `Ok then (
-          (* If we were on a fixed head then return to tracking master. Otherwise, the user won't
-           * see the update. *)
-          t.fixed_head <- false;
-        );
-        (merge_result, updated)
-      ) >>= function
-      | `Ok, updated -> return updated
-      | `Not_fast_forward, _updated ->
-          Log.warn "Update while we were trying to merge - retrying...";
-          Clock.sleep 1.0 >>= fun () ->      (* Might be a bug - avoid hanging the browser *)
-          (* Possibly we should wait for branch_head to move, but this is a very unlikely case
-           * so do a simple sleep-and-retry *)
-          aux ()
+          ff_master t merged >>= function
+          | `Ok, updated -> return updated
+          | `Not_fast_forward, _updated ->
+              Log.warn "Update while we were trying to merge - retrying...";
+              Clock.sleep 1.0 >>= fun () ->      (* Might be a bug - avoid hanging the browser *)
+              (* Possibly we should wait for branch_head to move, but this is a very unlikely case
+               * so do a simple sleep-and-retry *)
+              aux ()
       in
     aux () >>= fun updated ->     (* Changes have been committed. *)
     updated >>= fun () ->         (* [on_update] has been called. *)
     return result
+
+  let revert t ~repo log_entry =
+    Merge.revert ~repo ~master:(branch_head t) log_entry >>= function
+    | `Nothing_to_do -> return (`Ok ())
+    | `Error _ as e -> return e
+    | `Ok commit ->
+        ff_master t commit >>= function
+        | `Ok, updated -> updated >|= fun () -> `Ok ()
+        | `Not_fast_forward, _updated ->
+            return (error "Update while we were trying to revert - aborting")
 
   let create t ~base (node:[< Ck_disk_node.generic]) =
     let uuid = Ck_id.mint () in

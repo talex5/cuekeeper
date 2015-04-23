@@ -682,6 +682,8 @@ let suite =
         ];
         let conflict = React.S.value live_conflict.M.details_item |> expect_some in
         M.Item.conflicts conflict |> assert_equal ["Discarded change Implement merging -> Test conflicts"];
+        M.clear_conflicts m conflict >>= fun () ->
+        let conflict = React.S.value live_conflict.M.details_item |> expect_some in
         M.delete m conflict >>= function
         | `Error msg -> assert_failure msg
         | `Ok () ->
@@ -727,14 +729,16 @@ let suite =
         ];
 
         (* Check history *)
-        M.enable_log m >>= fun log ->
-        ReactiveData.RList.value log
-        |> List.map (fun entry -> (Slow_set.data entry).Git_storage_s.Log_entry.msg |> List.hd)
+        M.enable_log m >>= fun live_log ->
+        let log = ReactiveData.RList.value live_log |> List.map Slow_set.data in
+        log
+        |> List.map (fun entry -> entry.Git_storage_s.Log_entry.msg |> List.hd)
         |> StringList.assert_equal
         [
           "Delete done items";
           "Change state of 'Write unit tests'";
           "Delete 'Fix merging'";
+          "Clear conflicts for 'Fix merging'";
           "Merge";
           "Rename 'Implement merging' to 'Fix merging'";
           "Rename 'Implement merging' to 'Test conflicts'";
@@ -755,6 +759,52 @@ let suite =
           "Change state of 'Write unit tests'";
           "Create 'Write unit tests'";
           "Initialise repository";
+        ];
+
+        let delete_fix_merging = List.nth log 2 in
+        assert_str_equal "Delete 'Fix merging'" (List.hd delete_fix_merging.Git_storage_s.Log_entry.msg);
+        M.revert m delete_fix_merging >>= function
+        | `Error msg -> assert_failure msg
+        | `Ok () ->
+
+        let revert_entry = ReactiveData.RList.value live_log |> List.hd |> Slow_set.data in
+        revert_entry.Git_storage_s.Log_entry.msg |> List.hd |> assert_str_equal "Revert \"Delete 'Fix merging'\"";
+        wait 2.0;
+        next_actions |> assert_tree ~label:"revert" [
+          n "Next actions" [
+            n "Coding" [
+              n "Dev" [
+                n "GC unused signals" [];
+              ]
+            ];
+            n "(no context)" [
+              n "Dev" [
+                n "Fix merging" [];
+                n "Implement scheduing" [];
+              ]
+            ];
+          ];
+          n "Recently completed" []
+        ];
+
+        M.revert m revert_entry >>= function
+        | `Error msg -> assert_failure msg
+        | `Ok () ->
+        wait 2.0;
+        next_actions |> assert_tree ~label:"revert revert" [
+          n "Next actions" [
+            n "Coding" [
+              n "Dev" [
+                n "GC unused signals" [];
+              ]
+            ];
+            n "(no context)" [
+              n "Dev" [
+                n "Implement scheduing" [];
+              ]
+            ];
+          ];
+          n "Recently completed" []
         ];
 
         return ()
@@ -819,7 +869,7 @@ let suite =
                 let commit ~parents msg =
                   branch_d msg >>= fun () ->
                   random_state ~common ~random repo >>= fun s ->
-                  Git.Commit.commit ~parents s ~msg >>= fun commit ->
+                  Git.Commit.commit ~parents s ~msg:[msg] >>= fun commit ->
                   Git.Repository.branch repo ~if_new:(lazy (return commit)) msg >>= fun _branch ->
                   return commit in
                 commit ~parents:[] "base" >>= fun base ->
@@ -848,7 +898,7 @@ let suite =
 
                 (* Add an extra commit on theirs to force it to try the trivial merge *)
                 Git.Commit.checkout base >>= fun s ->
-                Git.Commit.commit s ~msg:"empty commit" >>= fun base2 ->
+                Git.Commit.commit s ~msg:["empty commit"] >>= fun base2 ->
                 Merge.merge ~base ~theirs:base2 ours >>= (function
                 | `Nothing_to_do -> return base2
                 | `Ok result -> return result

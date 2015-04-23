@@ -1235,3 +1235,12 @@ div.ck-time-travel-warning.alert-box,
 div.ck-bug.alert-box.alert {
 	margin-bottom: 0;
 }
+
+div.ck-time-travel-warning.alert-box a.close {
+	color: white;
+}
+
+div.ck-time-travel-warning.alert-box button {
+	color: black;
+	margin-right: 0.5em;
+}

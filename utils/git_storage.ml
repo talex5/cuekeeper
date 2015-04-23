@@ -68,7 +68,15 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
         match parents with
         | Some parents -> parents |> List.map id
         | None -> V.parents staging.Staging.view in
-      V.make_head (repo.empty msg) (repo.task_maker msg) ~parents ~contents:staging.Staging.view
+      let task =
+        match msg with
+        | [] -> failwith "Empty commit message!"
+        | [summary] -> repo.task_maker summary
+        | summary :: body ->
+            let t = repo.task_maker summary in
+            body |> List.iter (Irmin.Task.add t);
+            t in
+      V.make_head (repo.empty (List.hd msg)) task ~parents ~contents:staging.Staging.view
       >>= I.of_head repo.config repo.task_maker
       >|= fun store -> { repo; store }
 
@@ -141,6 +149,12 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       scan [] >|= fun () ->
       T.Archive.create_gen (Stream.of_list !files) buf;
       Buffer.contents buf
+
+    let parents t =
+      let head = id t in
+      I.history ~depth:1 (t.store "parents") >>= fun history ->
+      I.History.pred history head
+      |> Lwt_list.map_s (of_id t.repo)
   end
 
   module Branch = struct

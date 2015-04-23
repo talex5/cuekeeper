@@ -1258,13 +1258,21 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | Some log_entry ->
           let cl = ["alert-box"; "ck-time-travel-warning"] in
           let cl = if !showing then cl else "new" :: cl in
+          let msg = match log_entry.Git_storage_s.Log_entry.msg with [] -> "-" | summary::_ -> summary in
+          let revert ev =
+            async ~name:"revert" (fun () -> M.revert m log_entry >|= report_error ~parent:(ev##target));
+            false in
           showing := true;
           [
             div ~a:[a_class cl] [
-              pcdata (
+              p [pcdata (
                 Printf.sprintf "Time-travel active: you are viewing the state of CueKeeper as at %s."
                   (Ck_time.string_of_unix_time log_entry.Git_storage_s.Log_entry.date)
-              );
+              )];
+              p [
+                button ~a:[a_onclick revert] [pcdata "Revert this change"];
+                pcdata msg;
+              ];
               a ~a:[a_class ["close"]; a_onclick return_to_present] [pcdata "×"]
             ]
           ]
