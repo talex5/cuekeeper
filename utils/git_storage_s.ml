@@ -45,6 +45,7 @@ module type S = sig
     val history : ?depth:int -> t -> Log_entry.t Log_entry_map.t Lwt.t
     val export_tar : t -> string Lwt.t
     val parents : t -> t list Lwt.t
+    val task : t -> Irmin.Task.t Lwt.t
   end
 
   module Branch : sig

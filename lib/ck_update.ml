@@ -19,7 +19,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
 
   type t = {
     branch : Git.Branch.t;
-    mutable fixed_head : bool;            (* If [true], we are in "time-machine" mode, and not tracking [branch] *)
+    mutable fixed_head : float option;       (* If [Some time], we are in "time-machine" mode, and not tracking [branch] *)
     mutable head : R.t;
     updated : unit Lwt_condition.t;
     mutex : Lwt_mutex.t;
@@ -56,7 +56,10 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
             )
         )
   and update_head t new_head =   (* Call with mutex locked *)
-    let time = Clock.now () |> Ck_time.of_unix_time in
+    let time =
+      match t.fixed_head with
+      | None -> Clock.now () |> Ck_time.of_unix_time
+      | Some time -> Ck_time.of_unix_time time in
     R.make ~time new_head >>= fun new_head ->
     t.head <- new_head;
     t.on_update >>= fun on_update ->
@@ -88,7 +91,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     let update_scheduled = ref false in
     let t = {
       branch;
-      fixed_head = false;
+      fixed_head = None;
       head = initial_head;
       updated;
       mutex;
@@ -103,7 +106,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
           async (fun () ->
             Lwt_mutex.with_lock mutex (fun () ->
               update_scheduled := false;
-              if not t.fixed_head then (
+              if t.fixed_head = None then (
                 (* Head might have changed while we waited for the lock. *)
                 React.S.value (Git.Branch.head branch)
                 |> maybe_update_head t
@@ -118,18 +121,20 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
   let fix_head t = function
     | None ->
         Lwt_mutex.with_lock t.mutex (fun () ->
-          t.fixed_head <- false;
+          t.fixed_head <- None;
           React.S.value (Git.Branch.head t.branch)
           |> maybe_update_head t
         )
-    | Some _ as new_head ->
+    | Some commit as new_head ->
         Lwt_mutex.with_lock t.mutex (fun () ->
-          t.fixed_head <- true;
+          Git.Commit.task commit >>= fun task ->
+          let time = Irmin.Task.date task |> Int64.to_float in
+          t.fixed_head <- Some time;
           maybe_update_head t new_head
         )
 
   let head t = t.head
-  let fixed_head t = t.fixed_head
+  let fixed_head t = t.fixed_head <> None
 
   let branch_head t =
     match React.S.value (Git.Branch.head t.branch) with
@@ -155,7 +160,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       if merge_result = `Ok then (
         (* If we were on a fixed head then return to tracking master. Otherwise, the user won't
          * see the update. *)
-        t.fixed_head <- false;
+        t.fixed_head <- None;
       );
       (merge_result, updated)
     )

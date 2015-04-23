@@ -155,6 +155,9 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       I.history ~depth:1 (t.store "parents") >>= fun history ->
       I.History.pred history head
       |> Lwt_list.map_s (of_id t.repo)
+
+    let task t =
+      I.task_of_head (t.store "task") (id t)
   end
 
   module Branch = struct
