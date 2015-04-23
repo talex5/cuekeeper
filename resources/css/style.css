@@ -767,11 +767,13 @@ div.ck-time-travel-warning.new {
 }
 
 a.delete {
-	color: #a00;
+	color: #333;
 	padding-left: 0.5em;
+	opacity: 0.3;
 }
 a.delete:hover {
 	color: #f00;
+	opacity: 1;
 }
 
 a.ck-add-child {

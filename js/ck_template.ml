@@ -978,7 +978,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let clear _ev =
       async ~name:"clear_repeat" (fun () -> M.set_repeat m action None);
       false in
-    a ~a:[a_onclick clear; a_class ["delete"]] [entity "cross"]
+    a ~a:[a_onclick clear; a_class ["delete"]] [pcdata "×"]
 
   let make_conflicts m item =
     item >|~= function
