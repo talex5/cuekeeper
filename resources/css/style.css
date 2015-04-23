@@ -1093,6 +1093,11 @@ div.ck-conflicts {
 	padding: 0.3rem;
 }
 
+div.ck-conflicts div.ck-box-title {
+	display: flex;
+	justify-content: space-between;
+}
+
 div.ck-details {
 	background: white;
 }

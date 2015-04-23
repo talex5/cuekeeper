@@ -992,8 +992,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           false in
         [
           div ~a:[a_class ["ck-conflicts"]] [
-            a ~a:[a_class ["close"]; a_onclick clear_conflicts] [pcdata "×"];
-            h4 [pcdata "Merge conflicts"];
+            div ~a:[a_class ["ck-box-title"]] [
+              h4 [pcdata "Merge conflicts"];
+              a ~a:[a_class ["close"]; a_onclick clear_conflicts] [pcdata "×"];
+            ];
             ul (
               ms |> List.map (fun msg -> li [pcdata msg])
             )
