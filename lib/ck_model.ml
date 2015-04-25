@@ -687,7 +687,9 @@ module Make(Clock : Ck_clock.S)
           match node with
           | `Action _ as a when Node.action_state a = `Waiting_for_contact -> responsible_for
           | _ -> contact_for in
-        let group = Lazy.force group |> TreeNode.with_child (TreeNode.unique_of_node node) in
+        let group = Lazy.force group
+          |> or_existing !tree
+          |> TreeNode.with_child (TreeNode.unique_of_node node) in
         tree := !tree |> TreeNode.add group
       );
       !tree in
