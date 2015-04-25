@@ -205,17 +205,20 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
 
   let sync t ~from:theirs =
     let ours = branch_head t in
-    Git.Commit.lcas ours theirs >|= (function
-    | lca :: _ -> Some lca
-    | _ -> None
-    ) >>= fun base ->
-    Merge.merge ?base ~theirs ours >>= function
-    | `Nothing_to_do -> return (`Ok ())
-    | `Ok merge ->
-        ff_master t merge >>= function
-        | `Ok, updated -> updated >|= fun () -> `Ok ()
-        | `Not_fast_forward, _updated ->
-            return (error "Update while we were trying to merge - aborting")
+    let ff commit =
+      ff_master t commit >>= function
+      | `Ok, updated -> updated >|= fun () -> `Ok ()
+      | `Not_fast_forward, _updated ->
+          return (error "Update while we were trying to sync - aborting") in
+    let sync_with ~base =
+      Merge.merge ?base ~theirs ours >>= function
+      | `Nothing_to_do -> return (`Ok ())
+      | `Ok merge -> ff merge in
+    Git.Commit.lcas ours theirs >>= function
+    | [] -> sync_with ~base:None
+    | lcas ->
+        if List.exists (Git.Commit.equal ours) lcas then ff theirs   (* Trivial - we have no changes *)
+        else sync_with ~base:(Some (List.hd lcas))
 
   let create t ~base (node:[< Ck_disk_node.generic]) =
     let uuid = Ck_id.mint () in
