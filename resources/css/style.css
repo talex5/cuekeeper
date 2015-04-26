@@ -809,10 +809,6 @@ div.ck-modal.f-dropdown ul {
 	list-style: none;
 }
 
-div.ck-modal input[type="submit"] {
-	float: right;
-}
-
 div.ck-done-actions {
 	margin-top: 2rem;
 }
@@ -1250,4 +1246,8 @@ div.ck-time-travel-warning.alert-box a.close {
 div.ck-time-travel-warning.alert-box button {
 	color: black;
 	margin-right: 0.5em;
+}
+
+form.ck-add-modal {
+	white-space: nowrap;
 }

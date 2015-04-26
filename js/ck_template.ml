@@ -19,6 +19,30 @@ module Gui_tree_data = struct
   type t = Dom_html.element Js.t
 end
 
+(* Cross-browser form submit buttons *)
+let submit_button label =
+  try
+    input ~a:[a_input_type `Submit; a_value label] ()
+  with _ ->
+    (* Hello, MSIE!
+     * http://reference.sitepoint.com/javascript/Element/setAttributeNode *)
+    let s = span [] in
+    let elem = Tyxml_js.To_dom.of_span s in
+    elem##innerHTML <- Js.string (Printf.sprintf "<input type='submit' value='%s'>" label);
+    s
+
+let radio_button ~clicked ~checked =
+  let attrs = [a_onclick clicked] in
+  let attrs = if checked then a_checked `Checked :: attrs else attrs in
+  try
+    input ~a:(a_input_type `Radio :: attrs) ()
+  with _ ->
+    (* Hello, MSIE! *)
+    let i = input ~a:attrs () in
+    let elem = Tyxml_js.To_dom.of_input i in
+    elem##setAttribute (Js.string "type", Js.string "radio");
+    i
+
 (* Recognise {yyyy-mm-dd} at the start of a line and format it nicely *)
 let omd_date_ext =
   let open Omd_representation in
@@ -267,9 +291,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       );
       Ck_modal.close () in
     let content =
-      form ~a:[a_onsubmit submit_clicked] [
+      form ~a:[a_onsubmit submit_clicked; a_class ["ck-add-modal"]] [
         name_input;
-        input ~a:[a_input_type `Submit; a_value "Add"] ();
+        submit_button "Add";
       ] in
     show_modal ~parent:button [content]
 
@@ -471,7 +495,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let content =
       form ~a:[a_onsubmit submit_clicked] [
         name_input;
-        input ~a:[a_input_type `Submit; a_value "Add"] ();
+        submit_button "Add";
       ] in
     show_modal ~parent [content]
 
@@ -520,9 +544,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let review_mode_switcher ~current m =
     let item mode label =
       let clicked _ev = M.set_review_mode m mode; false in
-      let attrs = [a_input_type `Radio; a_onclick clicked] in
-      let attrs = if mode = current then a_checked `Checked :: attrs else attrs in
-      div [input ~a:attrs (); pcdata label] in
+      div [radio_button ~clicked ~checked:(mode = current); pcdata label] in
     form ~a:[a_class ["ck-review-mode"]] [
       item `Done "Done";
       item `Waiting "Waiting";
@@ -834,7 +856,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                 value;
                 div ~a:[a_class ["actions"]] [
                   a ~a:[a_onclick cancel] [pcdata "(cancel) "];
-                  input ~a:[a_input_type `Submit; a_value "OK"] ();
+                  submit_button "OK";
                 ]
               ]
             ]
