@@ -15,8 +15,8 @@ type mode = Js.js_string Js.t
 class type upgradeneeded = object
   inherit Dom_html.event
 end
-class type errorEvent = object
-  inherit Dom_html.event
+class type ['a] errorEvent = object
+  inherit ['a] Dom.event
 end
 class type completeEvent = object
   inherit Dom_html.event
@@ -34,8 +34,14 @@ class type cursorWithValue = object
   method value : value Js.readonly_prop
 end
 
+class type dom_exception = object
+  method name : Js.js_string Js.t Js.readonly_prop
+  method message : Js.js_string Js.t Js.readonly_prop
+end
+
 class type request = object
-  method onerror : ('self Js.t, errorEvent Js.t) Dom.event_listener Js.prop
+  method error : dom_exception Js.t Js.Opt.t Js.readonly_prop
+  method onerror : ('self Js.t, request errorEvent Js.t) Dom.event_listener Js.prop
   method onsuccess : ('self Js.t, successEvent Js.t) Dom.event_listener Js.prop
 end
 
@@ -59,14 +65,15 @@ end
 
 class type transaction = object
   method oncomplete : ('self Js.t, completeEvent Js.t) Dom.event_listener Js.prop
-  method onerror : ('self Js.t, errorEvent Js.t) Dom.event_listener Js.prop
+  method onerror : ('self Js.t, request errorEvent Js.t) Dom.event_listener Js.prop
   method objectStore : store_name -> objectStore Js.t Js.meth
+  method abort : unit Js.meth
 end
 
 class type database = object
   method close : unit Js.meth
   method createObjectStore : store_name -> objectStore Js.t Js.meth
-  method onerror : ('self Js.t, errorEvent Js.t) Dom.event_listener Js.prop
+  method onerror : ('self Js.t, request errorEvent Js.t) Dom.event_listener Js.prop
   method transaction : store_name Js.js_array Js.t -> mode -> transaction Js.t Js.meth
 end
 

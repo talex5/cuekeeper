@@ -49,16 +49,28 @@ let store db store_name = { db; store_name; ro_trans = None }
 let create_store db name =
   db##createObjectStore (name) |> ignore
 
+let idb_error typ (event:IndexedDB.request IndexedDB.errorEvent Js.t) =
+  let msg =
+    Js.Opt.case (event##target)
+      (fun () -> "(missing target on error event)")
+      (fun target ->
+        Js.Opt.case (target##error)
+          (fun () -> "(missing error on request)")
+          (fun error ->
+            Js.to_string error##name ^ ": " ^ Js.to_string error##message)
+      ) in
+  Failure (Printf.sprintf "IndexedDB transaction (%s) failed: %s" typ msg)
+
 let rec trans_ro (t:store) setup =
   let r, set_r = Lwt.wait () in
   match t.ro_trans with
   | None ->
       let trans = t.db##transaction (Js.array [| t.store_name |], Js.string "readonly") in
       t.ro_trans <- Some trans;
-      trans##onerror <- Dom.handler (fun _event ->
+      trans##onerror <- Dom.handler (fun event ->
         t.ro_trans <- None;
         (* Fatal error *)
-        !Lwt.async_exception_hook (Failure "IndexedDB transaction failed!");
+        !Lwt.async_exception_hook (idb_error "RO" event);
         Js._true
       );
       trans##oncomplete <- Dom.handler (fun _event ->
@@ -78,8 +90,8 @@ let rec trans_ro (t:store) setup =
 let trans_rw t setup =
   let r, set_r = Lwt.wait () in
   let trans = t.db##transaction (Js.array [| t.store_name |], Js.string "readwrite") in
-  trans##onerror <- Dom.handler (fun _event ->
-    Lwt.wakeup_exn set_r (Failure "IndexedDB transaction failed!");
+  trans##onerror <- Dom.handler (fun event ->
+    Lwt.wakeup_exn set_r (idb_error "RW" event);
     Js._true
   );
   trans##oncomplete <- Dom.handler (fun _event ->
