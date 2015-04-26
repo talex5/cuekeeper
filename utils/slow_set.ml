@@ -118,10 +118,15 @@ module Make (C : Ck_clock.S) (K : SORT_KEY) (M : Map.S with type key = K.t) = st
               ()
             end
         | `Removed _ ->
-            let item = M.find k !m in
-            begin match React.S.value item.state with
-            | `Removed t when t = start -> m := !m |> M.remove k
-            | `New | `Init | `Current | `Removed _ -> () end
+            try
+              let item = M.find k !m in
+              match React.S.value item.state with
+              | `Removed t when t = start -> m := !m |> M.remove k
+              | `New | `Init | `Current | `Removed _ -> ()
+            with Not_found ->
+              (* Can happen if we add/remove/add/remove in quick succession, with same
+               * start times. *)
+              ()
       );
       set_output !m in
 

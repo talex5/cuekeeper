@@ -46,3 +46,6 @@ val merge_context : ?base:context -> theirs:context -> context -> context
 val merge_contact : ?base:contact -> theirs:contact -> contact -> contact
 val with_conflict : string -> ([< generic] as 'a) -> 'a
 val without_conflicts : ([< generic] as 'a) -> 'a
+
+val fmt_pstate : [< project_state] -> string
+val fmt_astate : [< action_state] -> string

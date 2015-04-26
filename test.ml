@@ -689,15 +689,24 @@ let suite =
         | `Ok () ->
         wait 2.0;
 
+        (* Add parent project*)
+        M.add_project m ~parent:job ~state:`Active ~name:"Release CueKeeper" () >>= fun release ->
+        let release = expect_some release |> expect_project in
+        let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
+        let candidates = M.candidate_parents_for m units in
+        let set_parent = List.find (fun p -> M.candidate_label p = "» Release CueKeeper") candidates in
+        M.choose_candidate set_parent >>= fun () ->
+
         (* Mark as Done *)
         let units = React.S.value (live_units.M.details_item) |> expect_some |> expect_action in
         M.set_action_state m units `Done >>= fun () ->
+        M.set_project_state m release `Done >>= fun () ->
+        wait 2.0;
         next_actions |> assert_tree ~label:"done" [
           n "Next actions" [
             n "Coding" [
               n "Dev" [
                 n "GC unused signals" [];
-                n "-Write unit tests" [];
               ]
             ];
             n "(no context)" [
@@ -707,7 +716,7 @@ let suite =
             ];
           ];
           n "Recently completed" [
-            n "+Write unit tests" [];
+            n "Release CueKeeper" [];
           ]
         ];
         M.delete_done m >>= fun () ->
@@ -736,39 +745,42 @@ let suite =
         |> StringList.assert_equal
         [
           "Delete done items";
-          "Change state of 'Write unit tests'";
-          "Delete 'Fix merging'";
-          "Clear conflicts for 'Fix merging'";
+          "Release CueKeeper: active -> done";
+          "Write unit tests: waiting until 2015-05-06 (Wed) -> done";
+          "Write unit tests: move under Release CueKeeper";
+          "Create Release CueKeeper";
+          "Fix merging: deleted";
+          "Fix merging: clear conflicts";
           "Merge";
-          "Rename 'Implement merging' to 'Fix merging'";
-          "Rename 'Implement merging' to 'Test conflicts'";
-          "Create 'Implement merging'";
-          "Rename 'Job' to 'Dev'";
-          "Create 'Implement scheduing'";
-          "Change state of 'Write unit tests'";
-          "Delete 'Weekly review'";
-          "Change state of 'Write unit tests'";
-          "Change state of 'Write unit tests'";
-          "Change state of 'Write unit tests'";
-          "Change context of 'Write unit tests'";
-          "Change context of 'GC unused signals'";
-          "Create 'Coding'";
-          "Create 'GC unused signals'";
-          "Change state of 'Start using CueKeeper'";
-          "Delete 'Read wikipedia page on GTD'";
-          "Change state of 'Write unit tests'";
-          "Create 'Write unit tests'";
+          "Implement merging: rename to Fix merging";
+          "Implement merging: rename to Test conflicts";
+          "Create Implement merging";
+          "Job: rename to Dev";
+          "Create Implement scheduing";
+          "Write unit tests: waiting until 2015-05-05 (Tue) -> waiting until 2015-05-06 (Wed)";
+          "Weekly review: deleted";
+          "Write unit tests: waiting -> waiting until 2015-05-05 (Tue)";
+          "Write unit tests: next -> waiting";
+          "Write unit tests: waiting -> next";
+          "Write unit tests: context now Coding";
+          "GC unused signals: context now Coding";
+          "Add context Coding";
+          "Create GC unused signals";
+          "Start using CueKeeper: active -> someday/maybe";
+          "Read wikipedia page on GTD: deleted";
+          "Write unit tests: next -> waiting";
+          "Create Write unit tests";
           "Initialise repository";
         ];
 
-        let delete_fix_merging = List.nth log 2 in
-        assert_str_equal "Delete 'Fix merging'" (List.hd delete_fix_merging.Git_storage_s.Log_entry.msg);
+        let delete_fix_merging = List.nth log 5 in
+        assert_str_equal "Fix merging: deleted" (List.hd delete_fix_merging.Git_storage_s.Log_entry.msg);
         M.revert m delete_fix_merging >>= function
         | `Error msg -> assert_failure msg
         | `Ok () ->
 
         let revert_entry = ReactiveData.RList.value live_log |> List.hd |> Slow_set.data in
-        revert_entry.Git_storage_s.Log_entry.msg |> List.hd |> assert_str_equal "Revert \"Delete 'Fix merging'\"";
+        revert_entry.Git_storage_s.Log_entry.msg |> List.hd |> assert_str_equal "Revert \"Fix merging: deleted\"";
         wait 2.0;
         next_actions |> assert_tree ~label:"revert" [
           n "Next actions" [

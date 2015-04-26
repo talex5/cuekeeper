@@ -228,7 +228,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
         bug "Parent '%a' does not exist!" Ck_id.fmt parent;
     | _ -> () end;
     let s = Ck_disk_node.to_string node in
-    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name node) in
+    let msg = Printf.sprintf "Create %s" (Ck_disk_node.name node) in
     merge_to_master t ~base ~msg (fun view ->
       Git.Staging.update view ["db"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
@@ -265,10 +265,18 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
           match msg with
           | None ->
               nodes
-              |> List.map (fun node -> Printf.sprintf "'%s'" (R.Node.name node))
+              |> List.map R.Node.name
               |> String.concat ", "
-              |> Printf.sprintf "Delete %s"
+              |> Printf.sprintf "%s: deleted"
           | Some msg -> msg in
+        let to_delete = nodes |> List.fold_left (fun acc node ->
+            acc |> Ck_id.S.add (R.Node.uuid node)
+          ) Ck_id.S.empty in
+        (* We're trying to delete a node which is needed by each of [referrers]. Return one of them that
+         * isn't also being deleted (if any) for the error message. *)
+        let example_referrer referrers =
+          try Some (referrers |> List.find (fun referrer -> not (Ck_id.S.mem (R.Node.uuid referrer) to_delete)))
+          with Not_found -> None in
         let paths = nodes |> List.fold_left (fun acc node ->
           match acc with
           | `Error _ as e -> e
@@ -276,22 +284,22 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
               let uuid = R.Node.uuid node |> Ck_id.to_string in
               match node with
               | `Contact _ as node ->
-                  begin match R.nodes_of_contact node with
-                  | [] -> `Ok (["contact"; uuid] :: acc)
-                  | child :: _ ->
-                      error "Can't delete because it has a child (%s)" (R.Node.name child)
+                  begin match example_referrer (R.nodes_of_contact node) with
+                  | None -> `Ok (["contact"; uuid] :: acc)
+                  | Some r ->
+                      error "Can't delete because referenced by '%s'" (R.Node.name r)
                   end
               | `Context _ as node ->
-                  begin match R.actions_of_context node with
-                  | [] -> `Ok (["context"; uuid] :: acc)
-                  | child :: _ ->
-                      error "Can't delete because it has a child (%s)" (R.Node.name child)
+                  begin match example_referrer (R.actions_of_context node) with
+                  | None -> `Ok (["context"; uuid] :: acc)
+                  | Some r ->
+                      error "Can't delete because referenced by '%s'" (R.Node.name r)
                   end
               | `Area _ | `Project _ | `Action _ as node ->
-                  try
-                    let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
-                    error "Can't delete because it has a child (%s)" (R.Node.name child)
-                  with Not_found -> `Ok (["db"; uuid] :: acc)
+                  match example_referrer (R.child_nodes node |> Ck_utils.M.bindings |> List.map snd) with
+                  | None -> `Ok (["db"; uuid] :: acc)
+                  | Some child ->
+                      error "Can't delete because of child '%s'" (R.Node.name child)
         ) (`Ok []) in
         match paths with
         | `Error _ as e -> return e
@@ -314,7 +322,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     let uuid = Ck_id.mint () in
     assert (not (Ck_id.M.mem uuid (R.contacts base)));
     let s = Ck_disk_node.contact_to_string contact in
-    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name contact) in
+    let msg = Printf.sprintf "Add contact %s" (Ck_disk_node.name contact) in
     merge_to_master t ~base ~msg (fun view ->
       Git.Staging.update view ["contact"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
@@ -323,49 +331,53 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     let uuid = Ck_id.mint () in
     assert (not (Ck_id.M.mem uuid (R.contexts base)));
     let s = Ck_disk_node.context_to_string context in
-    let msg = Printf.sprintf "Create '%s'" (Ck_disk_node.name context) in
+    let msg = Printf.sprintf "Add context %s" (Ck_disk_node.name context) in
     merge_to_master t ~base ~msg (fun view ->
       Git.Staging.update view ["context"; Ck_id.to_string uuid] s
     ) >|= fun () -> uuid
 
   let clear_conflicts t node =
-    let msg = Printf.sprintf "Clear conflicts for '%s'" (R.Node.name node) in
+    let msg = Printf.sprintf "%s: clear conflicts" (R.Node.name node) in
     update t ~msg node (Ck_disk_node.without_conflicts (R.disk_node node))
 
   let set_name t node name =
-    let msg = Printf.sprintf "Rename '%s' to '%s'" (R.Node.name node) name in
+    let msg = Printf.sprintf "%s: rename to %s" (R.Node.name node) name in
     update t ~msg node (Ck_disk_node.with_name (R.disk_node node) name)
 
   let set_description t node v =
-    let msg = Printf.sprintf "Update description for '%s'" (R.Node.name node) in
+    let msg = Printf.sprintf "%s: update description" (R.Node.name node) in
     update t ~msg node (Ck_disk_node.with_description (R.disk_node node) v)
 
+  let opt_name = function
+    | None -> "unset"
+    | Some n -> R.Node.name n
+
   let set_context t node context =
-    let context =
+    let context_uuid =
       match context with
       | None -> None
       | Some context ->
           assert (R.Node.rev node == R.Node.rev context);
           Some (R.Node.uuid context) in
-    let new_node = Ck_disk_node.with_context (R.action_node node) context in
-    let msg = Printf.sprintf "Change context of '%s'" (R.Node.name node) in
+    let new_node = Ck_disk_node.with_context (R.action_node node) context_uuid in
+    let msg = Printf.sprintf "%s: context now %s" (R.Node.name node) (opt_name context) in
     update t ~msg node new_node
 
   let set_contact t node contact =
-    let contact =
+    let contact_uuid =
       match contact with
       | None -> None
       | Some contact ->
           assert (R.Node.rev node == R.Node.rev contact);
           Some (R.Node.uuid contact) in
-    let new_node = Ck_disk_node.with_contact (R.apa_node node) contact in
+    let new_node = Ck_disk_node.with_contact (R.apa_node node) contact_uuid in
     let new_node =
       match new_node with
-      | `Action _ as a when Ck_disk_node.action_state a = `Waiting_for_contact && contact = None ->
+      | `Action _ as a when Ck_disk_node.action_state a = `Waiting_for_contact && contact_uuid = None ->
           let open Ck_disk_node.Types in
           (Ck_disk_node.with_astate a `Next :> [area | project | action])
       | _ -> new_node in
-    let msg = Printf.sprintf "Change contact of '%s'" (R.Node.name node) in
+    let msg = Printf.sprintf "%s: contact now %s" (R.Node.name node) (opt_name contact) in
     update t ~msg node new_node
 
   let set_action_state t node astate =
@@ -381,7 +393,10 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
               let new_r = Ck_time.(make_repeat ~from:date r.repeat_n r.repeat_unit) in
               Ck_disk_node.with_repeat new_node (Some new_r) end
       | _ -> new_node in
-    let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
+    let msg = Printf.sprintf "%s: %s -> %s"
+      (R.Node.name node)
+      (Ck_disk_node.fmt_astate (R.Node.action_state node))
+      (Ck_disk_node.fmt_astate astate) in
     update t ~msg node new_node
 
   let set_repeat t node repeat =
@@ -391,21 +406,24 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       match repeat with
       | None -> new_node
       | Some r -> Ck_disk_node.with_astate new_node (`Waiting_until r.repeat_from) in
-    let msg = Printf.sprintf "%s repeat of '%s'"
-      (if repeat = None then "Clear" else "Set")
-      (R.Node.name node) in
+    let msg = Printf.sprintf "%s: repeat %s"
+      (R.Node.name node)
+      (match repeat with None -> "never" | Some r -> Ck_time.string_of_repeat r) in
     update t ~msg node new_node
 
   let set_waiting_for t node contact =
     assert (R.Node.rev node == R.Node.rev contact);
     let new_node = Ck_disk_node.with_astate (R.action_node node) `Waiting_for_contact in
     let new_node = Ck_disk_node.with_contact new_node (Some (R.Node.uuid contact)) in
-    let msg = Printf.sprintf "'%s' now waiting for '%s'" (R.Node.name node) (R.Node.name contact) in
+    let msg = Printf.sprintf "%s: now waiting for %s" (R.Node.name node) (R.Node.name contact) in
     update t ~msg node new_node
 
   let set_project_state t node pstate =
     let new_node = Ck_disk_node.with_pstate (R.project_node node) pstate in
-    let msg = Printf.sprintf "Change state of '%s'" (R.Node.name node) in
+    let msg = Printf.sprintf "%s: %s -> %s"
+      (R.Node.name node)
+      (Ck_disk_node.fmt_pstate (R.Node.project_state node))
+      (Ck_disk_node.fmt_pstate pstate) in
     update t ~msg node new_node
 
   let set_starred t node s =
@@ -414,19 +432,19 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       | `Action _ as a -> Ck_disk_node.with_starred (R.action_node a) s
       | `Project _ as p -> Ck_disk_node.with_starred (R.project_node p) s in
     let action = if s then "Add" else "Remove" in
-    let msg = Printf.sprintf "%s star for '%s'" action (R.Node.name node) in
+    let msg = Printf.sprintf "%s: %s star" (R.Node.name node) action in
     update t ~msg node new_node
 
   let set_pa_parent t node new_parent =
     assert (R.Node.rev node == R.Node.rev new_parent);
     let new_node = Ck_disk_node.with_parent (R.apa_node node) (Some (R.Node.uuid new_parent)) in
-    let msg = Printf.sprintf "Move %s under %s" (R.Node.name node) (R.Node.name new_parent) in
+    let msg = Printf.sprintf "%s: move under %s" (R.Node.name node) (R.Node.name new_parent) in
     update t ~msg node new_node
   let set_a_parent = set_pa_parent
 
   let remove_parent t node =
     let new_node = Ck_disk_node.with_parent (R.apa_node node) None in
-    let msg = Printf.sprintf "Move %s to top level" (R.Node.name node) in
+    let msg = Printf.sprintf "%s: unset parent" (R.Node.name node) in
     update t ~msg node new_node
 
   exception Found of [ area | project | action ]
