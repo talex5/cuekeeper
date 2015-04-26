@@ -35,8 +35,10 @@ class type cursorWithValue = object
 end
 
 class type dom_exception = object
-  method name : Js.js_string Js.t Js.readonly_prop
-  method message : Js.js_string Js.t Js.readonly_prop
+  (* Being a bit paranoid marking all these as optdef *)
+  method name : Js.js_string Js.t Js.Optdef.t Js.readonly_prop
+  method message : Js.js_string Js.t Js.Optdef.t Js.readonly_prop
+  method code : int Js.Optdef.t Js.readonly_prop
 end
 
 class type request = object

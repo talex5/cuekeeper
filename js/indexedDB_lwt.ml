@@ -49,6 +49,11 @@ let store db store_name = { db; store_name; ro_trans = None }
 let create_store db name =
   db##createObjectStore (name) |> ignore
 
+let opt_string x ~if_missing =
+  Js.Optdef.case x
+    (fun () -> if_missing)
+    (fun x -> Js.to_string x)
+
 let idb_error typ (event:IndexedDB.request IndexedDB.errorEvent Js.t) =
   let msg =
     Js.Opt.case (event##target)
@@ -57,7 +62,11 @@ let idb_error typ (event:IndexedDB.request IndexedDB.errorEvent Js.t) =
         Js.Opt.case (target##error)
           (fun () -> "(missing error on request)")
           (fun error ->
-            Js.to_string error##name ^ ": " ^ Js.to_string error##message)
+            let name = opt_string (error##name) ~if_missing:"(no name)" in
+            let message = opt_string (error##message) ~if_missing:"(no message)" in
+            let code = Js.Optdef.get (error##code) (fun () -> 0) in
+            Printf.sprintf "%s: %s (error code %d)" name message code
+          )
       ) in
   Failure (Printf.sprintf "IndexedDB transaction (%s) failed: %s" typ msg)
 
