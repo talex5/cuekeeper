@@ -7,11 +7,18 @@ Copyright Thomas Leonard, 2015
 Installation
 ------------
 
+You'll need the [opam](http://opam.ocaml.org/) package manager (should be
+available through your distribution).
+Ensure you're using OCaml 4.01 or later:
+
+    opam sw 4.01.0
+
 Pin a few patches we require:
 
-    opam pin add irmin 'https://github.com/talex5/irmin.git#js-sha'
     opam pin add sexplib 'https://github.com/talex5/sexplib.git#js_of_ocaml'
+    opam pin add irmin 'https://github.com/talex5/irmin.git#js-sha'
     opam pin add tar-format https://github.com/mirage/ocaml-tar.git
+    opam pin add reactiveData https://github.com/hhugo/reactiveData.git
 
 Install the dependencies:
 
@@ -21,7 +28,7 @@ Build:
 
     make
 
-Load `test.html` in a browser to test.
+Load `test.html` in a browser to test locally (no server required).
 
 
 Conditions
