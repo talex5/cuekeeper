@@ -4,6 +4,9 @@ export CAML_LD_LIBRARY_PATH
 # make JFLAGS="--pretty --noinline"
 JFLAGS =
 
+VERSION = dev
+RELEASE_DIR = cuekeeper-bin-${VERSION}
+
 .PHONY: build test
 all: test _build/js/client.js
 
@@ -22,6 +25,16 @@ slow_test:
 
 ck_init.ml: init/*/*
 	ocaml-crunch init -o ck_init.ml -m plain
+
+release:
+	rm -rf "${RELEASE_DIR}"
+	mkdir "${RELEASE_DIR}"
+	git archive HEAD --format=tar resources LICENSE | tar  xf - -C "${RELEASE_DIR}"
+	cp _build/js/client.js "${RELEASE_DIR}/resources/js/cuekeeper.js"
+	sed 's!_build/js/client.js!resources/js/cuekeeper.js!' test.html > "${RELEASE_DIR}/index.html"
+	sed '/^Installation/,/^Conditions/{/^Conditions/!d}' README.md > "${RELEASE_DIR}/README.md"
+	tar cjf "${RELEASE_DIR}.tar.bz2" ${RELEASE_DIR}
+	rm -rf "${RELEASE_DIR}"
 
 clean:
 	ocamlbuild -clean
