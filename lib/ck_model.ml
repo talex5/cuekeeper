@@ -89,8 +89,24 @@ module Make(Clock : Ck_clock.S)
     let add item map =
       map |> Child_map.add (sort_key item) item
 
-    let with_child child parent =
-      {parent with children = parent.children |> add child}
+    let or_existing parent item =
+      try Child_map.find (sort_key item) parent
+      with Not_found -> item
+
+    (* Add [/group*/child] to [top]
+     * If any group (with the same key) already exists, add to that instead.
+     * Since groups are only used as templates if the group is missing, they
+     * must not contain children. *)
+    let add_grouped ~top ~groups child =
+      let rec aux top child = function
+        | [] -> top |> add child
+        | None :: gs -> aux top child gs
+        | Some g :: gs ->
+            assert (Child_map.is_empty g.children);
+            let g = g |> or_existing top in
+            let g = {g with children = aux g.children child gs} in
+            top |> add g in
+      top := aux !top child groups
 
     let item t =
       match t.item with
@@ -342,34 +358,24 @@ module Make(Clock : Ck_clock.S)
       acc |> TreeNode.add (TreeNode.unique_of_node ~adder ~children item) in
     aux (R.roots r)
 
-  let or_existing parent item =
-    try TreeNode.Child_map.find (TreeNode.sort_key item) parent
-    with Not_found -> item
-
   let make_waiting_tree r =
     let waiting =
       let adder = TreeNode.Add_action (None, None, None, `Waiting) in
       TreeNode.group ~adder ~pri:(-1) "(unspecified reason)" in
     let results = ref TreeNode.Child_map.empty in
-    let add ~group ~parent item =
-      (* group is the contact, if any *)
-      let group_item = or_existing !results group in
-      let group_item =
-        match parent with
-        | None ->
-            group_item |> TreeNode.with_child (TreeNode.unique_of_node item)
-        | Some p ->
-            let adder =
-              match group.TreeNode.adder with
-              | Some (TreeNode.Add_action (None, ctx, contact, state)) ->
-                  Some (TreeNode.Add_action (parent, ctx, contact, state))
-              | _ -> None in
-            let parent_item =
-              TreeNode.group ?adder ~pri:1 (Node.name p)
-              |> or_existing group_item.TreeNode.children
-              |> TreeNode.with_child (TreeNode.unique_of_node item) in
-            group_item |> TreeNode.with_child parent_item in
-      results := !results |> TreeNode.add group_item in
+    let add ~group:contact ~parent item =
+      let parent = parent >|?= (fun p ->
+        let adder =
+          match contact.TreeNode.adder with
+          | Some (TreeNode.Add_action (None, ctx, contact, state)) ->
+              Some (TreeNode.Add_action (parent, ctx, contact, state))
+          | _ -> None in
+        TreeNode.group ?adder ~pri:1 (Node.name p)
+      ) in
+      TreeNode.add_grouped
+        ~top:results
+        ~groups:[Some contact; parent]
+        (TreeNode.unique_of_node item) in
     let rec scan ?parent _key = function
       | `Area _ | `Project _ as node ->
           R.child_nodes node |> M.iter (scan ~parent:node)
@@ -389,19 +395,17 @@ module Make(Clock : Ck_clock.S)
 
   let make_future_tree r =
     let add ~parent item lst =
-      let group_item =
-        match parent with
-        | None ->
-            TreeNode.unique_of_node item
-        | Some p ->
-            let adder =
-              match item with
-              | `Project _ -> TreeNode.Add_project (parent, `SomedayMaybe)
-              | `Action _ -> TreeNode.Add_action (parent, None, None, `Future) in
-            TreeNode.group ~adder ~pri:1 (Node.name p)
-            |> or_existing !lst
-            |> TreeNode.with_child (TreeNode.unique_of_node item) in
-      lst := !lst |> TreeNode.add group_item in
+      let parent = parent >|?= (fun p ->
+        let adder =
+          match item with
+          | `Project _ -> TreeNode.Add_project (parent, `SomedayMaybe)
+          | `Action _ -> TreeNode.Add_action (parent, None, None, `Future) in
+        TreeNode.group ~adder ~pri:1 (Node.name p)
+      ) in
+      TreeNode.add_grouped
+        ~top:lst
+        ~groups:[parent]
+        (TreeNode.unique_of_node item) in
     let projects = ref TreeNode.Child_map.empty in
     let actions = ref TreeNode.Child_map.empty in
     let rec scan ?parent _key = function
@@ -512,11 +516,9 @@ module Make(Clock : Ck_clock.S)
   let get_problems xs =
     let parent = ref TreeNode.Child_map.empty in
     xs |> List.iter (fun (node, msg) ->
-      let group =
-        TreeNode.group ~pri:0 msg
-        |> or_existing !parent
-        |> TreeNode.with_child (TreeNode.group_of_node node) in
-      parent := !parent |> TreeNode.add group
+      TreeNode.add_grouped ~top:parent
+        ~groups:[Some (TreeNode.group ~pri:0 msg)]
+        (TreeNode.group_of_node node)
     );
     !parent
 
@@ -542,18 +544,12 @@ module Make(Clock : Ck_clock.S)
         match context with
         | None -> TreeNode.group ~pri:(-1) "(no context)"
         | Some c -> TreeNode.unique_of_node c in
-      let context_item = or_existing !next_actions context_item in
-      let context_item =
-        match parent with
-        | None ->
-            context_item |> TreeNode.with_child (TreeNode.unique_of_node item)
-        | Some p ->
-            let group_item =
-              TreeNode.group_of_node ~adder:(TreeNode.Add_action (Some p, context, None, `Next)) p
-              |> or_existing context_item.TreeNode.children
-              |> TreeNode.with_child (TreeNode.unique_of_node item) in
-            context_item |> TreeNode.with_child group_item in
-      next_actions := !next_actions |> TreeNode.add context_item in
+      let parent_item = parent >|?= (fun p ->
+        TreeNode.group_of_node ~adder:(TreeNode.Add_action (Some p, context, None, `Next)) p
+      ) in
+      TreeNode.add_grouped ~top:next_actions
+        ~groups:[Some context_item; parent_item]
+        (TreeNode.unique_of_node item) in
 
     let done_items = ref TreeNode.Child_map.empty in
     let rec scan ?parent ~in_hidden ~in_someday nodes =
@@ -621,12 +617,9 @@ module Make(Clock : Ck_clock.S)
           | `Future -> group ~pri:4 "Future actions" ~adder
           | `Done -> group ~pri:5 "Completed actions" in
     let add node =
-      let parent =
-        group_for node
-        |> or_existing !tree_nodes in
-      tree_nodes := !tree_nodes |> TreeNode.add parent;
-      let children = parent.TreeNode.children |> TreeNode.add (TreeNode.unique_of_node node) in
-      tree_nodes := !tree_nodes |> TreeNode.add {parent with TreeNode.children} in
+      TreeNode.add_grouped ~top:tree_nodes
+        ~groups:[Some (group_for node)]
+        (TreeNode.unique_of_node node) in
     child_nodes |> M.iter (fun _k v -> add v);
     !tree_nodes
 
@@ -687,10 +680,9 @@ module Make(Clock : Ck_clock.S)
           match node with
           | `Action _ as a when Node.action_state a = `Waiting_for_contact -> responsible_for
           | _ -> contact_for in
-        let group = Lazy.force group
-          |> or_existing !tree
-          |> TreeNode.with_child (TreeNode.unique_of_node node) in
-        tree := !tree |> TreeNode.add group
+        TreeNode.add_grouped ~top:tree
+          ~groups:[Some (Lazy.force group)]
+          (TreeNode.unique_of_node node)
       );
       !tree in
     let tree = WidgetTree.make (child_nodes initial_node) in
