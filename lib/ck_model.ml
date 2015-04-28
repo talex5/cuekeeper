@@ -643,11 +643,23 @@ module Make(Clock : Ck_clock.S)
 
   let context_details ~details_stop rs initial_node =
     let uuid = R.Node.uuid initial_node in
-    let child_nodes item =
-      R.actions_of_context item
-      |> List.fold_left (fun acc action ->
-        acc |> TreeNode.add (TreeNode.unique_of_node action)
-      ) TreeNode.Child_map.empty in
+    let child_nodes context =
+      let top = ref TreeNode.Child_map.empty in
+      R.actions_of_context context
+      |> List.iter (fun child ->
+        let open TreeNode in
+        let state = Node.action_state child in
+        let adder = Add_action (None, Some context, None, state) in
+        let group =
+          match state with
+          | `Next -> group ~pri:2 "Next actions" ~adder
+          | `Waiting | `Waiting_for_contact | `Waiting_until _ ->
+              group ~pri:3 "Waiting actions" ~adder:(Add_action (None, Some context, None, `Waiting))
+          | `Future -> group ~pri:4 "Future actions" ~adder
+          | `Done -> group ~pri:5 "Completed actions" in
+        TreeNode.add_grouped ~top ~groups:[Some group] (TreeNode.unique_of_node child)
+      );
+      !top in
     let tree = WidgetTree.make (child_nodes initial_node) in
     let details_item = rs |> React.S.map ~eq:opt_node_equal (fun r ->
       let item = R.get_context r uuid in
