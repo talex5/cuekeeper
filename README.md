@@ -7,9 +7,10 @@ Copyright Thomas Leonard, 2015
 Installation
 ------------
 
-You'll need the [opam](http://opam.ocaml.org/) package manager (should be
-available through your distribution).
-Ensure you're using OCaml 4.01 or later:
+You'll need the [opam](http://opam.ocaml.org/) package manager.
+It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 1.2).
+Ensure you're using OCaml 4.01 or later (check with `ocaml -version`).
+If not, switch to 4.01.0 or later:
 
     opam sw 4.01.0
 
