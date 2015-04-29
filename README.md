@@ -30,6 +30,26 @@ Build:
 Load `test.html` in a browser to test locally (no server required).
 
 
+Instructions
+------------
+
+Instructions for using CueKeeper can be found here:
+
+http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/
+
+
+Bugs
+----
+
+Please any send questions or comments to the mirage mailing list:
+
+http://lists.xenproject.org/cgi-bin/mailman/listinfo/mirageos-devel
+
+Bugs can be reported on the mailing list or as GitHub issues:
+
+https://github.com/talex5/cuekeeper/issues
+
+
 Conditions
 ----------
 

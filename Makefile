@@ -32,7 +32,7 @@ release:
 	git archive HEAD --format=tar resources LICENSE | tar  xf - -C "${RELEASE_DIR}"
 	cp _build/js/client.js "${RELEASE_DIR}/resources/js/cuekeeper.js"
 	sed 's!_build/js/client.js!resources/js/cuekeeper.js!' test.html > "${RELEASE_DIR}/index.html"
-	sed '/^Installation/,/^Conditions/{/^Conditions/!d}' README.md > "${RELEASE_DIR}/README.md"
+	sed '/^Installation/,/^Instructions/{/^Instructions/!d}' README.md > "${RELEASE_DIR}/README.md"
 	zip -r "${RELEASE_DIR}.zip" ${RELEASE_DIR}
 	rm -rf "${RELEASE_DIR}"
 
