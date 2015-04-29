@@ -41,7 +41,12 @@ let start (main:#Dom.node Js.t) =
     )
     (fun ex ->
       let open Tyxml_js.Html5 in
-      let error = div ~a:[a_class ["alert-box"; "alert"]] [pcdata (Printexc.to_string ex)] in
+      let msg = Printexc.to_string ex in
+      let msg =
+        if Regexp.string_match (Regexp.regexp_string "SecurityError:") msg 0 <> None then
+          msg ^ " Ensure cookies are enabled (needed to access local storage)."
+        else msg in
+      let error = div ~a:[a_class ["alert-box"; "alert"]] [pcdata msg] in
       main##appendChild (Tyxml_js.To_dom.of_node error) |> ignore;
       raise ex
     )
