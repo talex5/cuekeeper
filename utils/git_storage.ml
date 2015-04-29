@@ -172,6 +172,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       store : string -> I.t;
       head_id : Commit.id option ref;
       head : Commit.t option React.S.t;
+      unwatch : unit -> unit Lwt.t;
     }
 
     let opt_commit_equal a b =
@@ -181,14 +182,9 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       | _ -> false
 
     let of_store repo store ~if_new =
-      match I.branch (store "Get branch name") with
-      | `Head _ | `Empty -> failwith "Not a tag!"
-      | `Tag branch_name ->
       let commit_of_id = function
         | None -> return None
         | Some id -> Commit.of_id repo id >|= fun commit -> Some commit in
-      (* Start watching for updates (must do this BEFORE getting the initial commit) *)
-      let watch_tags = I.watch_tags (store "Watch branch") in
       I.head (store "Get latest commit") >>= (function
         | Some id -> return id
         | None ->
@@ -203,23 +199,20 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       let head_id = ref (Some initial_head_id) in
       Commit.of_id repo initial_head_id >>= fun initial_head ->
       let head, set_head = React.S.create ~eq:opt_commit_equal (Some initial_head) in
-      async (fun () ->
-        watch_tags |> Lwt_stream.iter_s (function
-          | (n, Some _id) when n = branch_name ->
-              (* (ignore the commit ID in the update message; we want the latest) *)
-              I.head (store "Get latest commit") >>= fun new_head_id ->
-              if new_head_id <> !head_id then (
-                head_id := new_head_id;
-                commit_of_id new_head_id >|= set_head
-              ) else return ()
-          | _ -> return ()
-        )
-      );
+      I.watch_head (store "Watch branch") ~init:initial_head_id (fun _diff ->
+        (* (ignore the commit ID in the update message; we want the latest) *)
+        I.head (store "Get latest commit") >>= fun new_head_id ->
+        if new_head_id <> !head_id then (
+          head_id := new_head_id;
+          commit_of_id new_head_id >|= set_head
+        ) else return ()
+      ) >>= fun unwatch ->
       return {
         repo;
         store;
         head_id;
         head;
+        unwatch;
       }
 
     let head t = t.head
@@ -243,6 +236,9 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
               else return `Not_fast_forward
           (* These shouldn't happen, because we didn't set any limits *)
           | `Max_depth_reached | `Too_many_lcas -> assert false
+
+    let release t =
+      t.unwatch ()
   end
 
   module Repository = struct

@@ -72,12 +72,14 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   module R = RO(K)(V)
   open R
 
+  type watch = W.watch
+
   type t = {
     r : R.t;
     watch : W.t;
     prefix : string;
     notifications : Html_storage.t;
-    listener : Dom.event_listener_id Lazy.t;
+    mutable listener : (Dom.event_listener_id * int) option;
   }
 
   let create config task =
@@ -85,20 +87,33 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
     let prefix = db_name ^ ".rw." in
     let watch = W.create () in
     let notifications = Html_storage.make () in
-    (* Listens for changes made by other tabs.
-     * Ideally there should be a way to stop listening, but for now we just make it lazy and only
-     * use it in one place. *)
-    let listener = lazy (
-      Html_storage.watch notifications ~prefix (fun key value ->
-        let subkey = tail key (String.length prefix) in
-        let ir_key = K.of_hum subkey in
-        let value = value >|?= Tc.read_string (module V) in
-        W.notify watch ir_key value
-      )
-    ) in
     connect db_name >>= fun idb ->
     R.make (IndexedDB_lwt.store idb rw) task >|= fun make_r ->
-    fun task -> { watch; r = make_r task; prefix; notifications; listener }
+    fun task -> { watch; r = make_r task; prefix; notifications; listener = None }
+
+  let ref_listener t =
+    match t.listener with
+    | None ->
+        let l =
+          Html_storage.watch t.notifications ~prefix:t.prefix (fun key value ->
+            let subkey = tail key (String.length t.prefix) in
+            let ir_key = K.of_hum subkey in
+            let value = value >|?= Tc.read_string (module V) in
+            async (fun () -> W.notify t.watch ir_key value)
+          ) in
+        t.listener <- Some (l, 1)
+    | Some (l, n) ->
+        t.listener <- Some (l, n + 1)
+
+  let unref_listener t =
+    match t.listener with
+    | None -> failwith "unref_listener, but not listening!"
+    | Some (l, 1) ->
+        Dom.removeEventListener l;
+        t.listener <- None
+    | Some (l, n) ->
+        assert (n > 1);
+        t.listener <- Some (l, n - 1)
 
   let notify t k new_value =
     (* Notify other tabs *)
@@ -112,12 +127,12 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let update t k value =
     (* Log.warn "Non-atomic update called!"; *)
     Tc.write_string (module V) value
-    |> IndexedDB_lwt.set t.r.idb_store (K.to_hum k) >|= fun () ->
+    |> IndexedDB_lwt.set t.r.idb_store (K.to_hum k) >>= fun () ->
     notify t k (Some value)
 
   let remove t k =
     (* Log.warn "Non-atomic remove called!"; *)
-    IndexedDB_lwt.remove t.r.idb_store (K.to_hum k) >|= fun () ->
+    IndexedDB_lwt.remove t.r.idb_store (K.to_hum k) >>= fun () ->
     notify t k None
 
   let compare_and_set t k ~test ~set =
@@ -127,19 +142,21 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
       | Some old, Some expected -> Tc.read_string (module V) old |> V.equal expected
       | _ -> false in
     let new_value = set >|?= Tc.write_string (module V) in
-    IndexedDB_lwt.compare_and_set t.r.idb_store (K.to_hum k) ~test:pred ~new_value >|= function
-    | true -> notify t k set; true
-    | false -> false
+    IndexedDB_lwt.compare_and_set t.r.idb_store (K.to_hum k) ~test:pred ~new_value >>= function
+    | true -> notify t k set >|= fun () -> true
+    | false -> return false
 
-  let watch t key =
-    ignore (Lazy.force (t.listener));
-    Irmin.Private.Watch.lwt_stream_lift (
-      read t.r key >|= W.watch t.watch key
-    )
+  let watch t ?init cb =
+    ref_listener t;
+    W.watch t.watch ?init cb
 
-  let watch_all t =
-    ignore (Lazy.force (t.listener));
-    W.watch_all t.watch
+  let unwatch t w =
+    unref_listener t;
+    W.unwatch t.watch w
+
+  let watch_key t key ?init cb =
+    ref_listener t;
+    W.watch_key t.watch key ?init cb
 
   let iter t = R.iter t.r
   let mem t = R.mem t.r

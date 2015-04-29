@@ -875,8 +875,8 @@ let suite =
 
                 (* Printf.printf "test %d\n%!" i; *)
                 let branch_d name =
-                  Store.of_tag config task name >>= fun s ->
-                  Store.remove_tag (s "git branch -d") in
+                  Store.create config task >>= fun s ->
+                  Store.remove_tag (s "git branch -d") name in
                 Git.make config task >>= fun repo ->
                 let commit ~parents msg =
                   branch_d msg >>= fun () ->

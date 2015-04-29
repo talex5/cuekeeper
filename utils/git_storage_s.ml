@@ -56,6 +56,10 @@ module type S = sig
 
     val head : t -> Commit.t option React.S.t
     val fast_forward_to : t -> Commit.t -> [ `Ok | `Not_fast_forward ] Lwt.t
+
+    val release : t -> unit Lwt.t
+    (** Stop watching this branch for updates ([head] will no longer update and
+     * [t] should not be used again). *)
   end
 
   module Repository : sig
