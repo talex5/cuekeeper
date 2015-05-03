@@ -579,6 +579,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           ) in
         match review_mode with
         | `Done -> [switcher; delete_done_button m; tree_view]
+        | `Waiting -> [switcher; tree_view;
+            ck_label "Note: this list excludes scheduled actions, which can be found instead in the Schedule tab."]
         | _ -> [switcher; tree_view]
 
   let mode_of = function
