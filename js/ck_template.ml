@@ -704,8 +704,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                 )
               );
               set_editing None in
+            let keydown (ev:Dom_html.keyboardEvent Js.t) =
+              if ev##keyCode = keycode_escape then (
+                set_editing None;
+                false
+              ) else true in
             let old_name = React.S.value name in
-            let name_input = input ~a:[a_name "name"; a_placeholder "Name"; a_size 25; a_value old_name] () in
+            let name_input =
+              input ~a:[a_name "name"; a_placeholder "Name"; a_size 25; a_value old_name; a_onkeydown keydown] () in
             auto_focus name_input;
             [
               form ~a:[a_class ["rename"]; a_onsubmit submit] [
