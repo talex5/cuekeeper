@@ -164,14 +164,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     | _ -> false
 
   let toggle_label ~set_details ~current ~due item details =
-    let l =
+    let l, title =
       match details with
-      | `Done -> "✓"
-      | `Next -> "n"
-      | `Waiting -> "w"
-      | `Future -> "f"
-      | `Active -> "a"
-      | `SomedayMaybe -> "sm" in
+      | `Done -> "✓", "Done"
+      | `Next -> "n", "Next"
+      | `Waiting -> "w", "Waiting"
+      | `Future -> "f", "Future"
+      | `Active -> "a", "Active"
+      | `SomedayMaybe -> "sm", "Someday/Maybe" in
     if l = "✓" && is_repeat_action item then
       span ~a:[a_class ["ck-toggle-hidden"]] [span [pcdata l]]
     else (
@@ -181,7 +181,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let changed ev =
         set_details ev details;
         true in
-      a ~a:[a_class [cl]; a_onclick changed] [pcdata l]
+      a ~a:[a_class [cl]; a_onclick changed; a_title title] [pcdata l]
     )
 
   let make_toggles ~m ~set_details ~item ?(due=false) current options =
