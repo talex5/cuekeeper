@@ -76,6 +76,11 @@ module type GUI_DATA = sig
   (** For extra data the GUI wants to attach to tree nodes. *)
 end
 
+type problem =
+  [ `No_next_action
+  | `Unread_conflicts
+  | `Incomplete_child ]
+
 module type REV = sig
   type t
 
@@ -125,7 +130,7 @@ module type REV = sig
   val schedule : t -> action list
   (** The ([`Waiting_until time] actions, earliest first. *)
 
-  val problems : t -> (Node.generic * string) list
+  val problems : t -> (Node.generic * problem) list
   (** A list of nodes and problems to report. *)
 
   val alert : t -> bool

@@ -513,12 +513,22 @@ module Make(Clock : Ck_clock.S)
   let is_someday_project p =
     Node.project_state p = `SomedayMaybe
 
+  let fmt_problem = function
+    | `No_next_action -> "Active project with no next action"
+    | `Unread_conflicts -> "Unread merge conflicts report"
+    | `Incomplete_child -> "Completed project with incomplete child"
+
   let get_problems xs =
     let parent = ref TreeNode.Child_map.empty in
-    xs |> List.iter (fun (node, msg) ->
+    xs |> List.iter (fun (node, problem) ->
+      let msg = fmt_problem problem in
+      let adder =
+        match problem, node with
+        | `No_next_action, (`Project _ as p) -> Some (TreeNode.Add_action (Some p, None, None, `Next))
+        | _ -> None in
       TreeNode.add_grouped ~top:parent
         ~groups:[Some (TreeNode.group ~pri:0 msg)]
-        (TreeNode.group_of_node node)
+        (TreeNode.group_of_node ?adder node)
     );
     !parent
 

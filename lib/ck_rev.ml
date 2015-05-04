@@ -40,7 +40,7 @@ module Make(Git : Git_storage_s.S) = struct
         mutable schedule : action list;
         mutable expires : Ck_time.user_date option;
         valid_from : Ck_time.user_date;
-        mutable problems : (Ck_id.t, string) Hashtbl.t
+        mutable problems : (Ck_id.t, Ck_sigs.problem) Hashtbl.t
       }
       and 'a node_details = {
         rev : rev;
@@ -208,15 +208,15 @@ module Make(Git : Git_storage_s.S) = struct
         match scan child with
         | Idle -> acc
         | In_progress -> In_progress in
-      if Node.conflicts node <> [] then add "Unread merge conflicts report";
+      if Node.conflicts node <> [] then add `Unread_conflicts;
       let child_nodes = child_nodes node in
       match node with
       | `Project _ as node ->
           if (M.exists (fun _k -> is_area) child_nodes) then bug "Project with area child!";
           if Node.project_state node = `Done && M.exists (fun _k -> is_incomplete) child_nodes then
-            add "Completed project with incomplete child";
+            add `Incomplete_child;
           let children_status = M.fold reduce_progress child_nodes Idle in
-          if children_status = Idle && Node.project_state node = `Active then add "Active project with no next action";
+          if children_status = Idle && Node.project_state node = `Active then add `No_next_action;
           children_status
       | `Area _ ->
           M.fold reduce_progress child_nodes Idle
