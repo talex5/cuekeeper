@@ -103,7 +103,13 @@ let next_repeat ~now r =
         match r.repeat_unit with
         | Day -> make ~year ~month ~day:(day + n)
         | Week -> make ~year ~month ~day:(day + 7 * n)
-        | Month -> make ~year ~month:(month + n) ~day
+        | Month ->
+            let (new_y, new_m, new_d) as n = make ~year ~month:(month + n) ~day in
+            (* If the day is different, the new month is shorter and we wrapped.
+             * Go back to the last day of the previous month in that case. *)
+            if new_d < day then make ~year:new_y ~month:new_m ~day:0
+            else n
+
         | Year -> make ~year:(year + n) ~month ~day in
       aux next_d
     ) in

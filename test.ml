@@ -852,7 +852,7 @@ let suite =
       let rep = make_repeat 3 Month ~from:(make ~year:2014 ~month:11 ~day:30) in
       next_repeat rep ~now:rep.repeat_from |> string_of_user_date |> assert_str_equal "2015-03-30 (Mon)";
       let rep = make_repeat 2 Month ~from:(make ~year:2014 ~month:11 ~day:30) in
-      next_repeat rep ~now:rep.repeat_from |> string_of_user_date |> assert_str_equal "2015-03-02 (Mon)";
+      next_repeat rep ~now:rep.repeat_from |> string_of_user_date |> assert_str_equal "2015-02-28 (Sat)";
 
       let rep = make_repeat 10 Year ~from:(make ~year:2000 ~month:2 ~day:1) in
       next_repeat rep ~now:apr30 |> string_of_user_date |> assert_str_equal "2020-03-01 (Sun)";
