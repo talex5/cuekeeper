@@ -400,7 +400,7 @@ module Make(Clock : Ck_clock.S)
           match item with
           | `Project _ -> TreeNode.Add_project (parent, `SomedayMaybe)
           | `Action _ -> TreeNode.Add_action (parent, None, None, `Future) in
-        TreeNode.group ~adder ~pri:1 (Node.name p)
+        TreeNode.group_of_node ~adder p
       ) in
       TreeNode.add_grouped
         ~top:lst
