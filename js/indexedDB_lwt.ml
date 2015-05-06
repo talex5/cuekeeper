@@ -14,7 +14,7 @@ type store = {
   (* We reuse transactions where possible for performance.
    * This does mean that if any read fails then the others will hang, but we treat any
    * read failing as a fatal error anyway. *)
-  mutable ro_trans : IndexedDB.transaction Js.t option;
+  mutable ro_trans : (IndexedDB.transaction Js.t * (exn -> unit) list ref) option;
 }
 
 type key = string
@@ -54,32 +54,37 @@ let opt_string x ~if_missing =
     (fun () -> if_missing)
     (fun x -> Js.to_string x)
 
+exception AbortError
+
 let idb_error typ (event:IndexedDB.request IndexedDB.errorEvent Js.t) =
-  let msg =
-    Js.Opt.case (event##target)
-      (fun () -> "(missing target on error event)")
-      (fun target ->
-        Js.Opt.case (target##error)
-          (fun () -> "(missing error on request)")
-          (fun error ->
-            let name = opt_string (error##name) ~if_missing:"(no name)" in
-            let message = opt_string (error##message) ~if_missing:"(no message)" in
-            let code = Js.Optdef.get (error##code) (fun () -> 0) in
-            Printf.sprintf "%s: %s (error code %d)" name message code
-          )
-      ) in
-  Failure (Printf.sprintf "IndexedDB transaction (%s) failed: %s" typ msg)
+  let failure msg = Failure (Printf.sprintf "IndexedDB transaction (%s) failed: %s" typ msg) in
+  Js.Opt.case (event##target)
+    (fun () -> failure "(missing target on error event)")
+    (fun target ->
+      Js.Opt.case (target##error)
+        (fun () -> failure "(missing error on request)")
+        (fun error ->
+          let name = opt_string (error##name) ~if_missing:"(no name)" in
+          let message = opt_string (error##message) ~if_missing:"(no message)" in
+          let code = Js.Optdef.get (error##code) (fun () -> 0) in
+          if name = "AbortError" then AbortError
+          else failure (Printf.sprintf "%s: %s (error code %d)" name message code)
+        )
+    )
 
 let rec trans_ro (t:store) setup =
   let r, set_r = Lwt.wait () in
   match t.ro_trans with
   | None ->
+      let breakers = ref [Lwt.wakeup_exn set_r] in
       let trans = t.db##transaction (Js.array [| t.store_name |], Js.string "readonly") in
-      t.ro_trans <- Some trans;
+      t.ro_trans <- Some (trans, breakers);
       trans##onerror <- Dom.handler (fun event ->
         t.ro_trans <- None;
-        (* Fatal error *)
-        !Lwt.async_exception_hook (idb_error "RO" event);
+        let ex = idb_error "RO" event in
+        if ex = AbortError then
+          print_endline "IndexedDB transaction failed (Safari bug?): will wait and retry";
+        !breakers |> List.iter (fun b -> b ex);
         Js._true
       );
       trans##oncomplete <- Dom.handler (fun _event ->
@@ -88,13 +93,26 @@ let rec trans_ro (t:store) setup =
       );
       setup (trans##objectStore (t.store_name)) set_r;
       r
-  | Some trans ->
+  | Some (trans, breakers) ->
       (* Seems we can get here when a transaction is done but oncomplete hasn't been called,
        * so retry if we get an error. *)
-      try setup (trans##objectStore (t.store_name)) set_r; r
+      try
+        setup (trans##objectStore (t.store_name)) set_r;
+        breakers := Lwt.wakeup_exn set_r :: !breakers;
+        r
       with _ex ->
         t.ro_trans <- None;
         trans_ro t setup
+
+(* On Safari, transactions can fail unpredictably, so wrap [trans_ro] with auto-retry.
+ * See: https://github.com/talex5/cuekeeper/issues/9 *)
+let trans_ro t setup =
+  let rec retry delay =
+    Lwt.catch (fun () -> trans_ro t setup)
+      (function
+        | AbortError -> Lwt_js.sleep (Random.float delay) >>= fun () -> retry (delay *. 1.2)
+        | ex -> fail ex) in
+  retry 1.0
 
 let trans_rw t setup =
   let r, set_r = Lwt.wait () in

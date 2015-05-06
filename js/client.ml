@@ -3,6 +3,8 @@ open Ck_utils
 
 (* let () = Log.(set_log_level INFO) *)
 
+let () = Random.self_init ()    (* Random back-off for Safari bug work-around *)
+
 module Clock = struct
   let now = Unix.gettimeofday
   let async ~name fn =
