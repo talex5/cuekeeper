@@ -1251,3 +1251,7 @@ div.ck-time-travel-warning.alert-box button {
 form.ck-add-modal {
 	white-space: nowrap;
 }
+
+pre code {
+	display: block;
+}
