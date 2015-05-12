@@ -25,6 +25,7 @@ depends: [
   "omd"
   "ounit"
   "tar-format"
+  "cohttp"
   "crunch" {build}
   "ocamlfind" {build}
 ]

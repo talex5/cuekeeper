@@ -44,7 +44,7 @@ server: client
 	mkdir _build/static
 	cp -r resources _build/static/
 	cp _build/js/client.js _build/static/resources/js/cuekeeper.js
-	sed 's!_build/js/client.js!resources/js/cuekeeper.js!' test.html > _build/static/index.html
+	sed 's!_build/js/client.js!resources/js/cuekeeper.js!;s!var ck_use_server=false;!var ck_use_server=true;!' test.html > _build/static/index.html
 	ocaml-crunch _build/static -e html -e js -e css -e ico -o server/static.ml -m plain
 	(cd server && mirage configure ${MIRAGE_FLAGS} && make)
 

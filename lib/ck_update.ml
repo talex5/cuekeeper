@@ -69,9 +69,6 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
 
   type update_cb = R.t -> unit Lwt.t
 
-  let error fmt =
-    Printf.ksprintf (fun msg -> `Error msg) fmt
-
   (* Must be called with t.mutex held *)
   let maybe_update_head t new_head =
     let old_head = R.commit t.head in

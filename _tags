@@ -1,8 +1,8 @@
 true: strict_sequence, bin_annot, warn(A-4-44-48)
-true: package(irmin,lwt,sexplib.syntax,uuidm,irmin.mem,base64,ocamlgraph,reactiveData,omd,tar)
+true: package(irmin,lwt,sexplib.syntax,uuidm,irmin.mem,base64,ocamlgraph,reactiveData,omd,tar,cohttp.lwt)
 <js/*> or <lib/ck_id.*> or <lib/ck_disk_node.*> or <lib/ck_time.*>: syntax(camlp4o)
 <test.*>: package(oUnit, lwt.unix)
-<js/*>: package(js_of_ocaml.syntax,js_of_ocaml,js_of_ocaml.tyxml)
+<js/*>: package(js_of_ocaml.syntax,js_of_ocaml,js_of_ocaml.tyxml,cohttp.js)
 true: debug
 <js>: include
 <lib>: include

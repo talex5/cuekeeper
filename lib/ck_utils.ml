@@ -22,6 +22,16 @@ let bug fmt =
   let do_raise msg = raise @@ Failure msg in
   Printf.ksprintf do_raise fmt
 
+let error fmt =
+  let ret msg = `Error msg in
+  Printf.ksprintf ret fmt
+
+let (>>!=) x f =
+  let open Lwt in
+  x >>= function
+  | `Error _ as e -> return e
+  | `Ok y -> f y
+
 module StringMap = struct
   include Map.Make(String)
   let find_nf = find

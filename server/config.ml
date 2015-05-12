@@ -42,6 +42,8 @@ let http_srv =
 
 let main =
   foreign
+    ~libraries:["irmin.mem"]
+    ~packages:["irmin"]
     "Unikernel.Main" (console @-> http @-> job)
 
 let () =

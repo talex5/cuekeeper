@@ -1327,9 +1327,24 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     |> show_modal ~parent:(ev##target);
     false
 
+  let sync m ev =
+    async ~name:"sync" (fun () ->
+      M.sync m >|= report_error ~parent:(ev##target)
+    );
+    false
+
   let make_top m =
     let current_tree = M.tree m in
     let details_area, show_node, show_history, close_all = make_details_area m in
+    let actions = [
+      a ~a:[a_onclick (export m)] [pcdata "Export"];
+      a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
+      a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
+    ] in
+    let actions =
+      match M.server m with
+      | Some server -> a ~a:[a_onclick (sync server)] [pcdata "Sync"] :: actions
+      | None -> actions in
     let left_panel =
       let live = current_tree >|~= make_tree ~show_node m in
       rlist_of ~init:(React.S.value live) live in
@@ -1348,11 +1363,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           left_panel;
         );
         div ~a:[a_class ["ck-details-column"]] [
-          div ~a:[a_class ["ck-actions"]] [
-            a ~a:[a_onclick (export m)] [pcdata "Export"];
-            a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
-            a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
-          ];
+          div ~a:[a_class ["ck-actions"]] actions;
           R.Html5.div ~a:[a_class ["ck-panels"]] details_area;
         ];
       ];

@@ -23,7 +23,7 @@ Pin a few patches we require:
 
 Install the dependencies:
 
-    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64 tar-format crunch
+    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64 tar-format crunch cohttp
 
 Build:
 
@@ -43,7 +43,16 @@ http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-br
 Server
 ------
 
-While `test.html` can be opened directly in a browser, as above, you can also build a server to host the files:
+While `test.html` can be opened directly in a browser, as above, you can also build a server.
+This allows you to sync between devices (e.g. a laptop and mobile phone).
+
+**Warning: This is a work-in-progress**:
+
+- There is currently no encryption or authentication.
+- The server does not yet persist the data itself
+  (the client sends the whole history the first time it connects after the service is restarted).
+
+To build the server component:
 
     opam install mirage
     make server
@@ -59,10 +68,6 @@ In fact, the server is a [Mirage unikernel][mirage] and can also be compiled and
     make server MIRAGE_FLAGS="--xen"
     cd server
     xl create -c cuekeeper.xl
-
-Note that currently the server simply serves up the static resources (the HTML, CSS, Javascript files),
-with the data still being stored only in the browser.
-In future, the browser will sync with the server, allowing use from multiple devices.
 
 Tip: if you make changes to the server code, you only need to run make in the `server` directory.
 However, if you change the client you must run `make server` in the top-level directory to update `server/static.ml`.

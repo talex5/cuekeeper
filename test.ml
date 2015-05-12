@@ -69,6 +69,12 @@ module Key = struct
     | r -> r
 end
 
+module Test_rpc = struct
+  include Cohttp_lwt_unix.Client
+  let get ?ctx:_ ?headers:_ _ = failwith "GET"
+  let post ?ctx:_ ?body:_ ?chunked:_ ?headers:_ _ = failwith "POST"
+end
+
 (*
 module Store = Irmin.Basic(Irmin_unix.Irmin_git.FS)(Irmin.Contents.String)
 let _ = Unix.system "rm -rf /tmp/test_db/.git"
@@ -92,7 +98,7 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
   module Git = Git_storage.Make(Store)
   module ItemMap = Map.Make(Key)
   module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
-  module M = Ck_model.Make(Test_clock)(Git)(struct type t = unit end)
+  module M = Ck_model.Make(Test_clock)(Git)(struct type t = unit end)(Test_rpc)
   module W = M.Widget
   module Rev = Ck_rev.Make(Git)
   module Up = Ck_update.Make(Git)(Test_clock)(Rev)
