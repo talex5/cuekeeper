@@ -370,7 +370,7 @@ module Make(Clock : Ck_clock.S)
           | Some (TreeNode.Add_action (None, ctx, contact, state)) ->
               Some (TreeNode.Add_action (parent, ctx, contact, state))
           | _ -> None in
-        TreeNode.group ?adder ~pri:1 (Node.name p)
+        TreeNode.group_of_node ?adder p
       ) in
       TreeNode.add_grouped
         ~top:results
@@ -607,6 +607,19 @@ module Make(Clock : Ck_clock.S)
     | Some a, Some b -> opt_node_equal a b
     | _ -> false
 
+  let contact_group ~pri ?parent ?context = function
+    | None -> failwith "No contact!"
+    | Some contact ->
+        let open TreeNode in
+        let title = "Waiting for " ^ Node.name contact in
+        group ~pri title ~adder:(Add_action (parent, context, Some contact, `Waiting_for_contact))
+
+  let date_group ~pri ?parent ?context state =
+    let open TreeNode in
+    let `Waiting_until date = state in
+    let title = "Waiting until " ^ Ck_time.string_of_user_date date in
+    group ~pri title ~adder:(Add_action (parent, context, None, (state :> action_state)))
+
   let group_by_type ~parent child_nodes =
     let tree_nodes = ref TreeNode.Child_map.empty in
     let group_for node =
@@ -622,10 +635,12 @@ module Make(Clock : Ck_clock.S)
           let adder = Add_action (Some parent, None, None, state) in
           match state with
           | `Next -> group ~pri:2 "Next actions" ~adder
-          | `Waiting | `Waiting_for_contact | `Waiting_until _ ->
+          | `Waiting ->
               group ~pri:3 "Waiting actions" ~adder:(Add_action (Some parent, None, None, `Waiting))
-          | `Future -> group ~pri:4 "Future actions" ~adder
-          | `Done -> group ~pri:5 "Completed actions" in
+          | `Waiting_for_contact -> contact_group ~pri:4 ~parent (R.contact_for a)
+          | `Waiting_until _ as s -> date_group ~pri:5 ~parent s
+          | `Future -> group ~pri:6 "Future actions" ~adder
+          | `Done -> group ~pri:7 "Completed actions" in
     let add node =
       TreeNode.add_grouped ~top:tree_nodes
         ~groups:[Some (group_for node)]
@@ -663,10 +678,11 @@ module Make(Clock : Ck_clock.S)
         let group =
           match state with
           | `Next -> group ~pri:2 "Next actions" ~adder
-          | `Waiting | `Waiting_for_contact | `Waiting_until _ ->
-              group ~pri:3 "Waiting actions" ~adder:(Add_action (None, Some context, None, `Waiting))
-          | `Future -> group ~pri:4 "Future actions" ~adder
-          | `Done -> group ~pri:5 "Completed actions" in
+          | `Waiting -> group ~pri:3 "Waiting actions" ~adder:(Add_action (None, Some context, None, `Waiting))
+          | `Waiting_for_contact -> contact_group ~pri:4 ~context (R.contact_for child)
+          | `Waiting_until _ as s -> date_group ~pri:5 ~context s
+          | `Future -> group ~pri:6 "Future actions" ~adder
+          | `Done -> group ~pri:7 "Completed actions" in
         TreeNode.add_grouped ~top ~groups:[Some group] (TreeNode.unique_of_node child)
       );
       !top in
