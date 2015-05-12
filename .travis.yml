@@ -21,5 +21,6 @@ addons:
     - time
     - libcurl3
     - curl
+    - libxen-dev
 env:
-  - FORK_USER=talex5 FORK_BRANCH=containers TESTS=true PRE_INSTALL_HOOK="opam pin add irmin 'https://github.com/mirage/irmin.git'; opam pin add sexplib 'https://github.com/talex5/sexplib.git#js_of_ocaml'"
+  - FORK_USER=talex5 FORK_BRANCH=containers OPAMYES=true OCAML_VERSION=4.01 TESTS=true PINS="irmin:https://github.com/mirage/irmin.git sexplib:https://github.com/talex5/sexplib.git#js_of_ocaml mirage" POST_INSTALL_HOOK="opam install mirage && make clean && make server MIRAGE_FLAGS='--no-depext'"

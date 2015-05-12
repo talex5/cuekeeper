@@ -39,6 +39,34 @@ Instructions for using CueKeeper can be found here:
 http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/
 
 
+Server
+------
+
+While `test.html` can be opened directly in a browser, as above, you can also build a server to host the files:
+
+    opam install mirage
+    make server
+
+To run the server:
+
+    ./server/mir-cuekeeper
+
+By default the server listens on TCP port 8080, but this can be changed by editing `server/config.ml`.
+
+In fact, the server is a [Mirage unikernel][mirage] and can also be compiled and booted as a Xen virtual machine:
+
+    make server MIRAGE_FLAGS="--xen"
+    cd server
+    xl create -c cuekeeper.xl
+
+Note that currently the server simply serves up the static resources (the HTML, CSS, Javascript files),
+with the data still being stored only in the browser.
+In future, the browser will sync with the server, allowing use from multiple devices.
+
+Tip: if you make changes to the server code, you only need to run make in the `server` directory.
+However, if you change the client you must run `make server` in the top-level directory to update `server/static.ml`.
+
+
 Bugs
 ----
 
@@ -83,3 +111,6 @@ is released under a permissive license.
 
 
 Full details of all licenses can be found in the LICENSE file.
+
+
+[mirage]: http://openmirage.org/

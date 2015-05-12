@@ -28,3 +28,6 @@ depends: [
   "crunch" {build}
   "ocamlfind" {build}
 ]
+depopts: [
+  "mirage"
+]
