@@ -1,2 +1,8 @@
 _build
 ck_init.ml
+server/Makefile
+server/cuekeeper_libvirt.xml
+server/main.ml
+server/main.native
+server/mir-cuekeeper
+server/static.ml
