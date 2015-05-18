@@ -19,6 +19,7 @@ Pin a few patches we require:
     opam pin add sexplib 'https://github.com/talex5/sexplib.git#js_of_ocaml'
     opam pin add irmin 'https://github.com/mirage/irmin.git'
     opam pin add reactiveData https://github.com/hhugo/reactiveData.git
+    opam pin add bin_prot 'https://github.com/talex5/bin_prot.git#js_of_ocaml'
 
 Install the dependencies:
 
