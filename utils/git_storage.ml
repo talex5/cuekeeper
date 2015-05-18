@@ -248,8 +248,11 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       I.of_tag t.config t.task_maker name >>= Branch.of_store t ~if_new
 
     let commit t hash =
-      (* XXX: what does Irmin do if the hash doesn't exist? *)
-      Commit.of_id t hash >|= fun c -> Some c
+      Commit.of_id t hash >>= fun c ->
+      let commit_store = I.Private.commit_t (c.Commit.store "check commit exists") in
+      I.Private.Commit.mem commit_store hash >|= function
+      | true -> Some c
+      | false -> None
 
     let empty t = V.empty () >|= Staging.of_view t
   end
