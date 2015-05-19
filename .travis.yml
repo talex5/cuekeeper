@@ -23,4 +23,4 @@ addons:
     - curl
     - libxen-dev
 env:
-  - FORK_USER=talex5 FORK_BRANCH=containers OPAMYES=true OCAML_VERSION=4.01 TESTS=true PINS="bin_prot:https://github.com/talex5/bin_prot.git#js_of_ocaml irmin:https://github.com/talex5/irmin.git#hack-slice sexplib:https://github.com/talex5/sexplib.git#js_of_ocaml mirage" POST_INSTALL_HOOK="opam install mirage && make clean && make server MIRAGE_FLAGS='--no-depext'"
+  - FORK_USER=talex5 FORK_BRANCH=containers OPAMYES=true OCAML_VERSION=4.01 TESTS=true PINS="bin_prot:https://github.com/talex5/bin_prot.git#js_of_ocaml irmin:https://github.com/talex5/irmin.git#hack-slice sexplib:https://github.com/talex5/sexplib.git#js_of_ocaml mirage conduit" POST_INSTALL_HOOK="bash -eux .travis-post-install.sh"

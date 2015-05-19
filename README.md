@@ -40,15 +40,15 @@ Instructions for using CueKeeper can be found here:
 http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/
 
 
-Server
-------
+Running a server
+----------------
 
 While `test.html` can be opened directly in a browser, as above, you can also build a server.
 This allows you to sync between devices (e.g. a laptop and mobile phone).
 
 **Warning: This is a work-in-progress**:
 
-- There is currently no encryption or authentication.
+- There is currently no access control (anyone can view or modify the data).
 - The server does not yet persist the data itself
   (the client sends the whole history the first time it connects after the service is restarted).
 
@@ -57,20 +57,44 @@ To build the server component:
     opam install mirage
     make server
 
+You will be prompted to create a self-signed X.509 certificate. Just enter your server's hostname
+as the "Common Name" (for testing, you could use "localhost" here and generate a proper one later).
+
 To run the server:
 
     ./server/mir-cuekeeper
 
-By default the server listens on TCP port 8080, but this can be changed by editing `server/config.ml`.
+By default the server listens on TCP port 8443, but this can be changed by editing `server/unikernel.ml`.
+
+Open the URL in a browser, e.g.
+
+    https://localhost:8443/
+
+You'll probably now get some scary-looking warning about the certificate not being trusted.
+To get rid of the warning, add your newly-generated server.pem as follows:
+
+In Firefox:
+
+1. Firefox will say "This Connection is Untrusted".
+2. Expand the **I Understand the Risks** section.
+3. Click **Add Exception**, then **Confirm Security Exception** (and "Permanently store this exception").
+
+In Chrome:
+
+1. It will say "Your connection is not private" (in fact, the opposite is true; if encryption wasn't being used it wouldn't have complained at all).
+2. Go to **Settings** -> **Show advanced settings**.
+3. Click the **Manage certificates** button (in the HTTPS/SSL section).
+4. In the **Authorities** tab, click **Import...** and select your `server/conf/tls/server.pem` file.
+5. Select **Trust this certificate for identifying websites**.
+
+Deploying as a Xen VM
+---------------------
 
 In fact, the server is a [Mirage unikernel][mirage] and can also be compiled and booted as a Xen virtual machine:
 
     make server MIRAGE_FLAGS="--xen"
     cd server
     xl create -c cuekeeper.xl
-
-Tip: if you make changes to the server code, you only need to run make in the `server` directory.
-However, if you change the client you must run `make server` in the top-level directory to update `server/static.ml`.
 
 
 Bugs

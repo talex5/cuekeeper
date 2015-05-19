@@ -33,20 +33,15 @@ let stack console =
   | `Direct, false -> direct_stackv4_with_static_ipv4 console tap0 ipv4_conf
   | `Socket, _     -> socket_stackv4 console [Ipaddr.V4.any]
 
-let server =
-  conduit_direct (stack default_console)
-
-let http_srv =
-  let mode = `TCP (`Port 8080) in
-  http_server mode server
-
 let main =
   foreign
-    ~libraries:["irmin.mem"]
-    ~packages:["irmin"]
-    "Unikernel.Main" (console @-> http @-> job)
+    ~libraries:["irmin.mem"; "tls.mirage"; "mirage-http"]
+    ~packages:["irmin"; "tls"; "mirage-http"; "nocrypto"]
+    "Unikernel.Main" (stackv4 @-> kv_ro @-> clock @-> job)
+
+let conf = crunch "conf"
 
 let () =
   register "cuekeeper" [
-    main $ default_console $ http_srv
+    main $ stack default_console $ conf $ default_clock
   ]

@@ -1,2 +1,2 @@
 true: strict_sequence, bin_annot
-not <main.*>: warn(A-4-44-48)
+not (<main.*> or <static1.*>): warn(A-4-44-48)

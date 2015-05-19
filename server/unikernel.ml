@@ -26,7 +26,12 @@ let show_head = function
   | None -> "(none)"
   | Some head -> String.sub (Irmin.Hash.SHA1.to_hum head) 0 6
 
-module Main (C:CONSOLE) (S:Cohttp_lwt.Server) = struct
+module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
+  module TCP  = Stack.TCPV4
+  module TLS  = Tls_mirage.Make (TCP)
+  module X509 = Tls_mirage.X509 (Conf) (Clock)
+  module S = Cohttp_mirage.Server(TLS)
+
   let respond_static segments =
     let path = String.concat "/" segments in
     match Static.read path with
@@ -92,20 +97,35 @@ module Main (C:CONSOLE) (S:Cohttp_lwt.Server) = struct
     let body = Cstruct.to_string buf |> B64.encode in
     S.respond_string ~headers ~status:`OK ~body ()
 
-  let start c http =
+  let handle_request s _conn_id request body =
+    Lwt.catch (fun () ->
+      match S.Request.meth request, split_path (S.Request.uri request) with
+      | `GET, ["fetch"] -> fetch s None
+      | `GET, ["fetch"; last_known] -> fetch s (Some last_known)
+      | `POST, ["push"] -> accept_push s body
+      | `GET, ([] | [""]) -> respond_static ["index.html"]
+      | `GET, segments -> respond_static segments
+      | _ -> S.respond_error ~status:`Method_not_allowed ~body:"Invalid request" ()
+    ) (fun ex ->
+      Log.warn "Unhandled exception processing HTTP request: %s" (Printexc.to_string ex);
+      fail ex
+    )
+
+  let start stack conf _clock =
     Store.create (Irmin_mem.config ()) task >>= fun s ->
-    let callback _conn_id request body =
-      Lwt.catch (fun () ->
-        match S.Request.meth request, split_path (S.Request.uri request) with
-        | `GET, ["fetch"] -> fetch s None
-        | `GET, ["fetch"; last_known] -> fetch s (Some last_known)
-        | `POST, ["push"] -> accept_push s body
-        | `GET, ([] | [""]) -> respond_static ["index.html"]
-        | `GET, segments -> respond_static segments
-        | _ -> S.respond_error ~status:`Method_not_allowed ~body:"Invalid request" ()
-      ) (fun ex ->
-        C.log_s c (Printexc.to_string ex) >>= fun () ->
-        fail ex
-      ) in
-    http (S.make ~conn_closed:ignore ~callback ())
+    let http = S.make ~conn_closed:ignore ~callback:(handle_request s) () in
+    X509.certificate conf `Default >>= fun cert ->
+    let tls_config = Tls.Config.server ~certificates:(`Single cert) () in
+    Stack.listen_tcpv4 stack ~port:8443 (fun flow ->
+      let peer, port = TCP.get_dest flow in
+      Log.info "Connection from %s (client port %d)" (Ipaddr.V4.to_string peer) port;
+      TLS.server_of_flow tls_config flow >>= function
+      | `Error _ -> Log.warn "TLS failed"; TCP.close flow
+      | `Eof     -> Log.warn "TLS eof"; TCP.close flow
+      | `Ok flow  ->
+      S.listen http flow () () >>= fun () ->
+      TLS.close flow
+    );
+    Stack.listen stack
+
 end
