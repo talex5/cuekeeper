@@ -20,6 +20,7 @@ Pin a few patches we require:
     opam pin add irmin 'https://github.com/talex5/irmin.git#hack-slice'
     opam pin add reactiveData https://github.com/hhugo/reactiveData.git
     opam pin add bin_prot 'https://github.com/talex5/bin_prot.git#js_of_ocaml'
+    opam pin add conduit 'https://github.com/mirage/ocaml-conduit.git#v0.8.3'
 
 Install the dependencies:
 
