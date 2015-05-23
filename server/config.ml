@@ -17,14 +17,14 @@ let dhcp =
   try match Sys.getenv "DHCP" with
     | "" -> false
     | _  -> true
-  with Not_found -> true
+  with Not_found -> false
 
 let ipv4_conf =
   let i = Ipaddr.V4.of_string_exn in
   {
-    address  = i "10.0.0.2";
+    address  = i "192.168.0.14";
     netmask  = i "255.255.255.0";
-    gateways = [i "10.0.0.1"];
+    gateways = [i "192.168.0.1"];
   }
 
 let stack console =

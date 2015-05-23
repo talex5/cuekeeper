@@ -116,7 +116,7 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
     let http = S.make ~conn_closed:ignore ~callback:(handle_request s) () in
     X509.certificate conf `Default >>= fun cert ->
     let tls_config = Tls.Config.server ~certificates:(`Single cert) () in
-    Stack.listen_tcpv4 stack ~port:8443 (fun flow ->
+    Stack.listen_tcpv4 stack ~port:443 (fun flow ->
       let peer, port = TCP.get_dest flow in
       Log.info "Connection from %s (client port %d)" (Ipaddr.V4.to_string peer) port;
       TLS.server_of_flow tls_config flow >>= function
