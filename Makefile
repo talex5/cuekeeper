@@ -10,8 +10,8 @@ MIRAGE_FLAGS = --unix
 
 all: client
 
-.PHONY: build test server
-client: test _build/js/client.js
+.PHONY: build server
+client: _build/js/client.js
 
 test: build-byte
 	./_build/test.byte
