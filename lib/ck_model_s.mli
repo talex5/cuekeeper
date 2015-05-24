@@ -134,4 +134,7 @@ module type MODEL = sig
 
   val sync : server -> unit or_error Lwt.t
   (** Sync with server. *)
+
+  val sync_in_progress : t -> bool React.S.t
+  (** True while we are syncing with the remote server. *)
 end

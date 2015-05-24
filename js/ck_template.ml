@@ -1343,7 +1343,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     ] in
     let actions =
       match M.server m with
-      | Some server -> a ~a:[a_onclick (sync server)] [pcdata "Sync"] :: actions
+      | Some server ->
+          let cl = M.sync_in_progress m >|~= (function
+            | false -> []
+            | true -> ["ck-in-progress"]
+          ) in
+          a ~a:[a_onclick (sync server); R.Html5.a_class cl] [pcdata "Sync"] :: actions
       | None -> actions in
     let left_panel =
       let live = current_tree >|~= make_tree ~show_node m in

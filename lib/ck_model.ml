@@ -195,6 +195,8 @@ module Make(Clock : Ck_clock.S)
     mutable review_mode : review_mode;
     hidden_areas : Ck_id.S.t ref;   (* Filter in Work tab *)
     server : Uri.t option;
+    sync_in_progress : bool React.S.t;
+    set_sync_in_progress : bool -> unit;
   }
 
   module X : sig
@@ -974,6 +976,7 @@ module Make(Clock : Ck_clock.S)
     let hidden_areas = ref Ck_id.S.empty in
     let rtree, update_tree = make_tree r ~hidden_areas `Work in
     let tree, set_tree = React.S.create ~eq:assume_changed rtree in
+    let sync_in_progress, set_sync_in_progress = React.S.create false in
     let t = {
       repo; master; r;
       tree; set_tree; update_tree;
@@ -985,6 +988,7 @@ module Make(Clock : Ck_clock.S)
       keep_me = [];
       hidden_areas;
       server;
+      sync_in_progress; set_sync_in_progress;
     } in
     Lwt.wakeup set_on_update (fun r ->
       set_alert (R.alert r);
@@ -1092,7 +1096,6 @@ module Make(Clock : Ck_clock.S)
     | None -> None
     | Some url -> Some (t, url)
 
-  let sync_in_progress = ref false
   let sync (t, base) =
     let rec aux () =
       pull t ~base >>!= fun server_head ->
@@ -1102,10 +1105,12 @@ module Make(Clock : Ck_clock.S)
           Log.warn "Concurrent update during sync; retrying";
           Clock.sleep 2.0 >>= aux
       | `Ok () | `Error _ as r -> return r in
-    if !sync_in_progress then
+    if React.S.value t.sync_in_progress then
       return (`Error "Sync already in progress")
     else (
-      sync_in_progress := true;
-      finalize aux (fun () -> sync_in_progress := false; return ())
+      t.set_sync_in_progress true;
+      finalize aux (fun () -> t.set_sync_in_progress false; return ())
     )
+
+  let sync_in_progress t = t.sync_in_progress
 end
