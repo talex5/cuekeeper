@@ -40,7 +40,13 @@ module Make(Git : Git_storage_s.S) = struct
         mutable schedule : action list;
         mutable expires : Ck_time.user_date option;
         valid_from : Ck_time.user_date;
-        mutable problems : (Ck_id.t, Ck_sigs.problem) Hashtbl.t
+        mutable problems :
+          ( [ `Action of action_node
+            | `Project of project_node
+            | `Area of area_node
+            | `Contact of contact_node
+            | `Context of context_node ] * Ck_sigs.problem
+          ) list;
       }
       and 'a node_details = {
         rev : rev;
@@ -199,24 +205,24 @@ module Make(Git : Git_storage_s.S) = struct
     | `Project _ | `Action _ as n -> not (Node.is_done n)
 
   let check_for_problems t =
+    let add node msg =
+      t.problems <- ((node :> Node.generic), msg) :: t.problems in
     let rec scan node =
-      let add problem =
-        Hashtbl.add t.problems (Node.uuid node) problem in
       let bug problem =
         Ck_utils.bug "Bad item '%s': %s" (Node.name node) problem in
       let reduce_progress _ child acc =
         match scan child with
         | Idle -> acc
         | In_progress -> In_progress in
-      if Node.conflicts node <> [] then add `Unread_conflicts;
+      if Node.conflicts node <> [] then add node `Unread_conflicts;
       let child_nodes = child_nodes node in
       match node with
       | `Project _ as node ->
           if (M.exists (fun _k -> is_area) child_nodes) then bug "Project with area child!";
           if Node.project_state node = `Done && M.exists (fun _k -> is_incomplete) child_nodes then
-            add `Incomplete_child;
+            add node `Incomplete_child;
           let children_status = M.fold reduce_progress child_nodes Idle in
-          if children_status = Idle && Node.project_state node = `Active then add `No_next_action;
+          if children_status = Idle && Node.project_state node = `Active then add node `No_next_action;
           children_status
       | `Area _ ->
           M.fold reduce_progress child_nodes Idle
@@ -229,7 +235,13 @@ module Make(Git : Git_storage_s.S) = struct
               if Node.action_repeat node <> None then bug "Repeating action marked as done!";
               Idle end
       in
-    roots t |> M.iter (fun _k n -> ignore (scan n))
+    let check_contact node =
+      if Node.conflicts node <> [] then add node `Unread_conflicts in
+    let check_context node =
+      if Node.conflicts node <> [] then add node `Unread_conflicts in
+    roots t |> M.iter (fun _k n -> ignore (scan n));
+    !(t.contacts) |> Ck_id.M.iter (fun _k n -> check_contact (`Contact n));
+    !(t.contexts) |> Ck_id.M.iter (fun _k n -> check_context (`Context n))
 
   let make_no_cache ~time commit =
     Git.Commit.checkout commit >>= fun tree ->
@@ -243,7 +255,7 @@ module Make(Git : Git_storage_s.S) = struct
       commit; contacts; apa_nodes; nodes_of_contact; children = Ck_id.M.empty;
       contexts; actions_of_context;
       schedule = []; alert = false; valid_from = time; expires = None;
-      problems = Hashtbl.create 0;
+      problems = [];
     } in
     (* Load areas, projects and actions *)
     Git.Staging.list tree ["db"] >>=
@@ -305,7 +317,7 @@ module Make(Git : Git_storage_s.S) = struct
       ) children Ck_id.M.empty;
     ensure_no_cycles t;
     check_for_problems t;
-    if Hashtbl.length t.problems > 0 then t.alert <- true;
+    if t.problems <> [] then t.alert <- true;
     return t
 
   let last = ref None
@@ -377,11 +389,5 @@ module Make(Git : Git_storage_s.S) = struct
   let alert t = t.alert
   let expires t = t.expires
 
-  let problems t =
-    let problems = ref [] in
-    t.problems |> Hashtbl.iter (fun uuid msg ->
-      let node = Ck_id.M.find uuid !(t.apa_nodes) in
-      problems := ((node :> Node.generic), msg) :: !problems
-    );
-    !problems
+  let problems t = List.rev (t.problems)
 end
