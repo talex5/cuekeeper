@@ -23,7 +23,7 @@ depends: [
   "reactiveData"
   "js_of_ocaml"
   "omd"
-  "ounit"
+  "ounit" {build}
   "tar-format"
   "cohttp"
   "crunch" {build}
