@@ -10,10 +10,6 @@ dev-repo: "https://github.com/talex5/cuekeeper.git"
 build: [
   [make]
 ]
-build-test: [
-  [make "test"]
-  [make "slow_test"]
-]
 depends: [
   "base64"
   "sexplib"
