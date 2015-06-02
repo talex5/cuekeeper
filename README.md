@@ -96,6 +96,7 @@ Deploying as a Xen VM
 
 In fact, the server is a [Mirage unikernel][mirage] and can also be compiled and booted as a Xen virtual machine:
 
+    opam pin add mirage-xen-posix 'https://github.com/talex5/mirage-platform.git#times'
     make server MIRAGE_FLAGS="--xen"
     cd server
     xl create -c cuekeeper.xl
