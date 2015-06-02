@@ -123,7 +123,7 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
       | `Error _ -> Log.warn "TLS failed"; TCP.close flow
       | `Eof     -> Log.warn "TLS eof"; TCP.close flow
       | `Ok flow  ->
-      S.listen http flow () () >>= fun () ->
+      S.listen http flow >>= fun () ->
       TLS.close flow
     );
     Stack.listen stack
