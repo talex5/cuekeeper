@@ -99,7 +99,7 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
 
   let handle_request s _conn_id request body =
     Lwt.catch (fun () ->
-      match S.Request.meth request, split_path (S.Request.uri request) with
+      match Cohttp.Request.meth request, split_path (Cohttp.Request.uri request) with
       | `GET, ["fetch"] -> fetch s None
       | `GET, ["fetch"; last_known] -> fetch s (Some last_known)
       | `POST, ["push"] -> accept_push s body
