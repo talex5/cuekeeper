@@ -17,16 +17,7 @@ module T = Tar.Make(IO)
 module Make (I : Irmin.BASIC with type key = string list and type value = string) = struct
   module V = Irmin.View(I)
 
-  (* This is a work-around for https://github.com/mirage/irmin/issues/204 *)
-  module SliceIO = struct
-    module Make_list (K: Tc.S0)(V: Tc.S0) = Tc.List( Tc.Pair(K)(V) )
-    module Ct = Make_list(I.Private.Contents.Key)(Tc.String)
-    module No = Make_list(I.Private.Node.Key)(I.Private.Node.Val)
-    module Cm = Make_list(I.Private.Commit.Key)(I.Private.Commit.Val)
-    module T = Tc.Triple (Ct)(No)(Cm)
-  end
-
-  module Bundle = Tc.Pair(SliceIO.T)(I.Head)
+  module Bundle = Tc.Pair(I.Private.Slice)(I.Head)
 
   type repo = {
     config : Irmin.config;
@@ -163,7 +154,6 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
 
     let bundle_create s ~basis head =
       I.export s ~min:basis ~max:[head] >|= fun slice ->
-      let slice = I.Private.Slice.explode slice in
       let bundle = (slice, head) in
       let buf = Cstruct.create (Bundle.size_of bundle) in
       let rest = Bundle.write bundle buf in
@@ -302,7 +292,6 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       commit t head >>= function
       | Some c -> I.update_head s head >|= fun () -> `Ok c
       | None ->
-      let slice = I.Private.Slice.implode slice in
       I.import s slice >>= fun () ->
       commit t head >>= function
       | None -> return (`Error "Head commit not found after importing bundle!")

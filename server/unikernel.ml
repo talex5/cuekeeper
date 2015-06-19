@@ -11,16 +11,7 @@ let task s = Irmin.Task.create ~date:0L ~owner:"Server" s
 
 module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
 
-(* This is a work-around for https://github.com/mirage/irmin/issues/204 *)
-module SliceIO = struct
-  module Make_list (K: Tc.S0)(V: Tc.S0) = Tc.List( Tc.Pair(K)(V) )
-  module Ct = Make_list(Store.Private.Contents.Key)(Tc.String)
-  module No = Make_list(Store.Private.Node.Key)(Store.Private.Node.Val)
-  module Cm = Make_list(Store.Private.Commit.Key)(Store.Private.Commit.Val)
-  module T = Tc.Triple (Ct)(No)(Cm)
-end
-
-module Bundle = Tc.Pair(SliceIO.T)(Store.Head)
+module Bundle = Tc.Pair(Store.Private.Slice)(Store.Head)
 
 let show_head = function
   | None -> "(none)"
@@ -59,7 +50,7 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
     | Some server_head when server_head = head ->
         S.respond_string ~headers ~status:`OK ~body:"ok" ()
     | server_head ->
-    Store.import s (Store.Private.Slice.implode slice) >>= fun () ->
+    Store.import s slice >>= fun () ->
     let commit_store = Store.Private.commit_t s in
     Store.Private.Commit.mem commit_store head >>= function
     | false ->
@@ -89,7 +80,6 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
       | None -> []
       | Some c -> [Irmin.Hash.SHA1.of_hum c] in
     Store.export s ~min:basis ~max:[head] >>= fun slice ->
-    let slice = Store.Private.Slice.explode slice in
     let bundle = (slice, head) in
     let buf = Cstruct.create (Bundle.size_of bundle) in
     let rest = Bundle.write bundle buf in
