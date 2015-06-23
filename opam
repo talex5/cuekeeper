@@ -25,6 +25,7 @@ depends: [
   "omd"
   "ounit"
   "tar-format"
+  "irmin-indexeddb"
   "crunch" {build}
   "ocamlfind" {build}
 ]
