@@ -26,8 +26,14 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
   let respond_static segments =
     let path = String.concat "/" segments in
     match Static.read path with
-    | Some body -> S.respond_string ~status:`OK ~body ()
     | None -> S.respond_not_found ()
+    | Some body ->
+        let headers =
+          if Filename.check_suffix path ".html" then
+            Cohttp.Header.init_with "Content-Type" "text/html"
+          else
+            Cohttp.Header.init () in
+        S.respond_string ~headers ~status:`OK ~body ()
 
   (* Split a URI into a list of path segments *)
   let split_path uri =
