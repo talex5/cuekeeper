@@ -56,7 +56,12 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
     | Some server_head when server_head = head ->
         S.respond_string ~headers ~status:`OK ~body:"ok" ()
     | server_head ->
-    Store.import s slice >>= fun () ->
+    Store.import s slice >>= function
+    | `Error ->
+        let msg = "Failed to import slice" in
+        Log.warn "%s" msg;
+        S.respond_string ~headers ~status:`Bad_request ~body:msg ()
+    | `Ok ->
     let commit_store = Store.Private.commit_t s in
     Store.Private.Commit.mem commit_store head >>= function
     | false ->

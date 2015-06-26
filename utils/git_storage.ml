@@ -292,7 +292,9 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       commit t head >>= function
       | Some c -> I.update_head s head >|= fun () -> `Ok c
       | None ->
-      I.import s slice >>= fun () ->
+      I.import s slice >>= function
+      | `Error -> return (`Error "Failed to import slice")
+      | `Ok ->
       commit t head >>= function
       | None -> return (`Error "Head commit not found after importing bundle!")
       | Some head_commit ->
