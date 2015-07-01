@@ -216,8 +216,10 @@ module Make(Git : Git_storage_s.S) = struct
           if Node.project_state node = `Done && M.exists (fun _k -> is_incomplete) child_nodes then
             add `Incomplete_child;
           let children_status = M.fold reduce_progress child_nodes Idle in
-          if children_status = Idle && Node.project_state node = `Active then add `No_next_action;
-          children_status
+          begin match Node.project_state node, children_status with
+          | `Active, Idle -> add `No_next_action; Idle
+          | `Active, In_progress -> In_progress
+          | (`SomedayMaybe | `Done), _ -> Idle end
       | `Area _ ->
           M.fold reduce_progress child_nodes Idle
       | `Action _ as node ->
