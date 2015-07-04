@@ -17,7 +17,6 @@ If not, switch to 4.01.0 or later:
 Pin a few patches we require:
 
     opam pin add -n sexplib 'https://github.com/talex5/sexplib.git#js_of_ocaml'
-    opam pin add -n irmin 'https://github.com/mirage/irmin.git'
     opam pin add -n reactiveData https://github.com/hhugo/reactiveData.git
     opam pin add -n bin_prot 'https://github.com/talex5/bin_prot.git#js_of_ocaml'
     opam pin add -n dolog 'https://github.com/UnixJunkie/dolog.git#no_unix'
