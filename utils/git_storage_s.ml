@@ -1,6 +1,8 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
+type branch_name = string
+type bundle = string
 type path = string list
 
 module Log_entry = struct
@@ -49,6 +51,12 @@ module type S = sig
     val lcas : t -> t -> t list Lwt.t
     (** Find the least common ancestor(s) of two commits.
      * This is used as the base when doing a 3-way merge. *)
+
+    val bundle : tracking_branch:branch_name -> t -> bundle option Lwt.t
+    (** Exports the given commit with full history, excluding anything
+     * already in [tracking_branch]. The resulting bundle can be imported
+     * into the remote repository that [tracking_branch] tracks.
+     * If there is nothing to export, returns None. *)
   end
 
   module Branch : sig
@@ -65,14 +73,25 @@ module type S = sig
   module Repository : sig
     type t
 
-    val branch : t -> if_new:(Commit.t Lwt.t Lazy.t) -> string -> Branch.t Lwt.t
+    val branch : t -> if_new:(Commit.t Lwt.t Lazy.t) -> branch_name -> Branch.t Lwt.t
     (** Get the named branch.
      * If the branch does not exist yet, [if_new] is called to get the initial commit. *)
+
+    val branch_head : t -> branch_name -> Irmin.Hash.SHA1.t option Lwt.t
+    (** Check the current head of a branch. None if the branch doesn't exist. *)
+
+    val force_branch : t -> branch_name -> Commit.t option -> unit Lwt.t
+    (** Set the head of the named branch to point at this commit.
+     * If None, the branch is deleted. *)
 
     val commit : t -> Irmin.Hash.SHA1.t -> Commit.t option Lwt.t
     (** Look up a commit by its hash. *)
 
     val empty : t -> Staging.t Lwt.t
     (** Create an empty checkout with no parent. *)
+
+    val fetch_bundle : t -> tracking_branch:branch_name -> bundle -> Commit.t Ck_sigs.or_error Lwt.t
+    (** Import the contents of the bundle into the repository, updating [tracking_branch] to
+     * point to the bundle's head (even if not a fast-forward). Returns the new head.  *)
   end
 end

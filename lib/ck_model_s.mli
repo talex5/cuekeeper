@@ -126,4 +126,15 @@ module type MODEL = sig
 
   val set_hidden : t -> area -> bool -> unit
   (** Set whether to hide this top-level area in the work tab. *)
+
+  type server
+
+  val server : t -> server option
+  (** The server to sync to, if any. *)
+
+  val sync : server -> unit or_error Lwt.t
+  (** Sync with server. *)
+
+  val sync_in_progress : t -> bool React.S.t
+  (** True while we are syncing with the remote server. *)
 end

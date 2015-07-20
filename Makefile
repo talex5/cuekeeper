@@ -6,12 +6,15 @@ JFLAGS =
 
 VERSION = dev
 RELEASE_DIR = cuekeeper-bin-${VERSION}
+MIRAGE_FLAGS = --unix
 
-.PHONY: build test
-all: test _build/js/client.js
+all: client
+
+.PHONY: build test server
+client: test _build/js/client.js
 
 test: build-byte
-	ocamlrun _build/test.byte
+	./_build/test.byte
 
 build-byte: ck_init.ml
 	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte test.byte
@@ -35,6 +38,27 @@ release:
 	sed '/^Installation/,/^Instructions/{/^Instructions/!d}' README.md > "${RELEASE_DIR}/README.md"
 	zip -r "${RELEASE_DIR}.zip" ${RELEASE_DIR}
 	rm -rf "${RELEASE_DIR}"
+
+server/conf/tls/server.key:
+	@echo Generating server key...
+	[ -d server/conf/tls ] || mkdir -p server/conf/tls
+	openssl genpkey -out $@ -outform PEM -algorithm RSA -pkeyopt rsa_keygen_bits:4096
+
+server/conf/tls/server.pem: server/conf/tls/server.key
+	@echo ">>> Generating server X.509 certificate."
+	@echo ">>> Enter the server's full hostname as the 'Common Name' (e.g. cuekeeper.mynet)."
+	@echo ">>> Everything else can be left blank."
+	@echo
+	@openssl req -new -x509 -key $< -out $@ -days 10000
+
+server: client server/conf/tls/server.pem
+	rm -rf _build/static
+	mkdir _build/static
+	cp -r resources _build/static/
+	cp _build/js/client.js _build/static/resources/js/cuekeeper.js
+	sed 's!_build/js/client.js!resources/js/cuekeeper.js!;s!var ck_use_server=false;!var ck_use_server=true;!' test.html > _build/static/index.html
+	ocaml-crunch _build/static -e html -e js -e css -e ico -o server/static.ml -m plain
+	(cd server && mirage configure ${MIRAGE_FLAGS} && make)
 
 clean:
 	ocamlbuild -clean

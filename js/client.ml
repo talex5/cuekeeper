@@ -18,8 +18,15 @@ module Clock = struct
 end
 
 module Git = Git_storage.Make(Irmin.Basic(Irmin_IDB.Make)(Irmin.Contents.String))
-module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)
+module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)(Cohttp_lwt_xhr.Client)
 module T = Ck_template.Make(M)
+
+let server =
+  let use_server = Js.Unsafe.variable "ck_use_server" |> Js.to_bool in
+  if use_server then Some (
+    Js.to_string Dom_html.window##location##protocol ^ Js.to_string Dom_html.window##location##host
+    |> Uri.of_string
+  ) else None
 
 let start (main:#Dom.node Js.t) =
   Lwt.catch
@@ -28,7 +35,7 @@ let start (main:#Dom.node Js.t) =
       let task s =
         let date = Unix.time () |> Int64.of_float in
         Irmin.Task.create ~date ~owner:"User" s in
-      Git.make config task >>= M.make >>= fun m ->
+      Git.make config task >>= M.make ?server >>= fun m ->
       let icon =
         let open Tyxml_js in
         let href = M.alert m >|~= (function

@@ -69,9 +69,6 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
 
   type update_cb = R.t -> unit Lwt.t
 
-  let error fmt =
-    Printf.ksprintf (fun msg -> `Error msg) fmt
-
   (* Must be called with t.mutex held *)
   let maybe_update_head t new_head =
     let old_head = R.commit t.head in
@@ -151,18 +148,22 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       (fun ex -> bug "Change generated an invalid commit:\n%s\n\nThis is a BUG. The invalid change has been discarded."
         (Printexc.to_string ex)) >>= fun () ->
     Lwt_mutex.with_lock t.mutex (fun () ->
-      (* At this point, head cannot contain our commit because we haven't merged it yet,
-       * and no updates can happen while we hold the lock. *)
-      let updated = Lwt_condition.wait t.updated in
-      Git.Branch.fast_forward_to t.branch commit >|= fun merge_result ->
-      (* If `Ok, [updated] cannot have fired yet because we still hold the lock. When it does
-       * fire next, it must contain our update. It must fire soon, as head has changed. *)
-      if merge_result = `Ok then (
-        (* If we were on a fixed head then return to tracking master. Otherwise, the user won't
-         * see the update. *)
-        t.fixed_head <- None;
-      );
-      (merge_result, updated)
+      if R.commit t.head |> Git.Commit.equal commit then
+        return (`Ok, return ())
+      else (
+        (* At this point, head cannot contain our commit because we haven't merged it yet,
+         * and no updates can happen while we hold the lock. *)
+        let updated = Lwt_condition.wait t.updated in
+        Git.Branch.fast_forward_to t.branch commit >|= fun merge_result ->
+        (* If `Ok, [updated] cannot have fired yet because we still hold the lock. When it does
+         * fire next, it must contain our update. It must fire soon, as head has changed. *)
+        if merge_result = `Ok then (
+          (* If we were on a fixed head then return to tracking master. Otherwise, the user won't
+           * see the update. *)
+          t.fixed_head <- None;
+        );
+        (merge_result, updated)
+      )
     )
 
   (* Branch from base, apply [fn branch] to it, then merge the result back to master.

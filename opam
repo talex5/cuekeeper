@@ -23,9 +23,13 @@ depends: [
   "reactiveData"
   "js_of_ocaml"
   "omd"
-  "ounit"
+  "ounit" {build}
   "tar-format"
+  "cohttp"
   "irmin-indexeddb"
   "crunch" {build}
   "ocamlfind" {build}
+]
+depopts: [
+  "mirage"
 ]

@@ -21,5 +21,6 @@ addons:
     - time
     - libcurl3
     - curl
+    - libxen-dev
 env:
-  - FORK_USER=talex5 FORK_BRANCH=containers TESTS=true PRE_INSTALL_HOOK="opam pin add irmin 'https://github.com/mirage/irmin.git'; opam pin add sexplib 'https://github.com/talex5/sexplib.git#js_of_ocaml'"
+  - FORK_USER=talex5 FORK_BRANCH=containers OPAMYES=true OCAML_VERSION=4.01 PINS="bin_prot:https://github.com/talex5/bin_prot.git#js_of_ocaml sexplib:https://github.com/talex5/sexplib.git#js_of_ocaml git" POST_INSTALL_HOOK="bash -eux .travis-post-install.sh"

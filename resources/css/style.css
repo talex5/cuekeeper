@@ -1255,3 +1255,7 @@ form.ck-add-modal {
 pre code {
 	display: block;
 }
+
+a.ck-in-progress {
+	background: yellow;
+}

@@ -17,6 +17,8 @@ module T = Tar.Make(IO)
 module Make (I : Irmin.BASIC with type key = string list and type value = string) = struct
   module V = Irmin.View(I)
 
+  module Bundle = Tc.Pair(I.Private.Slice)(I.Head)
+
   type repo = {
     config : Irmin.config;
     task_maker : string -> Irmin.task;
@@ -150,6 +152,23 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       T.Archive.create_gen (Stream.of_list !files) buf;
       Buffer.contents buf
 
+    let bundle_create s ~basis head =
+      I.export s ~min:basis ~max:[head] >|= fun slice ->
+      let bundle = (slice, head) in
+      let buf = Cstruct.create (Bundle.size_of bundle) in
+      let rest = Bundle.write bundle buf in
+      assert (Cstruct.len rest = 0);
+      Some (Cstruct.to_string buf)
+
+    let bundle ~tracking_branch commit =
+      let head = id commit in
+      I.of_tag commit.repo.config commit.repo.task_maker tracking_branch >>= fun s ->
+      let s = s "bundle" in
+      I.head s >>= function
+      | Some old_head when old_head = head -> return None
+      | Some old_head -> bundle_create s ~basis:[old_head] head
+      | None -> bundle_create s ~basis:[] head
+
     let parents t =
       let head = id t in
       I.history ~depth:1 (t.store "parents") >>= fun history ->
@@ -247,14 +266,48 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
     let branch t ~if_new name =
       I.of_tag t.config t.task_maker name >>= Branch.of_store t ~if_new
 
+    let force_branch t branch commit =
+      I.of_tag t.config t.task_maker branch >>= fun s ->
+      match commit with
+      | None -> I.remove_tag (s "delete branch") branch
+      | Some commit -> I.update_head (s "force") (Commit.id commit)
+
+    let branch_head t branch =
+      I.of_tag t.config t.task_maker branch >>= fun s ->
+      I.head (s "branch_head")
+
     let commit t hash =
-      (* XXX: what does Irmin do if the hash doesn't exist? *)
-      Commit.of_id t hash >|= fun c -> Some c
+      Commit.of_id t hash >>= fun c ->
+      let commit_store = I.Private.commit_t (c.Commit.store "check commit exists") in
+      I.Private.Commit.mem commit_store hash >|= function
+      | true -> Some c
+      | false -> None
 
     let empty t = V.empty () >|= Staging.of_view t
+
+    let fetch_bundle t ~tracking_branch bundle =
+      I.of_tag t.config t.task_maker tracking_branch >>= fun s ->
+      let s = s "import" in
+      let (slice, head) = Bundle.read (Mstruct.of_string bundle) in
+      commit t head >>= function
+      | Some c -> I.update_head s head >|= fun () -> `Ok c
+      | None ->
+      I.import s slice >>= function
+      | `Error -> return (`Error "Failed to import slice")
+      | `Ok ->
+      commit t head >>= function
+      | None -> return (`Error "Head commit not found after importing bundle!")
+      | Some head_commit ->
+      I.update_head s head >|= fun () -> `Ok head_commit
   end
 
   let make config task_maker =
+    begin match Bin_prot.Size.bin_size_int64 0x8000L with
+    | 5 -> ()
+    | x ->
+        Ck_utils.bug
+          "Bin_prot serialisation is broken (says it needs %d bytes to store 0x8000). \
+          Ensure js_of_ocaml branch is pinned." x end;
     I.empty config task_maker >|= fun empty ->
     {config; task_maker; empty}
 end
