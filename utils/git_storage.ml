@@ -33,6 +33,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
 
     let of_view repo view = {repo; view}
     let list t = V.list t.view
+    let read t = V.read t.view
     let read_exn t = V.read_exn t.view
     let update t = V.update t.view
     let remove t = V.remove t.view

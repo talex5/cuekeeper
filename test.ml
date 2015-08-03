@@ -193,6 +193,7 @@ module Test_repo (Store : Irmin.BASIC with type key = string list and type value
       options.(rand_int (Array.length options)) in
 
     Git.Repository.empty repo >>= fun s ->
+    Git.Staging.update s ["ck-version"] "0.1\n" >>= fun () ->
 
     let make_n n dir fn =
       let used = ref [None] in

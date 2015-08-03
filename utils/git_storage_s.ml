@@ -31,6 +31,7 @@ module type S = sig
     type t
 
     val list : t -> path -> path list Lwt.t
+    val read : t -> path -> string option Lwt.t
     val read_exn : t -> path -> string Lwt.t
     val update : t -> path -> string -> unit Lwt.t
     val remove : t -> path -> unit Lwt.t

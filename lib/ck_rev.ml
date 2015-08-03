@@ -245,6 +245,15 @@ module Make(Git : Git_storage_s.S) = struct
     !(t.contacts) |> Ck_id.M.iter (fun _k n -> check_contact (`Contact n));
     !(t.contexts) |> Ck_id.M.iter (fun _k n -> check_context (`Context n))
 
+  let check_version tree =
+    Git.Staging.read tree ["ck-version"] >|= function
+    | None ->
+        bug "'ck-version' file missing - repository is corrupted!"
+    | Some v ->
+        let v = String.trim v in
+        if v <> "0.1" then
+          bug "Unknown repository format version '%s' (expected 0.1) - please upgrade CueKeeper" v
+
   let make_no_cache ~time commit =
     Git.Commit.checkout commit >>= fun tree ->
     let contacts = ref Ck_id.M.empty in
@@ -259,6 +268,7 @@ module Make(Git : Git_storage_s.S) = struct
       schedule = []; alert = false; valid_from = time; expires = None;
       problems = [];
     } in
+    check_version tree >>= fun () ->
     (* Load areas, projects and actions *)
     Git.Staging.list tree ["db"] >>=
     Lwt_list.iter_s (function
