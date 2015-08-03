@@ -58,6 +58,8 @@ module type S = sig
      * already in [tracking_branch]. The resulting bundle can be imported
      * into the remote repository that [tracking_branch] tracks.
      * If there is nothing to export, returns None. *)
+
+    val id : t -> Irmin.Hash.SHA1.t
   end
 
   module Branch : sig
@@ -65,6 +67,10 @@ module type S = sig
 
     val head : t -> Commit.t option React.S.t
     val fast_forward_to : t -> Commit.t -> [ `Ok | `Not_fast_forward ] Lwt.t
+
+    val force : t -> Commit.t option -> unit Lwt.t
+    (** Set the head of the branch to point at this commit.
+     * If None, the branch is deleted. *)
 
     val release : t -> unit Lwt.t
     (** Stop watching this branch for updates ([head] will no longer update and
@@ -74,16 +80,12 @@ module type S = sig
   module Repository : sig
     type t
 
-    val branch : t -> if_new:(Commit.t Lwt.t Lazy.t) -> branch_name -> Branch.t Lwt.t
+    val branch : t -> ?if_new:(Commit.t Lwt.t Lazy.t) -> branch_name -> Branch.t Lwt.t
     (** Get the named branch.
      * If the branch does not exist yet, [if_new] is called to get the initial commit. *)
 
     val branch_head : t -> branch_name -> Irmin.Hash.SHA1.t option Lwt.t
     (** Check the current head of a branch. None if the branch doesn't exist. *)
-
-    val force_branch : t -> branch_name -> Commit.t option -> unit Lwt.t
-    (** Set the head of the named branch to point at this commit.
-     * If None, the branch is deleted. *)
 
     val commit : t -> Irmin.Hash.SHA1.t -> Commit.t option Lwt.t
     (** Look up a commit by its hash. *)
@@ -91,7 +93,7 @@ module type S = sig
     val empty : t -> Staging.t Lwt.t
     (** Create an empty checkout with no parent. *)
 
-    val fetch_bundle : t -> tracking_branch:branch_name -> bundle -> Commit.t Ck_sigs.or_error Lwt.t
+    val fetch_bundle : t -> tracking_branch:Branch.t -> bundle -> Commit.t Ck_sigs.or_error Lwt.t
     (** Import the contents of the bundle into the repository, updating [tracking_branch] to
      * point to the bundle's head (even if not a fast-forward). Returns the new head.  *)
   end

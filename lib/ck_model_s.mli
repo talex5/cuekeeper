@@ -94,6 +94,9 @@ module type MODEL = sig
   val candidate_label : candidate -> string
   val choose_candidate : candidate -> unit Lwt.t
 
+  val server_head : t -> Irmin.Hash.SHA1.t option React.S.t
+  (** The last commit we know the server has. *)
+
   val enable_log : t -> Git_storage_s.Log_entry.t Slow_set.item ReactiveData.RList.t Lwt.t
   val disable_log : t -> unit
   val revert : t -> Git_storage_s.Log_entry.t -> unit or_error Lwt.t

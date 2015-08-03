@@ -394,6 +394,16 @@ ol.ck-history a {
 	display: block;
 }
 
+ol.ck-history a.ck-server-head::before {
+	content: "server";
+	border: 1px solid black;
+	color: black;
+	background: #ffddaa;
+	padding-left: 0.1em;
+	padding-right: 0.1em;
+	margin-right: 0.2em;
+}
+
 ol.ck-history p {
 	margin-left: 1em;
 	margin-bottom: 0.2rem;

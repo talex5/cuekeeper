@@ -462,9 +462,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | [] -> "(no log message)"
       | x::_ -> x in
     let date = Ck_time.string_of_unix_time log_entry.date in
+    let a_cl = M.server_head m >|~= function
+      | Some id when log_entry.id = id -> ["ck-server-head"]
+      | _ -> [] in
     let item =
       li ~a:[R.Html5.a_class cl] [
-        a ~a:[a_onclick view] [pcdata (date ^ ": " ^ summary)];
+        a ~a:[a_onclick view; R.Html5.a_class a_cl] [pcdata (date ^ ": " ^ summary)];
       ] in
     item_ref := Some item;
     item

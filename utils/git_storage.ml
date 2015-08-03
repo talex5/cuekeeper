@@ -201,25 +201,31 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       | None, None -> true
       | _ -> false
 
-    let of_store repo store ~if_new =
+    let of_store ?if_new repo store =
       let commit_of_id = function
         | None -> return None
         | Some id -> Commit.of_id repo id >|= fun commit -> Some commit in
       I.head (store "Get latest commit") >>= (function
-        | Some id -> return id
+        | Some id -> return (Some id)
         | None ->
-            Lazy.force if_new >>= fun commit ->
+            match if_new with
+            | None -> return None
+            | Some (lazy if_new) ->
+            if_new >>= fun commit ->
             let new_id = Commit.id commit in
             I.compare_and_set_head (store "Initialise repository") ~test:None ~set:(Some new_id) >>= function
-            | true -> return new_id
+            | true -> return (Some new_id)
             | false ->
                 Log.warn "Concurrent attempt to initialise new branch; discarding our attempt";
-                I.head_exn (store "Read new head")
+                I.head (store "Read new head")
       ) >>= fun initial_head_id ->
-      let head_id = ref (Some initial_head_id) in
-      Commit.of_id repo initial_head_id >>= fun initial_head ->
-      let head, set_head = React.S.create ~eq:opt_commit_equal (Some initial_head) in
-      I.watch_head (store "Watch branch") ~init:initial_head_id (fun _diff ->
+      let head_id = ref initial_head_id in
+      begin match initial_head_id with
+      | None -> return None
+      | Some id -> Commit.of_id repo id >|= fun commit -> Some commit
+      end >>= fun initial_head ->
+      let head, set_head = React.S.create ~eq:opt_commit_equal initial_head in
+      I.watch_head (store "Watch branch") ?init:initial_head_id (fun _diff ->
         (* (ignore the commit ID in the update message; we want the latest) *)
         I.head (store "Get latest commit") >>= fun new_head_id ->
         if new_head_id <> !head_id then (
@@ -257,6 +263,14 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
           (* These shouldn't happen, because we didn't set any limits *)
           | `Max_depth_reached | `Too_many_lcas -> assert false
 
+    let force t = function
+      | Some commit -> I.update_head (t.store "force") (Commit.id commit)
+      | None ->
+          let store = t.store "delete branch" in
+          I.tag store >>= function
+          | None -> assert false
+          | Some branch_name -> I.remove_tag store branch_name
+
     let release t =
       t.unwatch ()
   end
@@ -264,14 +278,8 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
   module Repository = struct
     type t = repo
 
-    let branch t ~if_new name =
-      I.of_tag t.config t.task_maker name >>= Branch.of_store t ~if_new
-
-    let force_branch t branch commit =
-      I.of_tag t.config t.task_maker branch >>= fun s ->
-      match commit with
-      | None -> I.remove_tag (s "delete branch") branch
-      | Some commit -> I.update_head (s "force") (Commit.id commit)
+    let branch t ?if_new name =
+      I.of_tag t.config t.task_maker name >>= Branch.of_store ?if_new t
 
     let branch_head t branch =
       I.of_tag t.config t.task_maker branch >>= fun s ->
@@ -287,8 +295,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
     let empty t = V.empty () >|= Staging.of_view t
 
     let fetch_bundle t ~tracking_branch bundle =
-      I.of_tag t.config t.task_maker tracking_branch >>= fun s ->
-      let s = s "import" in
+      let s = tracking_branch.Branch.store "import" in
       let (slice, head) = Bundle.read (Mstruct.of_string bundle) in
       commit t head >>= function
       | Some c -> I.update_head s head >|= fun () -> `Ok c
