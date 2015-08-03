@@ -117,6 +117,8 @@ let next_repeat ~now r =
 
 let string_of_repeat spec =
   let units = string_of_time_unit spec.repeat_unit in
-  match spec.repeat_n with
-  | 1 -> Printf.sprintf "every %s" units
-  | n -> Printf.sprintf "every %d %ss" n units
+  let freq =
+    match spec.repeat_n with
+    | 1 -> Printf.sprintf "every %s" units
+    | n -> Printf.sprintf "every %d %ss" n units in
+  freq ^ " from " ^ string_of_user_date spec.repeat_from
