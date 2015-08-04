@@ -8,16 +8,17 @@ VERSION = dev
 RELEASE_DIR = cuekeeper-bin-${VERSION}
 MIRAGE_FLAGS = --unix
 
-all: client
+client-test: client test
 
-.PHONY: build test server
-client: test _build/js/client.js
+.PHONY: build-byte test server
+client: _build/js/client.js
 
 test: build-byte
+	ocamlbuild -cflag -g -no-links -use-ocamlfind tests/test.byte
 	./_build/tests/test.byte
 
 build-byte: ck_init.ml
-	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte tests/test.byte
+	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte
 
 _build/js/client.js: build-byte
 	js_of_ocaml ${JFLAGS} +weak.js js/helpers.js _build/js/client.byte

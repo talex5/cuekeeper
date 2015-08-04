@@ -1,3 +1,6 @@
+(* Copyright (C) 2015, Thomas Leonard
+ * See the README file for details. *)
+
 open OUnit
 open Lwt
 
@@ -69,7 +72,7 @@ module Key = struct
     | r -> r
 end
 
-module Test_rpc = struct
+module No_network = struct
   include Cohttp_lwt_unix.Client
   let get ?ctx:_ ?headers:_ _ = failwith "GET"
   let post ?ctx:_ ?body:_ ?chunked:_ ?headers:_ _ = failwith "POST"
@@ -94,14 +97,13 @@ let n name children = N (name, children)
 
 let assert_str_equal = assert_equal ~printer:(fun x -> x)
 
-module Test_repo (Store : Irmin.BASIC with type key = string list and type value = string) = struct
+module Test_repo (Store : Irmin.BASIC with type key = string list and type value = string)(Test_rpc:Cohttp_lwt.Client) = struct
   module Git = Git_storage.Make(Store)
   module ItemMap = Map.Make(Key)
   module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
   module M = Ck_model.Make(Test_clock)(Git)(struct type t = unit end)(Test_rpc)
   module W = M.Widget
   module Rev = Ck_rev.Make(Git)
-  module Up = Ck_update.Make(Git)(Test_clock)(Rev)
 
   (* Workaround for Irmin creating empty directories *)
   let filter_list staging path =
@@ -305,7 +307,7 @@ let suite =
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
       let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
-      let module T = Test_repo(Store) in
+      let module T = Test_repo(Store)(No_network) in
       let open T in
       Test_clock.reset ();
       let src, set_src = React.S.create ~eq:(ItemMap.equal (=)) ItemMap.empty in
@@ -416,7 +418,7 @@ let suite =
 
     "model">:: (fun () ->
       let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
-      let module T = Test_repo(Store) in
+      let module T = Test_repo(Store)(No_network) in
       let open T in
       run_with_exn begin fun () ->
         Test_clock.reset ();
@@ -876,7 +878,7 @@ let suite =
                 let common = Random.State.int random 1000 in
                 (* Note: need to reapply functor to get a fresh memory store *)
                 let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
-                let module T = Test_repo(Store) in
+                let module T = Test_repo(Store)(No_network) in
                 let module Merge = Ck_merge.Make(T.Git)(T.Rev) in
                 let open T in
 
@@ -933,6 +935,84 @@ let suite =
       with ex ->
         Printf.printf "[ random seed = %d ]\n" seed;
         raise ex
+    );
+
+    "server">:: (fun () ->
+      let module Net = Test_net.Make(Test_clock) in
+      let module Server_store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module Server = Server.Make(Server_store)(Net.Server) in
+      let module Laptop_store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module Laptop_client = Test_repo(Laptop_store)(Net.Client) in
+      let module Mobile_store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module Mobile_client = Test_repo(Mobile_store)(Net.Client) in
+      run_with_exn begin fun () ->
+        (* Start the server *)
+        Server_store.create config task >>= fun server_store ->
+        let s = Net.Server.make ~callback:(Server.handle_request server_store) () in
+        let accept ~ic ~oc =
+          Lwt.async (fun () -> Net.Server.callback s () ic oc) in
+        Net.listener := accept;
+
+        (* Check it is empty *)
+        Server_store.of_tag config task "master" >>= fun server_master ->
+        let server_master = server_master "test" in
+        Server_store.head server_master >>= function
+        | Some _ -> assert_failure "Server contains data before starting!"
+        | None ->
+
+        (* Start a new client ("laptop").
+         * It will see that the server is empty, create a new default state and push it. *)
+        Laptop_client.Git.make config task >>= fun client_git ->
+        Laptop_client.M.make ~server:(Uri.of_string "http://example.com/") client_git >>= fun laptop ->
+
+        (* Check the server now has the new state. *)
+        Server_store.head server_master >>= function
+        | None -> assert_failure "Client initialised without pushing to server!"
+        | Some _ ->
+
+        (* Delete an item from the client and sync *)
+        Laptop_client.(
+          let next_actions = M.tree laptop |> expect_tree in
+          next_actions |> assert_tree ~label:"fresh laptop client" [
+            n "@Next actions" [
+              n "@Reading" [
+                n "@Start using CueKeeper" [
+                  n "@Read wikipedia page on GTD" []
+                ];
+              ];
+            ];
+            n "@Recently completed" []
+          ];
+          let read = lookup ["Next actions"; "Reading"; "Start using CueKeeper"; "Read wikipedia page on GTD"] next_actions in
+          M.set_name laptop read "Read intro" >>= fun () ->
+          match M.client laptop with
+          | None -> assert_failure "no client!"
+          | Some client ->
+          M.Client.sync client
+        ) >>= function
+        | `Error e -> assert_failure e
+        | `Ok () ->
+
+        (* Create a new client ("mobile"). It should see the sync'd changes. *)
+        Mobile_client.(
+          Git.make config task >>= fun mobile_git ->
+          M.make ~server:(Uri.of_string "http://example.com/") mobile_git >>= fun mobile ->
+          let next_actions = M.tree mobile |> expect_tree in
+          next_actions |> assert_tree ~label:"fresh mobile client" [
+            n "@Next actions" [
+              n "@Reading" [
+                n "@Start using CueKeeper" [
+                  n "@Read intro" []
+                ];
+              ];
+            ];
+            n "@Recently completed" []
+          ];
+          return ()
+        ) >>= fun () ->
+
+        return ()
+      end
     );
   ]
 

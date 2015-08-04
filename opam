@@ -8,7 +8,7 @@ bug-reports: "https://github.com/talex5/cuekeeper/issues"
 license: "GNU LESSER GENERAL PUBLIC LICENSE, v2.1"
 dev-repo: "https://github.com/talex5/cuekeeper.git"
 build: [
-  [make]
+  [make "client"]
 ]
 build-test: [
   [make "test"]
@@ -29,6 +29,7 @@ depends: [
   "irmin-indexeddb"
   "crunch" {build}
   "ocamlfind" {build}
+  "mirage-http" {test}
 ]
 depopts: [
   "mirage"

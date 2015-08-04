@@ -60,25 +60,24 @@ module Make(Clock : Ck_clock.S)
     t.merge_from commit >>!= fun () -> return (`Ok (Some commit))
 
   let push t server_head =
-    let new_head =
-      match Git.Branch.head t.master |> React.S.value with
-      | Some commit -> commit
-      | None -> failwith "no master branch!" in
-    if Some new_head = server_head then return (`Ok ())
-    else (
-      Git.Commit.bundle ~tracking_branch new_head >>= function
-      | None -> return (`Ok ())
-      | Some bundle ->
-      post ~base:t.base "push" bundle >>!= function
-      | "ok" ->
-          begin Git.Branch.fast_forward_to t.server_branch new_head >>= function
-          | `Not_fast_forward ->
-              return (error "Push successful, but failed to fast-forward tracking branch - newer concurrent push?")
-          | `Ok -> return (`Ok ())
-          end
-      | "not-fast-forward" -> return `Concurrent_update
-      | msg -> return (error "Unexpected response '%s'" msg)
-    )
+    match Git.Branch.head t.master |> React.S.value, server_head with
+    | None, _ ->
+        failwith "no master branch!"
+    | Some new_head, Some server_head when Git.Commit.equal new_head server_head ->
+        return (`Ok ())
+    | Some new_head, _ ->
+        Git.Commit.bundle ~tracking_branch new_head >>= function
+        | None -> return (`Ok ())
+        | Some bundle ->
+        post ~base:t.base "push" bundle >>!= function
+        | "ok" ->
+            begin Git.Branch.fast_forward_to t.server_branch new_head >>= function
+            | `Not_fast_forward ->
+                return (error "Push successful, but failed to fast-forward tracking branch - newer concurrent push?")
+            | `Ok -> return (`Ok ())
+            end
+        | "not-fast-forward" -> return `Concurrent_update
+        | msg -> return (error "Unexpected response '%s'" msg)
 
   let sync t =
     let rec aux () =
