@@ -6,8 +6,6 @@ open Lwt
 open Ck_sigs
 open Ck_utils
 
-let tracking_branch = "server"
-
 module Make(Clock : Ck_clock.S)
            (Git : Git_storage_s.S)
            (G : GUI_DATA)
@@ -21,6 +19,7 @@ module Make(Clock : Ck_clock.S)
     let equal a b = Git_storage_s.Log_entry.equal (Slow_set.data a) (Slow_set.data b)
   end
   module Delta_history = Delta_RList.Make(Git_storage_s.Log_entry)(Slow_log_entry)(Git_storage_s.Log_entry_map)
+  module Client = Ck_client.Make(Clock)(Git)(RPC)
 
   type gui_data = G.t
 
@@ -196,11 +195,8 @@ module Make(Clock : Ck_clock.S)
     alert : bool React.S.t;
     mutable review_mode : review_mode;
     hidden_areas : Ck_id.S.t ref;   (* Filter in Work tab *)
-    server : Uri.t option;
-    server_branch : Git.Branch.t;
+    client : Client.t option;
     server_head : Irmin.Hash.SHA1.t option React.S.t;
-    sync_in_progress : bool React.S.t;
-    set_sync_in_progress : bool -> unit;
   }
 
   module X : sig
@@ -975,8 +971,9 @@ module Make(Clock : Ck_clock.S)
 
   let make ?(branch="master") ?server repo =
     let on_update, set_on_update = Lwt.wait () in
-    Git.Repository.branch ~if_new:(lazy (init_repo repo)) repo branch >>= Up.make ~on_update >>= fun master ->
-    Git.Repository.branch repo tracking_branch >>= fun server_branch ->
+    Git.Repository.branch ~if_new:(lazy (init_repo repo)) repo branch >>= fun master_branch ->
+    Up.make ~on_update master_branch >>= fun master ->
+    Git.Repository.branch repo Ck_client.tracking_branch >>= fun server_branch ->
     let server_head = Git.Branch.head server_branch >|~= function
       | None -> None
       | Some commit -> Some (Git.Commit.id commit) in
@@ -986,7 +983,12 @@ module Make(Clock : Ck_clock.S)
     let hidden_areas = ref Ck_id.S.empty in
     let rtree, update_tree = make_tree r ~hidden_areas `Work in
     let tree, set_tree = React.S.create ~eq:assume_changed rtree in
-    let sync_in_progress, set_sync_in_progress = React.S.create false in
+    let client =
+      match server with
+      | None -> None
+      | Some url ->
+          let merge_from c = Up.sync master ~from:c in
+          Some (Client.make ~master:master_branch ~server_branch ~merge_from url) in
     let t = {
       repo; master; r;
       tree; set_tree; update_tree;
@@ -997,10 +999,8 @@ module Make(Clock : Ck_clock.S)
       review_mode = `Done;
       keep_me = [];
       hidden_areas;
-      server;
-      server_branch;
+      client;
       server_head;
-      sync_in_progress; set_sync_in_progress;
     } in
     Lwt.wakeup set_on_update (fun r ->
       set_alert (R.alert r);
@@ -1052,81 +1052,5 @@ module Make(Clock : Ck_clock.S)
     t.hidden_areas := areas;
     t.update_tree t.r
 
-  let get ~base path =
-    RPC.get (Uri.with_path base path) >>= fun (resp, body) ->
-    match resp.Cohttp.Response.status with
-    | `OK -> Cohttp_lwt_body.to_string body >|= fun body -> `Ok body
-    | code -> return (error "Bad status code '%s' from server" (Cohttp.Code.string_of_status code))
-
-  let post ~base path body =
-    let body = Cohttp_lwt_body.of_string (B64.encode body) in
-    let headers = Cohttp.Header.init_with "Content-Type" "application/octet-stream" in
-    RPC.post ~headers ~body (Uri.with_path base path) >>= fun (resp, body) ->
-    match resp.Cohttp.Response.status with
-    | `OK -> Cohttp_lwt_body.to_string body >|= fun body -> `Ok body
-    | code -> return (error "Bad status code '%s' from server" (Cohttp.Code.string_of_status code))
-
-  (* Fetch the current server head and store in our "server" branch.
-   * Returns the [Commit.t] for the server's head. *)
-  let fetch t ~base =
-    let path =
-      match React.S.value (Git.Branch.head t.server_branch) with
-      | Some last_known -> "fetch/" ^ Irmin.Hash.SHA1.to_hum (Git.Commit.id last_known)
-      | None -> "fetch" in
-    get ~base path >>!= function
-    | "" ->
-        Git.Branch.force t.server_branch None >|= fun () -> `Ok None
-    | bundle ->
-        Git.Repository.fetch_bundle t.repo ~tracking_branch:t.server_branch (B64.decode bundle) >>!= fun commit ->
-        return (`Ok (Some commit))
-
-  let pull t ~base =
-    fetch t ~base >>!= function
-    | None -> return (`Ok None)
-    | Some commit ->
-    (* If server_head isn't in the history of master, merge it now. *)
-    Up.sync t.master ~from:commit >>!= fun () -> return (`Ok (Some commit))
-
-  let push t ~base server_head =
-    let new_head = Up.head t.master |> R.commit in
-    if Some new_head = server_head then return (`Ok ())
-    else (
-      Git.Commit.bundle ~tracking_branch new_head >>= function
-      | None -> return (`Ok ())
-      | Some bundle ->
-      post ~base "push" bundle >>!= function
-      | "ok" ->
-          begin Git.Branch.fast_forward_to t.server_branch new_head >>= function
-          | `Not_fast_forward ->
-              return (error "Push successful, but failed to fast-forward tracking branch - newer concurrent push?")
-          | `Ok -> return (`Ok ())
-          end
-      | "not-fast-forward" -> return `Concurrent_update
-      | msg -> return (error "Unexpected response '%s'" msg)
-    )
-
-  type server = t * Uri.t
-
-  let server t =
-    match t.server with
-    | None -> None
-    | Some url -> Some (t, url)
-
-  let sync (t, base) =
-    let rec aux () =
-      pull t ~base >>!= fun server_head ->
-      (* Our master branch now includes [server_head] *)
-      push t ~base server_head >>= function
-      | `Concurrent_update ->
-          Log.warn "Concurrent update during sync; retrying";
-          Clock.sleep 2.0 >>= aux
-      | `Ok () | `Error _ as r -> return r in
-    if React.S.value t.sync_in_progress then
-      return (`Error "Sync already in progress")
-    else (
-      t.set_sync_in_progress true;
-      finalize aux (fun () -> t.set_sync_in_progress false; return ())
-    )
-
-  let sync_in_progress t = t.sync_in_progress
+  let client t = t.client
 end

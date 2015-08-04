@@ -1330,9 +1330,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     |> show_modal ~parent:(ev##target);
     false
 
-  let sync m ev =
+  let sync client ev =
     async ~name:"sync" (fun () ->
-      M.sync m >|= report_error ~parent:(ev##target)
+      M.Client.sync client >|= report_error ~parent:(ev##target)
     );
     false
 
@@ -1345,13 +1345,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
     ] in
     let actions =
-      match M.server m with
-      | Some server ->
-          let cl = M.sync_in_progress m >|~= (function
+      match M.client m with
+      | Some client ->
+          let cl = M.Client.sync_in_progress client >|~= (function
             | false -> []
             | true -> ["ck-in-progress"]
           ) in
-          a ~a:[a_onclick (sync server); R.Html5.a_class cl] [pcdata "Sync"] :: actions
+          a ~a:[a_onclick (sync client); R.Html5.a_class cl] [pcdata "Sync"] :: actions
       | None -> actions in
     let left_panel =
       let live = current_tree >|~= make_tree ~show_node m in

@@ -72,6 +72,10 @@ module type S = sig
     (** Set the head of the branch to point at this commit.
      * If None, the branch is deleted. *)
 
+    val fetch_bundle : t -> bundle -> Commit.t Ck_sigs.or_error Lwt.t
+    (** Import the contents of the bundle into the repository, updating the branch to
+     * point to the bundle's head (even if not a fast-forward). Returns the new head.  *)
+
     val release : t -> unit Lwt.t
     (** Stop watching this branch for updates ([head] will no longer update and
      * [t] should not be used again). *)
@@ -92,9 +96,5 @@ module type S = sig
 
     val empty : t -> Staging.t Lwt.t
     (** Create an empty checkout with no parent. *)
-
-    val fetch_bundle : t -> tracking_branch:Branch.t -> bundle -> Commit.t Ck_sigs.or_error Lwt.t
-    (** Import the contents of the bundle into the repository, updating [tracking_branch] to
-     * point to the bundle's head (even if not a fast-forward). Returns the new head.  *)
   end
 end

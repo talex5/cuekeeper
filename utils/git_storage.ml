@@ -62,6 +62,13 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       I.of_head repo.config repo.task_maker id >|= fun store ->
       {repo; store}
 
+    let of_id_opt repo hash =
+      of_id repo hash >>= fun c ->
+      let commit_store = I.Private.commit_t (c.store "check commit exists") in
+      I.Private.Commit.mem commit_store hash >|= function
+      | true -> Some c
+      | false -> None
+
     let checkout t =
       V.of_path (t.store "Make view") I.Key.empty >|= Staging.of_view t.repo
 
@@ -183,7 +190,6 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       I.lcas "lcas" t.store other.store >>= function
       | `Ok ids -> ids |> Lwt_list.map_s (of_id t.repo)
       | `Max_depth_reached |`Too_many_lcas -> assert false  (* Can't happen *)
-
   end
 
   module Branch = struct
@@ -271,6 +277,21 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
           | None -> assert false
           | Some branch_name -> I.remove_tag store branch_name
 
+    let fetch_bundle tracking_branch bundle =
+      let repo = tracking_branch.repo in
+      let s = tracking_branch.store "import" in
+      let (slice, head) = Bundle.read (Mstruct.of_string bundle) in
+      Commit.of_id_opt repo head >>= function
+      | Some c -> I.update_head s head >|= fun () -> `Ok c
+      | None ->
+      I.import s slice >>= function
+      | `Error -> return (`Error "Failed to import slice")
+      | `Ok ->
+      Commit.of_id_opt repo head >>= function
+      | None -> return (`Error "Head commit not found after importing bundle!")
+      | Some head_commit ->
+      I.update_head s head >|= fun () -> `Ok head_commit
+
     let release t =
       t.unwatch ()
   end
@@ -285,28 +306,9 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       I.of_tag t.config t.task_maker branch >>= fun s ->
       I.head (s "branch_head")
 
-    let commit t hash =
-      Commit.of_id t hash >>= fun c ->
-      let commit_store = I.Private.commit_t (c.Commit.store "check commit exists") in
-      I.Private.Commit.mem commit_store hash >|= function
-      | true -> Some c
-      | false -> None
+    let commit = Commit.of_id_opt
 
     let empty t = V.empty () >|= Staging.of_view t
-
-    let fetch_bundle t ~tracking_branch bundle =
-      let s = tracking_branch.Branch.store "import" in
-      let (slice, head) = Bundle.read (Mstruct.of_string bundle) in
-      commit t head >>= function
-      | Some c -> I.update_head s head >|= fun () -> `Ok c
-      | None ->
-      I.import s slice >>= function
-      | `Error -> return (`Error "Failed to import slice")
-      | `Ok ->
-      commit t head >>= function
-      | None -> return (`Error "Head commit not found after importing bundle!")
-      | Some head_commit ->
-      I.update_head s head >|= fun () -> `Ok head_commit
   end
 
   let make config task_maker =
