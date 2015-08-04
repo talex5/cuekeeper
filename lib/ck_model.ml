@@ -918,7 +918,7 @@ module Make(Clock : Ck_clock.S)
 
   let fixed_head t = t.fixed_head
 
-  let init_new_repo repo =
+  let init_new_repo ~did_init repo =
     Git.Repository.empty repo >>= fun staging ->
     Ck_init.file_list |> Lwt_list.iter_p (fun path ->
       match Ck_init.read path with
@@ -942,14 +942,16 @@ module Make(Clock : Ck_clock.S)
           let key = Irmin.Path.String_list.of_hum path in
           Git.Staging.update staging key value
     ) >>= fun () ->
-    Git.Commit.commit staging ~msg:["Initialise repository"]
+    Git.Commit.commit staging ~msg:["Initialise repository"] >|= fun commit ->
+    did_init := true;
+    commit
 
-  let init_repo ?server ~server_branch repo =
+  let init_repo ~did_init ?server ~server_branch repo =
     match server with
-    | None -> init_new_repo repo
+    | None -> init_new_repo ~did_init repo
     | Some base ->
         Client.fetch ~base ~server_branch >>= function
-        | `Ok None -> init_new_repo repo        (* Server is empty *)
+        | `Ok None -> init_new_repo ~did_init repo        (* Server is empty *)
         | `Ok (Some commit) -> return commit
         | `Error msg -> failwith (Printf.sprintf "Failed to clone remote repository: %s" msg)
 
@@ -979,9 +981,10 @@ module Make(Clock : Ck_clock.S)
     Up.revert ~repo:t.repo t.master entry
 
   let make ?(branch="master") ?server repo =
+    let did_init = ref false in
     let on_update, set_on_update = Lwt.wait () in
     Git.Repository.branch repo Ck_client.tracking_branch >>= fun server_branch ->
-    Git.Repository.branch ~if_new:(lazy (init_repo ?server ~server_branch repo)) repo branch >>= fun master_branch ->
+    Git.Repository.branch ~if_new:(lazy (init_repo ~did_init ?server ~server_branch repo)) repo branch >>= fun master_branch ->
     Up.make ~on_update master_branch >>= fun master ->
     let server_head = Git.Branch.head server_branch >|~= function
       | None -> None
@@ -1025,6 +1028,14 @@ module Make(Clock : Ck_clock.S)
             get_log master >|= set_log
           )
     );
+    begin match client with
+    | Some client when !did_init ->
+        begin Client.sync client >|= function
+        | `Ok () -> ()
+        | `Error msg -> failwith (Printf.sprintf "Initialised new repository, but failed to push changes: %s" msg)
+        end
+    | _ -> return ()
+    end >>= fun () ->
     return t
 
   let alert t = t.alert
