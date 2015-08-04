@@ -40,22 +40,20 @@ module Make(Clock : Ck_clock.S)
     | `OK -> Cohttp_lwt_body.to_string body >|= fun body -> `Ok body
     | code -> return (error "Bad status code '%s' from server" (Cohttp.Code.string_of_status code))
 
-  (* Fetch the current server head and store in our "server" branch.
-   * Returns the [Commit.t] for the server's head. *)
-  let fetch t =
+  let fetch ~base ~server_branch =
     let path =
-      match React.S.value (Git.Branch.head t.server_branch) with
+      match React.S.value (Git.Branch.head server_branch) with
       | Some last_known -> "fetch/" ^ Irmin.Hash.SHA1.to_hum (Git.Commit.id last_known)
       | None -> "fetch" in
-    get ~base:t.base path >>!= function
+    get ~base path >>!= function
     | "" ->
-        Git.Branch.force t.server_branch None >|= fun () -> `Ok None
+        Git.Branch.force server_branch None >|= fun () -> `Ok None
     | bundle ->
-        Git.Branch.fetch_bundle t.server_branch (B64.decode bundle) >>!= fun commit ->
+        Git.Branch.fetch_bundle server_branch (B64.decode bundle) >>!= fun commit ->
         return (`Ok (Some commit))
 
   let pull t  =
-    fetch t >>!= function
+    fetch ~base:t.base ~server_branch:t.server_branch >>!= function
     | None -> return (`Ok None)
     | Some commit ->
     (* If server_head isn't in the history of master, merge it now. *)

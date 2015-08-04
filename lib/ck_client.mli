@@ -22,6 +22,11 @@ module Make(Clock : Ck_clock.S)
    * Syncing will fetch changes into [server_branch] and then merge them into [master]
    * using [merge_from], before pushing [master] to the server. *)
 
+  val fetch : base:Uri.t -> server_branch:Git.Branch.t -> Git.Commit.t option or_error Lwt.t
+  (* Fetch the current server head and store in [server_branch].
+   * Returns the [Commit.t] for the server's head.
+   * Exposed to allow initialising the repository from the server on first use. *)
+
   val sync : t -> unit or_error Lwt.t
   (** Sync with server. *)
 
