@@ -14,17 +14,17 @@ all: client
 client: test _build/js/client.js
 
 test: build-byte
-	./_build/test.byte
+	./_build/tests/test.byte
 
 build-byte: ck_init.ml
-	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte test.byte
+	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte tests/test.byte
 
 _build/js/client.js: build-byte
 	js_of_ocaml ${JFLAGS} +weak.js js/helpers.js _build/js/client.byte
 
 slow_test:
-	ocamlbuild -cflag -g -no-links -use-ocamlfind test.native
-	env CK_TEST_ITERS=10000 ./_build/test.native
+	ocamlbuild -cflag -g -no-links -use-ocamlfind tests/test.native
+	env CK_TEST_ITERS=10000 ./_build/tests/test.native
 
 ck_init.ml: init/*/*
 	ocaml-crunch init -o ck_init.ml -m plain
