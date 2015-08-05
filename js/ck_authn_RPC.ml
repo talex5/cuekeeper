@@ -5,23 +5,27 @@
 
 open Lwt
 
-include Cohttp_lwt_xhr.Client
+module XHR = Cohttp_lwt_xhr.Client
 
 let token = ref None
 
 let get_token () =
-  token :=
-    Js.Opt.map (Dom_html.window##prompt(Js.string "Enter access token", Js.string "")) Js.to_string
-    |> Js.Opt.to_option
+  Js.Opt.case (Dom_html.window##prompt(Js.string "Enter access token", Js.string ""))
+    (fun () -> `Cancelled_by_user)
+    (fun s -> token := Some (Js.to_string s); `Ok)
 
 let rec with_token fn uri =
   match !token with
-  | None -> get_token(); with_token fn uri
-  | Some token ->
-      let uri = Uri.add_query_param uri ("token", [token]) in
+  | None ->
+      begin match get_token() with
+      | `Ok -> with_token fn uri
+      | `Cancelled_by_user as c -> return c
+      end
+  | Some access_token ->
+      let uri = Uri.add_query_param uri ("token", [access_token]) in
       fn uri >>= function
-      | (resp, _body) when resp.Cohttp.Response.status = `Unauthorized -> get_token(); with_token fn uri
-      | result -> return result
+      | (resp, _body) when resp.Cohttp.Response.status = `Unauthorized -> token := None; with_token fn uri
+      | result -> return (`Ok result)
 
-let get ?ctx ?headers uri = with_token (get ?ctx ?headers) uri
-let post ?ctx ?body ?chunked ?headers uri = with_token (post ?ctx ?body ?chunked ?headers) uri
+let get ?headers uri = with_token (XHR.get ?headers) uri
+let post ?body ?headers uri = with_token (XHR.post ?body ?headers) uri

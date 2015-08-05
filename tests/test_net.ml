@@ -48,5 +48,9 @@ module Make(Clock : Ck_clock.S) = struct
   end
 
   module Server = Cohttp_lwt.Make_server(Test_network.IO)
-  module Client = Cohttp_lwt.Make_client(Test_network.IO)(Test_network)
+  module Client = struct
+    module C = Cohttp_lwt.Make_client(Test_network.IO)(Test_network)
+    let get ?headers uri = C.get ?headers uri >|= fun r -> `Ok r
+    let post ?body ?headers uri = C.post ?body ?headers uri >|= fun r -> `Ok r
+  end
 end

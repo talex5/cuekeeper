@@ -73,9 +73,8 @@ module Key = struct
 end
 
 module No_network = struct
-  include Cohttp_lwt_unix.Client
-  let get ?ctx:_ ?headers:_ _ = failwith "GET"
-  let post ?ctx:_ ?body:_ ?chunked:_ ?headers:_ _ = failwith "POST"
+  let get ?headers:_ _ = failwith "GET"
+  let post ?body:_ ?headers:_ _ = failwith "POST"
 end
 
 (*
@@ -97,7 +96,7 @@ let n name children = N (name, children)
 
 let assert_str_equal = assert_equal ~printer:(fun x -> x)
 
-module Test_repo (Store : Irmin.BASIC with type key = string list and type value = string)(Test_rpc:Cohttp_lwt.Client) = struct
+module Test_repo (Store : Irmin.BASIC with type key = string list and type value = string)(Test_rpc:Ck_sigs.RPC) = struct
   module Git = Git_storage.Make(Store)
   module ItemMap = Map.Make(Key)
   module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
@@ -992,6 +991,7 @@ let suite =
           M.Client.sync client
         ) >>= function
         | `Error e -> assert_failure e
+        | `Cancelled_by_user -> assert false
         | `Ok () ->
 
         (* Create a new client ("mobile"). It should see the sync'd changes. *)

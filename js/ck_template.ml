@@ -299,6 +299,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let report_error ~parent = function
     | `Ok () -> ()
+    | `Cancelled_by_user -> ()    (* No need for an alert *)
     | `Error msg ->
         let close _ev = Ck_modal.close (); false in
         let content =

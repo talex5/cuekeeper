@@ -133,7 +133,7 @@ module type MODEL = sig
   module Client : sig
     type t
 
-    val sync : t -> unit or_error Lwt.t
+    val sync : t -> unit or_error_or_cancelled Lwt.t
     (** Sync with server. *)
 
     val sync_in_progress : t -> bool React.S.t

@@ -13,8 +13,8 @@ client-test: client test
 .PHONY: build-byte test server
 client: _build/js/client.js
 
-test: build-byte
-	ocamlbuild -cflag -g -no-links -use-ocamlfind tests/test.byte
+test:
+	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte tests/test.byte
 	./_build/tests/test.byte
 
 build-byte: ck_init.ml

@@ -9,7 +9,7 @@ open Ck_utils
 module Make(Clock : Ck_clock.S)
            (Git : Git_storage_s.S)
            (G : GUI_DATA)
-           (RPC : Cohttp_lwt.Client) = struct
+           (RPC : RPC) = struct
   module R = Ck_rev.Make(Git)
   module Node = R.Node
   module Up = Ck_update.Make(Git)(Clock)(R)
@@ -953,6 +953,7 @@ module Make(Clock : Ck_clock.S)
         Client.fetch ~base ~server_branch >>= function
         | `Ok None -> init_new_repo ~did_init repo        (* Server is empty *)
         | `Ok (Some commit) -> return commit
+        | `Cancelled_by_user -> failwith "Initial clone cancelled by user. Refresh to retry."
         | `Error msg -> failwith (Printf.sprintf "Failed to clone remote repository: %s" msg)
 
   let log_lock = Lwt_mutex.create ()
@@ -1031,7 +1032,7 @@ module Make(Clock : Ck_clock.S)
     begin match client with
     | Some client when !did_init ->
         begin Client.sync client >|= function
-        | `Ok () -> ()
+        | `Ok () | `Cancelled_by_user -> ()
         | `Error msg -> failwith (Printf.sprintf "Initialised new repository, but failed to push changes: %s" msg)
         end
     | _ -> return ()

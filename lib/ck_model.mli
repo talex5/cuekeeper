@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-module Make (C : Ck_clock.S) (Git : Git_storage_s.S) (G : sig type t end) (RPC : Cohttp_lwt.Client) : sig
+module Make (C : Ck_clock.S) (Git : Git_storage_s.S) (G : sig type t end) (RPC : Ck_sigs.RPC) : sig
   include Ck_model_s.MODEL with
     type gui_data = G.t
 

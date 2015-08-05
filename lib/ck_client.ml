@@ -7,9 +7,15 @@ open Ck_sigs
 
 let tracking_branch = "server"
 
+let (>>!=) x f =
+  x >>= function
+  | `Error _ as e -> return e
+  | `Ok y -> f y
+  | `Cancelled_by_user as c -> return c
+
 module Make(Clock : Ck_clock.S)
            (Git : Git_storage_s.S)
-           (RPC : Cohttp_lwt.Client) = struct
+           (RPC : RPC) = struct
   type t = {
     master : Git.Branch.t;
     server_branch : Git.Branch.t;
@@ -27,7 +33,9 @@ module Make(Clock : Ck_clock.S)
     }
 
   let get ~base path =
-    RPC.get (Uri.with_path base path) >>= fun (resp, body) ->
+    RPC.get (Uri.with_path base path) >>= function
+    | `Cancelled_by_user -> return `Cancelled_by_user
+    | `Ok (resp, body) ->
     match resp.Cohttp.Response.status with
     | `OK -> Cohttp_lwt_body.to_string body >|= fun body -> `Ok body
     | code -> return (error "Bad status code '%s' from server" (Cohttp.Code.string_of_status code))
@@ -35,7 +43,9 @@ module Make(Clock : Ck_clock.S)
   let post ~base path body =
     let body = Cohttp_lwt_body.of_string (B64.encode body) in
     let headers = Cohttp.Header.init_with "Content-Type" "application/octet-stream" in
-    RPC.post ~headers ~body (Uri.with_path base path) >>= fun (resp, body) ->
+    RPC.post ~headers ~body (Uri.with_path base path) >>= function
+    | `Cancelled_by_user -> return `Cancelled_by_user
+    | `Ok (resp, body) ->
     match resp.Cohttp.Response.status with
     | `OK -> Cohttp_lwt_body.to_string body >|= fun body -> `Ok body
     | code -> return (error "Bad status code '%s' from server" (Cohttp.Code.string_of_status code))
@@ -87,7 +97,7 @@ module Make(Clock : Ck_clock.S)
       | `Concurrent_update ->
           Log.warn "Concurrent update during sync; retrying";
           Clock.sleep 2.0 >>= aux
-      | `Ok () | `Error _ as r -> return r in
+      | `Ok () | `Cancelled_by_user | `Error _ as r -> return r in
     if React.S.value t.sync_in_progress then
       return (`Error "Sync already in progress")
     else (

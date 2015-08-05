@@ -141,3 +141,25 @@ module type REV = sig
   val expires : t -> Ck_time.user_date option
   (** Will need to reload at this time (this is when the next scheduled action becomes due). *)
 end
+
+type 'a or_cancelled =
+  [ `Ok of 'a
+  | `Cancelled_by_user ]
+
+type 'a or_error_or_cancelled =
+  [ `Ok of 'a
+  | `Error of string
+  | `Cancelled_by_user ]
+
+module type RPC = sig
+  open Cohttp
+
+  val get :
+    ?headers:Cohttp.Header.t ->
+    Uri.t -> (Response.t * Cohttp_lwt_body.t) or_cancelled Lwt.t
+
+  val post :
+    ?body:Cohttp_lwt_body.t ->
+    ?headers:Cohttp.Header.t ->
+    Uri.t -> (Response.t * Cohttp_lwt_body.t) or_cancelled Lwt.t
+end
