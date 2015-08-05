@@ -50,9 +50,31 @@ This allows you to sync between devices (e.g. a laptop and mobile phone).
 
 **Warning: This is a work-in-progress**:
 
-- There is currently no access control (anyone can view or modify the data).
 - The server does not yet persist the data itself
   (the client sends the whole history the first time it connects after the service is restarted).
+- You have to sync manually by clicking the `Sync` button - it does not send or fetch changes automatically.
+
+First, generate an access token (a *long* random string that grants access to the server).
+The `pwgen` command is useful for this:
+
+    $ pwgen -s 32 1
+    dtXZ7fQfX52VsnJNk22J6uKy8JSn6klb
+
+To avoid storing the secret in the server binary, generate its SHA256 hash:
+
+    $ echo -n dtXZ7fQfX52VsnJNk22J6uKy8JSn6klb | sha256sum
+    774400f3384a6f37cc2bc54b2fd0280193b613a5bc401c0e54fd17fe4ec19572
+
+Copy the file `server/devices.ml.example` as `server/devices.ml` and add the hash
+you generated above, e.g.:
+
+    let lookup = function
+      | "774400f3384a6f37cc2bc54b2fd0280193b613a5bc401c0e54fd17fe4ec19572" -> Some "Laptop"
+      | _ -> None
+
+The string at the end ("Laptop") is just used for logging.
+You can generate a different access token for each device you want to sync and list them all here, one per line.
+Make sure the `None` line comes last - this rejects all unknown tokens.
 
 To build the server component:
 
@@ -88,6 +110,9 @@ In Chrome:
 3. Click the **Manage certificates** button (in the HTTPS/SSL section).
 4. In the **Authorities** tab, click **Import...** and select your `server/conf/tls/server.pem` file.
 5. Select **Trust this certificate for identifying websites**.
+
+Finally, you should be prompted for your access key.
+Paste in the token you generated above (e.g. `dtXZ7fQfX52VsnJNk22J6uKy8JSn6klb` in the example above - *not* the hash).
 
 Deploying as a Xen VM
 ---------------------

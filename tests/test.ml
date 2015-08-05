@@ -948,7 +948,8 @@ let suite =
       run_with_exn begin fun () ->
         (* Start the server *)
         Server_store.create config task >>= fun server_store ->
-        let s = Net.Server.make ~callback:(Server.handle_request server_store) () in
+        let get_db reason = `Ok (server_store reason) in (* (no access control for testing) *)
+        let s = Net.Server.make ~callback:(Server.handle_request get_db) () in
         let accept ~ic ~oc =
           Lwt.async (fun () -> Net.Server.callback s () ic oc) in
         Net.listener := accept;

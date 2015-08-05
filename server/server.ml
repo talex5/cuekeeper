@@ -35,7 +35,9 @@ module Make (Store:Irmin.BASIC) (S:Cohttp_lwt.Server) = struct
   (* Import bundle from client into store. *)
   let accept_push s body =
     let headers = Cohttp.Header.init_with "Content-Type" "application/octet-stream" in
-    let s = s "import" in
+    match s "import" with
+    | `Error resp -> resp
+    | `Ok s ->
     Cohttp_lwt_body.to_string body >>= fun body ->
     let buf = Mstruct.of_string (B64.decode body) in
     let (slice, head) = Bundle.read buf in
@@ -69,7 +71,9 @@ module Make (Store:Irmin.BASIC) (S:Cohttp_lwt.Server) = struct
   (* Export changes in the store since [last_known] to a bundle for the client. *)
   let fetch s last_known =
     let headers = Cohttp.Header.init_with "Content-Type" "application/octet-stream" in
-    let s = s "export" in
+    match s "export" with
+    | `Error resp -> resp
+    | `Ok s ->
     Store.head s >>= function
     | None -> S.respond_string ~headers ~status:`OK ~body:"" ()
     | Some head ->
