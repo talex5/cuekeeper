@@ -18,6 +18,8 @@ module Make (Store:Irmin.BASIC) (S:Cohttp_lwt.Server) = struct
         let headers =
           if Filename.check_suffix path ".html" then
             Cohttp.Header.init_with "Content-Type" "text/html"
+          else if Filename.check_suffix path ".manifest" then
+            Cohttp.Header.init_with "Content-Type" "text/cache-manifest"
           else
             Cohttp.Header.init () in
         S.respond_string ~headers ~status:`OK ~body ()

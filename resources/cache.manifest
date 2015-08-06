@@ -1,0 +1,10 @@
+CACHE MANIFEST
+resources/css/normalize.css
+resources/css/foundation.css
+resources/css/style.css
+resources/css/pikaday.css
+resources/js/vendor/pikaday.js
+resources/js/vendor/FileSaver.min.js
+resources/js/cuekeeper.js
+resources/ico/ck.ico
+resources/ico/ck-alert.ico
