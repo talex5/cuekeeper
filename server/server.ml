@@ -91,9 +91,14 @@ module Make (Store:Irmin.BASIC) (S:Cohttp_lwt.Server) = struct
     let body = Cstruct.to_string buf |> B64.encode in
     S.respond_string ~headers ~status:`OK ~body ()
 
-  let handle_request s _conn_id request body =
+  let handle_request s (_io_conn, http_conn) request body =
     Lwt.catch (fun () ->
-      match Cohttp.Request.meth request, split_path (Cohttp.Request.uri request) with
+      let uri = Cohttp.Request.uri request in
+      Log.info "%s: %s %s"
+        (Cohttp.Connection.to_string http_conn)
+        (Cohttp.Request.meth request |> Cohttp.Code.string_of_method)
+        (Uri.to_string uri);
+      match Cohttp.Request.meth request, split_path uri with
       | `GET, ["fetch"] -> fetch s None
       | `GET, ["fetch"; last_known] -> fetch s (Some last_known)
       | `POST, ["push"] -> accept_push s body
