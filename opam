@@ -34,3 +34,6 @@ depends: [
 depopts: [
   "mirage"
 ]
+conflicts: [
+  "mirage-xen-posix" {< "2.3.3"}
+]

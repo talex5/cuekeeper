@@ -23,4 +23,4 @@ addons:
     - curl
     - libxen-dev
 env:
-  - FORK_USER=talex5 FORK_BRANCH=containers OPAMYES=true OCAML_VERSION=4.01 PINS="bin_prot:https://github.com/talex5/bin_prot.git#js_of_ocaml sexplib:https://github.com/talex5/sexplib.git#js_of_ocaml git:https://github.com/talex5/ocaml-git.git#disable-tests tcpip:https://github.com/talex5/mirage-tcpip.git#disable-tests" POST_INSTALL_HOOK="bash -eux .travis-post-install.sh"
+  - FORK_USER=talex5 FORK_BRANCH=containers OPAMYES=true OCAML_VERSION=4.01 PINS="bin_prot:https://github.com/talex5/bin_prot.git#js_of_ocaml sexplib:https://github.com/talex5/sexplib.git#js_of_ocaml tcpip:https://github.com/talex5/mirage-tcpip.git#disable-tests" POST_INSTALL_HOOK="bash -eux .travis-post-install.sh"
