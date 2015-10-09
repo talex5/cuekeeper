@@ -78,7 +78,7 @@ module No_network = struct
 end
 
 (*
-module Store = Irmin.Basic(Irmin_unix.Irmin_git.FS)(Irmin.Contents.String)
+module Store = Irmin_unix.Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 let _ = Unix.system "rm -rf /tmp/test_db/.git"
 let () = Irmin_unix.install_dir_polling_listener 1.0
 let config = Irmin_unix.Irmin_git.config ~root:"/tmp/test_db" ()
@@ -305,7 +305,7 @@ let day d = Ck_time.make ~year:2015 ~month:4 ~day:d
 let suite = 
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
-      let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
       let module T = Test_repo(Store)(No_network) in
       let open T in
       Test_clock.reset ();
@@ -416,7 +416,7 @@ let suite =
     );
 
     "model">:: (fun () ->
-      let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
       let module T = Test_repo(Store)(No_network) in
       let open T in
       run_with_exn begin fun () ->
@@ -876,15 +876,15 @@ let suite =
             | i ->
                 let common = Random.State.int random 1000 in
                 (* Note: need to reapply functor to get a fresh memory store *)
-                let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+                let module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
                 let module T = Test_repo(Store)(No_network) in
                 let module Merge = Ck_merge.Make(T.Git)(T.Rev) in
                 let open T in
 
                 (* Printf.printf "test %d\n%!" i; *)
                 let branch_d name =
-                  Store.create config task >>= fun s ->
-                  Store.remove_tag (s "git branch -d") name in
+                  Store.Repo.create config >>= fun repo ->
+                  Store.Repo.remove_branch repo name in
                 Git.make config task >>= fun repo ->
                 let commit ~parents msg =
                   branch_d msg >>= fun () ->
@@ -938,15 +938,16 @@ let suite =
 
     "server">:: (fun () ->
       let module Net = Test_net.Make(Test_clock) in
-      let module Server_store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module Server_store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
       let module Server = Server.Make(Server_store)(Net.Server) in
-      let module Laptop_store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module Laptop_store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
       let module Laptop_client = Test_repo(Laptop_store)(Net.Client) in
-      let module Mobile_store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+      let module Mobile_store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
       let module Mobile_client = Test_repo(Mobile_store)(Net.Client) in
       run_with_exn begin fun () ->
         (* Start the server *)
-        Server_store.create config task >>= fun server_store ->
+        Server_store.Repo.create config >>= fun server_repo ->
+        Server_store.master task server_repo >>= fun server_store ->
         let get_db reason = `Ok (server_store reason) in (* (no access control for testing) *)
         let s = Net.Server.make ~callback:(Server.handle_request get_db) () in
         let accept ~ic ~oc =
@@ -954,7 +955,7 @@ let suite =
         Net.listener := accept;
 
         (* Check it is empty *)
-        Server_store.of_tag config task "master" >>= fun server_master ->
+        Server_store.of_branch_id task "master" server_repo >>= fun server_master ->
         let server_master = server_master "test" in
         Server_store.head server_master >>= function
         | Some _ -> assert_failure "Server contains data before starting!"
