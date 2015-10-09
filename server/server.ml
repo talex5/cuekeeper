@@ -47,13 +47,13 @@ module Make (Store:Irmin.BASIC) (S:Cohttp_lwt.Server) = struct
     | Some server_head when server_head = head ->
         S.respond_string ~headers ~status:`OK ~body:"ok" ()
     | server_head ->
-    Store.import s slice >>= function
+    Store.Repo.import (Store.repo s) slice >>= function
     | `Error ->
         let msg = "Failed to import slice" in
         Log.warn "%s" msg;
         S.respond_string ~headers ~status:`Bad_request ~body:msg ()
     | `Ok ->
-    let commit_store = Store.Private.commit_t s in
+    let commit_store = Store.Private.Repo.commit_t (Store.repo s) in
     Store.Private.Commit.mem commit_store head >>= function
     | false ->
         let msg = "New head not found after import!" in
@@ -83,7 +83,7 @@ module Make (Store:Irmin.BASIC) (S:Cohttp_lwt.Server) = struct
       match last_known with
       | None -> []
       | Some c -> [Irmin.Hash.SHA1.of_hum c] in
-    Store.export s ~min:basis ~max:[head] >>= fun slice ->
+    Store.Repo.export (Store.repo s) ~min:basis ~max:[head] >>= fun slice ->
     let bundle = (slice, head) in
     let buf = Cstruct.create (Bundle.size_of bundle) in
     let rest = Bundle.write bundle buf in

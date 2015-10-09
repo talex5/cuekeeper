@@ -26,7 +26,7 @@ depends: [
   "ounit" {build}
   "tar-format"
   "cohttp"
-  "irmin-indexeddb"
+  "irmin-indexeddb" {>= "0.3"}
   "crunch" {build}
   "ocamlfind" {build}
   "mirage-http" {test}

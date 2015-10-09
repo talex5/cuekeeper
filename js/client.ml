@@ -20,7 +20,7 @@ module Clock = struct
   let sleep = Lwt_js.sleep
 end
 
-module Git = Git_storage.Make(Irmin.Basic(Irmin_IDB.Make)(Irmin.Contents.String))
+module Git = Git_storage.Make(Irmin_IDB.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1))
 module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)(Ck_authn_RPC)
 module T = Ck_template.Make(M)
 

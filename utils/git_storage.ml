@@ -20,9 +20,8 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
   module Bundle = Tc.Pair(I.Private.Slice)(I.Head)
 
   type repo = {
-    config : Irmin.config;
+    r : I.Repo.t;
     task_maker : string -> Irmin.task;
-    empty : string -> I.t;
   }
 
   module Staging = struct
@@ -51,21 +50,20 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
     module History = I.History
 
     let id t =
-      match I.branch (t.store "get commit ID") with
-      | `Tag _ | `Empty -> assert false
+      match I.head_ref (t.store "get commit ID") with
+      | `Branch _ | `Empty -> assert false
       | `Head id -> id
 
     let equal a b =
       id a = id b
 
     let of_id repo id =
-      I.of_head repo.config repo.task_maker id >|= fun store ->
+      I.of_head repo.task_maker id repo.r >|= fun store ->
       {repo; store}
 
     let of_id_opt repo hash =
       of_id repo hash >>= fun c ->
-      let commit_store = I.Private.commit_t (c.store "check commit exists") in
-      I.Private.Commit.mem commit_store hash >|= function
+      I.Private.Commit.mem (I.Private.Repo.commit_t repo.r) hash >|= function
       | true -> Some c
       | false -> None
 
@@ -86,8 +84,9 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
             let t = repo.task_maker summary in
             body |> List.iter (Irmin.Task.add t);
             t in
-      V.make_head (repo.empty (List.hd msg)) task ~parents ~contents:staging.Staging.view
-      >>= I.of_head repo.config repo.task_maker
+      I.empty repo.task_maker repo.r >>= fun empty ->
+      V.make_head (empty (List.hd msg)) task ~parents ~contents:staging.Staging.view >>= fun head ->
+      I.of_head repo.task_maker head repo.r
       >|= fun store -> { repo; store }
 
     let history ?depth t =
@@ -118,7 +117,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       );
       (* Wait for them to complete and put in a hash table *)
       !hashes_needed |> Lwt_list.iter_s (fun hash ->
-        I.task_of_head store hash >|= Hashtbl.add task_of_hash hash
+        I.Repo.task_of_head t.repo.r hash >|= Hashtbl.add task_of_hash hash
       ) >>= fun () ->
       (* Set rank field according to topological order and build final result map *)
       let map = ref Log_entry_map.empty in
@@ -134,7 +133,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       return !map
 
     let merge a b =
-      I.of_head a.repo.config a.repo.task_maker (id a) >>= fun tmp ->
+      I.of_head a.repo.task_maker (id a) a.repo.r >>= fun tmp ->
       I.merge_head (tmp "Merge") (id b) >|= function
       | `Ok () -> `Ok {a with store = tmp}
       | `Conflict _ as c -> c
@@ -160,8 +159,8 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       T.Archive.create_gen (Stream.of_list !files) buf;
       Buffer.contents buf
 
-    let bundle_create s ~basis head =
-      I.export s ~min:basis ~max:[head] >|= fun slice ->
+    let bundle_create repo ~basis head =
+      I.Repo.export repo ~min:basis ~max:[head] >|= fun slice ->
       let bundle = (slice, head) in
       let buf = Cstruct.create (Bundle.size_of bundle) in
       let rest = Bundle.write bundle buf in
@@ -170,12 +169,12 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
 
     let bundle ~tracking_branch commit =
       let head = id commit in
-      I.of_tag commit.repo.config commit.repo.task_maker tracking_branch >>= fun s ->
+      I.of_branch_id commit.repo.task_maker tracking_branch commit.repo.r >>= fun s ->
       let s = s "bundle" in
       I.head s >>= function
       | Some old_head when old_head = head -> return None
-      | Some old_head -> bundle_create s ~basis:[old_head] head
-      | None -> bundle_create s ~basis:[] head
+      | Some old_head -> bundle_create (I.repo s) ~basis:[old_head] head
+      | None -> bundle_create (I.repo s) ~basis:[] head
 
     let parents t =
       let head = id t in
@@ -184,7 +183,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       |> Lwt_list.map_s (of_id t.repo)
 
     let task t =
-      I.task_of_head (t.store "task") (id t)
+      I.Repo.task_of_head t.repo.r (id t)
 
     let lcas t other =
       I.lcas "lcas" t.store other.store >>= function
@@ -273,9 +272,9 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       | Some commit -> I.update_head (t.store "force") (Commit.id commit)
       | None ->
           let store = t.store "delete branch" in
-          I.tag store >>= function
+          I.name store >>= function
           | None -> assert false
-          | Some branch_name -> I.remove_tag store branch_name
+          | Some branch_name -> I.Repo.remove_branch t.repo.r branch_name
 
     let fetch_bundle tracking_branch bundle =
       let repo = tracking_branch.repo in
@@ -284,7 +283,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       Commit.of_id_opt repo head >>= function
       | Some c -> I.update_head s head >|= fun () -> `Ok c
       | None ->
-      I.import s slice >>= function
+      I.Repo.import tracking_branch.repo.r slice >>= function
       | `Error -> return (`Error "Failed to import slice")
       | `Ok ->
       Commit.of_id_opt repo head >>= function
@@ -300,10 +299,10 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
     type t = repo
 
     let branch t ?if_new name =
-      I.of_tag t.config t.task_maker name >>= Branch.of_store ?if_new t
+      I.of_branch_id t.task_maker name t.r >>= Branch.of_store ?if_new t
 
     let branch_head t branch =
-      I.of_tag t.config t.task_maker branch >>= fun s ->
+      I.of_branch_id t.task_maker branch t.r >>= fun s ->
       I.head (s "branch_head")
 
     let commit = Commit.of_id_opt
@@ -318,6 +317,6 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
         Ck_utils.bug
           "Bin_prot serialisation is broken (says it needs %d bytes to store 0x8000). \
           Ensure js_of_ocaml branch is pinned." x end;
-    I.empty config task_maker >|= fun empty ->
-    {config; task_maker; empty}
+    I.Repo.create config >|= fun r ->
+    {r; task_maker}
 end

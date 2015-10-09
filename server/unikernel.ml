@@ -9,7 +9,7 @@ let () = Log.(set_log_level INFO)
 (* Never used, but needed to create the store. *)
 let task s = Irmin.Task.create ~date:0L ~owner:"Server" s
 
-module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String)
+module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 
 module Bytes = String
 
@@ -58,7 +58,7 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
     Server.handle_request get_db conn_id request body
 
   let start stack conf _clock =
-    Store.create (Irmin_mem.config ()) task >>= fun s ->
+    Store.Repo.create (Irmin_mem.config ()) >>= Store.master task >>= fun s ->
     let http = S.make ~conn_closed:ignore ~callback:(handle_request s) () in
     X509.certificate conf `Default >>= fun cert ->
     let tls_config = Tls.Config.server ~certificates:(`Single cert) () in
