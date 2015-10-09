@@ -30,6 +30,7 @@ depends: [
   "crunch" {build}
   "ocamlfind" {build}
   "mirage-http" {test}
+  "cstruct" {>= "1.7.0"}
 ]
 depopts: [
   "mirage"
