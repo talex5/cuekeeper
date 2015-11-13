@@ -647,6 +647,7 @@ div.ck-details div.description {
 
 div.description > div {
 	padding: 0.2rem;
+	max-width: 100%;
 }
 
 div.description > div.row {
