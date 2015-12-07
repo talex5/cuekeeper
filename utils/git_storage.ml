@@ -14,10 +14,10 @@ end
 
 module T = Tar.Make(IO)
 
-module Make (I : Irmin.BASIC with type key = string list and type value = string) = struct
+module Make (I : Irmin.S with type key = string list and type value = string) = struct
   module V = Irmin.View(I)
 
-  module Bundle = Tc.Pair(I.Private.Slice)(I.Head)
+  module Bundle = Tc.Pair(I.Private.Slice)(I.Hash)
 
   type repo = {
     r : I.Repo.t;
@@ -58,7 +58,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       id a = id b
 
     let of_id repo id =
-      I.of_head repo.task_maker id repo.r >|= fun store ->
+      I.of_commit_id repo.task_maker id repo.r >|= fun store ->
       {repo; store}
 
     let of_id_opt repo hash =
@@ -86,7 +86,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
             t in
       I.empty repo.task_maker repo.r >>= fun empty ->
       V.make_head (empty (List.hd msg)) task ~parents ~contents:staging.Staging.view >>= fun head ->
-      I.of_head repo.task_maker head repo.r
+      I.of_commit_id repo.task_maker head repo.r
       >|= fun store -> { repo; store }
 
     let history ?depth t =
@@ -117,7 +117,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       );
       (* Wait for them to complete and put in a hash table *)
       !hashes_needed |> Lwt_list.iter_s (fun hash ->
-        I.Repo.task_of_head t.repo.r hash >|= Hashtbl.add task_of_hash hash
+        I.Repo.task_of_commit_id t.repo.r hash >|= Hashtbl.add task_of_hash hash
       ) >>= fun () ->
       (* Set rank field according to topological order and build final result map *)
       let map = ref Log_entry_map.empty in
@@ -133,7 +133,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       return !map
 
     let merge a b =
-      I.of_head a.repo.task_maker (id a) a.repo.r >>= fun tmp ->
+      I.of_commit_id a.repo.task_maker (id a) a.repo.r >>= fun tmp ->
       I.merge_head (tmp "Merge") (id b) >|= function
       | `Ok () -> `Ok {a with store = tmp}
       | `Conflict _ as c -> c
@@ -183,7 +183,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       |> Lwt_list.map_s (of_id t.repo)
 
     let task t =
-      I.Repo.task_of_head t.repo.r (id t)
+      I.Repo.task_of_commit_id t.repo.r (id t)
 
     let lcas t other =
       I.lcas "lcas" t.store other.store >>= function
