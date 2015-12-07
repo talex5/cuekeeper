@@ -14,7 +14,8 @@ end
 
 module T = Tar.Make(IO)
 
-module Make (I : Irmin.BASIC with type key = string list and type value = string) = struct
+module Make (I : Irmin.S with type key = string list and type value = string
+             and type commit_id = Irmin.Hash.SHA1.t and type branch_id = string) = struct
   module V = Irmin.View(I)
 
   module Bundle = Tc.Pair(I.Private.Slice)(I.Hash)
@@ -168,7 +169,7 @@ module Make (I : Irmin.BASIC with type key = string list and type value = string
       Some (Cstruct.to_string buf)
 
     let bundle ~tracking_branch commit =
-      let head = id commit in
+      let head = id commit in (* commit id *)
       I.of_branch_id commit.repo.task_maker tracking_branch commit.repo.r >>= fun s ->
       let s = s "bundle" in
       I.head s >>= function
