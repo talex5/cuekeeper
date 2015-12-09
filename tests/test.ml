@@ -96,7 +96,9 @@ let n name children = N (name, children)
 
 let assert_str_equal = assert_equal ~printer:(fun x -> x)
 
-module Test_repo (Store : Irmin.BASIC with type key = string list and type value = string)(Test_rpc:Ck_sigs.RPC) = struct
+module Test_repo (Store : Irmin.S with type key = string list
+                                   and type value = string and
+                 type branch_id = string and type commit_id = Irmin.Hash.SHA1.t)(Test_rpc:Ck_sigs.RPC) = struct
   module Git = Git_storage.Make(Store)
   module ItemMap = Map.Make(Key)
   module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
