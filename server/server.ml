@@ -7,7 +7,9 @@ let show_head = function
   | None -> "(none)"
   | Some head -> String.sub (Irmin.Hash.SHA1.to_hum head) 0 6
 
-module Make (Store:Irmin.BASIC) (S:Cohttp_lwt.Server) = struct
+module Make (Store:Irmin.S with type branch_id = string and type commit_id =
+                                                              Irmin.Hash.SHA1.t)
+    (S:Cohttp_lwt.Server) = struct
   module Bundle = Tc.Pair(Store.Private.Slice)(Store.Hash)
 
   let respond_static segments =
