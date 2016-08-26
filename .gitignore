@@ -8,6 +8,6 @@ server/mir-cuekeeper
 server/static.ml
 server/static1.ml*
 server/log
-server/conf/tls/server.pem
-server/conf/tls/server.key
+server/conf/server.pem
+server/conf/server.key
 server/devices.ml

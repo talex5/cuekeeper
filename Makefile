@@ -40,19 +40,19 @@ release:
 	zip -r "${RELEASE_DIR}.zip" ${RELEASE_DIR}
 	rm -rf "${RELEASE_DIR}"
 
-server/conf/tls/server.key:
+server/conf/server.key:
 	@echo Generating server key...
-	[ -d server/conf/tls ] || mkdir -p server/conf/tls
+	[ -d server/conf] || mkdir -p server/conf
 	openssl genpkey -out $@ -outform PEM -algorithm RSA -pkeyopt rsa_keygen_bits:4096
 
-server/conf/tls/server.pem: server/conf/tls/server.key
+server/conf/server.pem: server/conf/server.key
 	@echo ">>> Generating server X.509 certificate."
 	@echo ">>> Enter the server's full hostname as the 'Common Name' (e.g. cuekeeper.mynet)."
 	@echo ">>> Everything else can be left blank."
 	@echo
 	@openssl req -new -x509 -key $< -out $@ -days 10000
 
-server: client server/conf/tls/server.pem
+server: client server/conf/server.pem
 	rm -rf _build/static
 	mkdir _build/static
 	cp -r resources _build/static/

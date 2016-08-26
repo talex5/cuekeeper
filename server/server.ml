@@ -93,7 +93,7 @@ module Make (Store:Irmin.S with type branch_id = string and type commit_id =
     let buf = Cstruct.create (Bundle.size_of bundle) in
     let rest = Bundle.write bundle buf in
     assert (Cstruct.len rest = 0);
-    let body = Cstruct.to_string buf |> B64.encode in
+    let body = B64.encode (Cstruct.to_string buf) in
     S.respond_string ~headers ~status:`OK ~body ()
 
   let handle_request s (_io_conn, http_conn) request body =

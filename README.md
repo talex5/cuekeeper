@@ -105,7 +105,7 @@ In Chrome:
 1. It will say "Your connection is not private" (in fact, the opposite is true; if encryption wasn't being used it wouldn't have complained at all).
 2. Go to **Settings** -> **Show advanced settings**.
 3. Click the **Manage certificates** button (in the HTTPS/SSL section).
-4. In the **Authorities** tab, click **Import...** and select your `server/conf/tls/server.pem` file.
+4. In the **Authorities** tab, click **Import...** and select your `server/conf/server.pem` file.
 5. Select **Trust this certificate for identifying websites**.
 
 Finally, you should be prompted for your access key.

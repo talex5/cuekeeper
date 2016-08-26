@@ -1,0 +1,4 @@
+B _build/
+S .
+PKG mirage nocrypto mirage-types.lwt
+REC

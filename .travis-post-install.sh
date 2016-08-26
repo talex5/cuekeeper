@@ -1,6 +1,6 @@
 #!/bin/bash -eux
-make server/conf/tls/server.key
-touch server/conf/tls/server.pem
+make server/conf/server.key
+touch server/conf/server.pem
 opam install mirage
 ocamlfind list
 opam list
