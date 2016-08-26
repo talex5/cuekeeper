@@ -27,7 +27,7 @@ module T = Ck_template.Make(M)
 let server =
   let use_server = Js.Unsafe.variable "ck_use_server" |> Js.to_bool in
   if use_server then Some (
-    Js.to_string Dom_html.window##location##protocol ^ Js.to_string Dom_html.window##location##host
+    Js.to_string Dom_html.window##.location##.protocol ^ Js.to_string Dom_html.window##.location##.host
     |> Uri.of_string
   ) else None
 
@@ -46,7 +46,7 @@ let start (main:#Dom.node Js.t) =
           | true -> "resources/ico/ck-alert.ico"
         ) in
         R.Html5.link ~rel:(React.S.const [`Icon]) ~href ~a:[Html5.a_mime_type "image/ico"] () in
-      Dom_html.document##head##appendChild (Tyxml_js.To_dom.of_node icon) |> ignore;
+      Dom_html.document##.head##appendChild (Tyxml_js.To_dom.of_node icon) |> ignore;
       T.make_top m
       |> List.iter (fun child -> main##appendChild (Tyxml_js.To_dom.of_node child) |> ignore);
       return ()

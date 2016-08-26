@@ -184,7 +184,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
           ff_master t merged >>= function
           | `Ok, updated -> return updated
           | `Not_fast_forward, _updated ->
-              Log.warn "Update while we were trying to merge - retrying...";
+              Printf.eprintf "Update while we were trying to merge - retrying...\n%!";
               Clock.sleep 1.0 >>= fun () ->      (* Might be a bug - avoid hanging the browser *)
               (* Possibly we should wait for branch_head to move, but this is a very unlikely case
                * so do a simple sleep-and-retry *)

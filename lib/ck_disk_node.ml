@@ -11,7 +11,7 @@ type node_details = {
   ctime : float;
   contact : Ck_id.t sexp_option;
   conflicts : string sexp_list;
-} with sexp
+} [@@deriving sexp]
 
 type astate =
   [ `Next
@@ -19,25 +19,26 @@ type astate =
   | `Waiting_for_contact
   | `Waiting_until of Ck_time.user_date
   | `Future
-  | `Done ] with sexp
+  | `Done ]
+  [@@deriving sexp]
 
 type action_details = {
-  astarred : bool with default(false);
+  astarred : bool [@default false];
   astate : astate;
   context : Ck_id.t sexp_option;
   repeat: Ck_time.repeat sexp_option;
-} with sexp
+} [@@deriving sexp]
 
 type project_details = {
-  pstarred : bool with default(false);
+  pstarred : bool [@default false];
   pstate : [ `Active | `SomedayMaybe | `Done ]
-} with sexp
+} [@@deriving sexp]
 
 type apa =
   [ `Action of (action_details * node_details)
   | `Project of (project_details * node_details)
   | `Area of node_details ]
-  with sexp
+  [@@deriving sexp]
 
 type generic =
   [ apa

@@ -9,9 +9,9 @@ type time_unit =
   | Week
   | Month
   | Year
-  with sexp
+  [@@deriving sexp]
 
-type user_date = (int * int * int) with sexp_of
+type user_date = (int * int * int) [@@deriving sexp_of]
 
 let of_tm tm =
   (tm.tm_year + 1900, tm.tm_mon, tm.tm_mday)
@@ -79,14 +79,14 @@ let string_of_user_date date =
 
 let user_date_of_sexp =
   let open Sexplib.Type in function
-  | Atom _ as x -> <:of_sexp<float>> x |> of_unix_time (* Old format *)
-  | List _ as x -> <:of_sexp<int * int * int>> x
+    | Atom _ as x -> [%of_sexp: float] x |> of_unix_time (* Old format *)
+    | List _ as x -> [%of_sexp: int * int * int] x
 
 type repeat = {
   repeat_n : int;
   repeat_unit : time_unit;
   repeat_from : user_date;
-} with sexp
+} [@@deriving sexp]
 
 let make_repeat ~from:repeat_from repeat_n repeat_unit =
   assert (repeat_n > 0);

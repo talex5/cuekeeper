@@ -21,7 +21,7 @@ build-byte: ck_init.ml
 	ocamlbuild -cflag -g -no-links -use-ocamlfind client.byte
 
 _build/js/client.js: build-byte
-	js_of_ocaml ${JFLAGS} +weak.js +cstruct/cstruct.js js/helpers.js _build/js/client.byte
+	js_of_ocaml ${JFLAGS} +weak.js +cstruct/cstruct.js +bin_prot.js _build/js/client.byte
 
 slow_test:
 	ocamlbuild -cflag -g -no-links -use-ocamlfind tests/test.native

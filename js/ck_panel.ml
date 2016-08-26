@@ -41,7 +41,7 @@ let make ~id ~closed ~set_closed ~on_destroy ~title ~contents =
         | true, Some elem ->
             let elem = To_dom.of_element elem in
             let _x, y = Ck_js_utils.pos_from_root elem in
-            let height = elem##clientHeight in
+            let height = elem##.clientHeight in
             Ck_animate.scroll_to_show (y, y + height);
         | _ -> () end;
         "ck-details" :: List.concat [
@@ -52,10 +52,10 @@ let make ~id ~closed ~set_closed ~on_destroy ~title ~contents =
     ) in
   let result = div ~a:[R.Html5.a_class cl] [
     div ~a:[a_class ["ck-heading"]] [
-      (title :> Html5_types.div_content_fun Tyxml_js.Html5.elt);
+      (title :> Html_types.div_content_fun Tyxml_js.Html5.elt);
       a ~a:[a_onclick (fun _ -> set_closed true; true); a_class ["close"]] [entity "#215"];
     ];
-    (contents :> [Html5_types.div_content_fun] Html5.elt);
+    (contents :> Html_types.div_content_fun Html5.elt);
   ] in
   elem := Some result;
   {

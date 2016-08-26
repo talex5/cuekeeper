@@ -6,17 +6,17 @@ type time_unit =
   | Week
   | Month
   | Year
-  with sexp
+  [@@deriving sexp]
 
 (** A date as entered by the user, without timezone information.
  * 1st Jan 2015 is (2015, 0, 1) - months start at zero. *)
-type user_date = private (int * int * int) with sexp
+type user_date = private (int * int * int) [@@deriving sexp]
 
 type repeat = private {
   repeat_n : int;
   repeat_unit : time_unit;
   repeat_from : user_date;
-} with sexp
+} [@@deriving sexp]
 
 val make_repeat : from:user_date -> int -> time_unit -> repeat
 

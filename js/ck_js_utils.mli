@@ -16,7 +16,7 @@ val async : name:string -> (unit -> unit Lwt.t) -> unit
 (** Wrapper for [Lwt_js_events.async] that logs exceptions with the given label.
  * Also, it forces the return type to be [unit Lwt.t]. *)
 
-val auto_focus : [< Html5_types.input] Tyxml_js.Html5.elt -> unit
+val auto_focus : [< Html_types.input] Tyxml_js.Html5.elt -> unit
 (** [auto_focus i] gives [i] the focus after this turn (giving it a chance to be rendered first). *)
 
 val make_blob : mime:string -> string -> File.blob Js.t
