@@ -40,7 +40,7 @@ module Make(Clock : Ck_clock.S) = struct
       close_out oc
 
     let connect_uri ~ctx:_ uri =
-      Log.info "connect(%s)" (Uri.to_string uri);
+      Printf.printf "connect(%s)\n%!" (Uri.to_string uri);
       let ic_req, oc_req = Lwt_io.pipe () in
       let ic_resp, oc_resp = Lwt_io.pipe () in
       !listener ~ic:ic_req ~oc:oc_resp;

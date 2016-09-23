@@ -6,7 +6,7 @@ open Mirage
 let net =
   match get_mode () with
   | `Xen -> `Direct
-  | `Unix ->
+  | `Unix | `MacOSX ->
       try match Sys.getenv "NET" with
         | "direct" -> `Direct
         | "socket" -> `Socket
@@ -37,6 +37,7 @@ let main =
   foreign
     ~libraries:["irmin.mem"; "tls.mirage"; "mirage-http"]
     ~packages:["irmin"; "tls"; "mirage-http"; "nocrypto"]
+    ~deps:[abstract nocrypto]
     "Unikernel.Main" (stackv4 @-> kv_ro @-> clock @-> job)
 
 let conf = crunch "conf"

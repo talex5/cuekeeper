@@ -222,7 +222,7 @@ module Make (I : Irmin.S with type key = string list and type value = string
             I.compare_and_set_head (store "Initialise repository") ~test:None ~set:(Some new_id) >>= function
             | true -> return (Some new_id)
             | false ->
-                Log.warn "Concurrent attempt to initialise new branch; discarding our attempt";
+                Printf.eprintf "Warning: Concurrent attempt to initialise new branch; discarding our attempt\n%!";
                 I.head (store "Read new head")
       ) >>= fun initial_head_id ->
       let head_id = ref initial_head_id in

@@ -28,19 +28,19 @@ let submit_button label =
      * http://reference.sitepoint.com/javascript/Element/setAttributeNode *)
     let s = span [] in
     let elem = Tyxml_js.To_dom.of_span s in
-    elem##innerHTML <- Js.string (Printf.sprintf "<input type='submit' value='%s'>" label);
+    elem##.innerHTML := Js.string (Printf.sprintf "<input type='submit' value='%s'>" label);
     s
 
 let radio_button ~clicked ~checked =
   let attrs = [a_onclick clicked] in
-  let attrs = if checked then a_checked `Checked :: attrs else attrs in
+  let attrs = if checked then a_checked () :: attrs else attrs in
   try
     input ~a:(a_input_type `Radio :: attrs) ()
   with _ ->
     (* Hello, MSIE! *)
     let i = input ~a:attrs () in
     let elem = Tyxml_js.To_dom.of_input i in
-    elem##setAttribute (Js.string "type", Js.string "radio");
+    elem##setAttribute (Js.string "type") (Js.string "radio");
     i
 
 (* Recognise {yyyy-mm-dd} at the start of a line and format it nicely *)
@@ -72,7 +72,7 @@ let show_modal, modal_div =
         (fun () -> 10, 10)
         (fun parent ->
             let left, top = pos_from_root parent in
-            let height = parent##offsetHeight in
+            let height = parent##.offsetHeight in
             (left, top + height)) in
     ReactiveData.RList.set set_dropdown content;
     set_dropdown_style (Printf.sprintf "position: absolute; left: %dpx; top: %dpx;" left bottom);
@@ -219,7 +219,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               div ~a:[a_class ["ck-or"]] [pcdata "or"];
               ul ~a:[a_class ["ck-waiting-menu"]] (waiting_candidates m item)
             ] in
-            show_modal ~parent:(ev##target) [content];
+            show_modal ~parent:(ev##.target) [content];
           ) else if current <> n then (
             async ~name:"set_action_state" (fun () -> M.set_action_state m item n)
           ) in
@@ -271,7 +271,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             let elem = Tyxml_js.To_dom.of_element li_elem in
             cancel := Ck_animate.fade_out elem;
         | `Fade_in_from old_item ->
-            let full_height = old_item##offsetHeight in
+            let full_height = old_item##.offsetHeight in
             cancel := Ck_animate.fade_in_move ~full_height li_elem
         | `Fade_in -> ()    (* Handled by the CSS alone *)
         | `No_animation -> () in
@@ -285,7 +285,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     auto_focus name_input;
     let submit_clicked _ev =
       let input_elem = Tyxml_js.To_dom.of_input name_input in
-      let name = input_elem##value |> Js.to_string |> String.trim in
+      let name = input_elem##.value |> Js.to_string |> String.trim in
       if name <> "" then (
         async ~name:"add" (fun () -> adder name >|= opt_show ~show_node);
       );
@@ -312,7 +312,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     match adder with
     | Some adder ->
         let add_clicked ev =
-          show_add_modal ~show_node ~button:(ev##target) (M.apply_adder m adder);
+          show_add_modal ~show_node ~button:(ev##.target) (M.apply_adder m adder);
           false in
         span [
           item_span;
@@ -387,7 +387,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               React.S.value item |> show_node;
               true in
             let add_clicked ev =
-              show_add_modal ~show_node ~button:(ev##target) (fun name ->
+              show_add_modal ~show_node ~button:(ev##.target) (fun name ->
                 match React.S.value item with
                 | `Context _ as item -> M.add_child m item name
                 | _ -> assert false
@@ -415,7 +415,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | `Group label, None -> h4 [pcdata label]
       | `Group label, Some adder ->
           let add_clicked ev =
-            show_add_modal ~show_node ~button:(ev##target) adder;
+            show_add_modal ~show_node ~button:(ev##.target) adder;
             false in
           h4 [pcdata label; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]] in
     let next_children = W.children groups |> ReactiveData.RList.map make_work_actions in
@@ -489,7 +489,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     auto_focus name_input;
     let submit_clicked _ev =
       let input_elem = Tyxml_js.To_dom.of_input name_input in
-      let name = input_elem##value |> Js.to_string |> String.trim in
+      let name = input_elem##.value |> Js.to_string |> String.trim in
       if name <> "" then (
         async ~name:"add contact" (fun () ->
           M.add_contact m ~name () >|= opt_show ~show_node
@@ -505,7 +505,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let make_contact_view m ~show_node tree =
     let add_clicked ev =
-      show_add_contact m ~show_node ~parent:ev##target;
+      show_add_contact m ~show_node ~parent:ev##.target;
       false in
     [
       h4 [pcdata "Contacts"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]];
@@ -520,7 +520,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       auto_focus name_input;
       let on_select date =
         let input_elem = Tyxml_js.To_dom.of_input name_input in
-        let name = input_elem##value |> Js.to_string |> String.trim in
+        let name = input_elem##.value |> Js.to_string |> String.trim in
         if name <> "" then (
           async ~name:"add to schedule" (fun () ->
             M.add_action m ~state:(`Waiting_until date) ~name () >|= opt_show ~show_node
@@ -536,7 +536,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         name_input;
         pk_elem;
       ] in
-      show_modal ~parent:(ev##target) [content];
+      show_modal ~parent:(ev##.target) [content];
       false in
     [
       h4 [pcdata "Schedule"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]];
@@ -623,7 +623,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
 
   let add_form ~close ~show_node adder =
     let do_add ev =
-      let form = ev##target >>?= Dom_html.CoerceTo.form in
+      let form = ev##.target >>?= Dom_html.CoerceTo.form in
       Js.Opt.iter form (fun form ->
         let f = Form.get_form_contents form in
         let name = List.assoc "name" f |> String.trim in
@@ -635,7 +635,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         close ()
       ) in
     let keydown (ev:Dom_html.keyboardEvent Js.t) =
-      if ev##keyCode = keycode_escape then (
+      if ev##.keyCode = keycode_escape then (
         close();
         false
       ) else true in
@@ -701,7 +701,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             ]
         | Some item ->
             let submit ev =
-              let form = ev##target >>?= Dom_html.CoerceTo.form in
+              let form = ev##.target >>?= Dom_html.CoerceTo.form in
               Js.Opt.iter form (fun form ->
                 let f = Form.get_form_contents form in
                 let name = List.assoc "name" f |> String.trim in
@@ -711,7 +711,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               );
               set_editing None in
             let keydown (ev:Dom_html.keyboardEvent Js.t) =
-              if ev##keyCode = keycode_escape then (
+              if ev##.keyCode = keycode_escape then (
                 set_editing None;
                 false
               ) else true in
@@ -783,14 +783,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let make_parent item =
         let edit ev =
           let content = ul (parent_candidates m item) in
-          show_modal ~parent:(ev##target) [content] in
+          show_modal ~parent:(ev##.target) [content] in
         make_node_chooser ~edit ~show_node ~if_none:"(no parent)" parent in
       match item with
       | `Contact _ | `Context _ -> []
       | `Area _ | `Project _ | `Action _ as item ->
           let change_type label =
             let on_click ev =
-              show_type_modal m ~button:(ev##target) item; false in
+              show_type_modal m ~button:(ev##.target) item; false in
             a ~a:[a_onclick on_click] [pcdata label] in
           match item with
           | `Action _ -> ck_label "An " :: change_type "action" :: ck_label " in " :: make_parent item
@@ -836,7 +836,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                     if raw_html <> "" then (
                       let description = div [] in
                       let elem = Tyxml_js.To_dom.of_div description in
-                      elem##innerHTML <- Js.string raw_html;
+                      elem##.innerHTML := Js.string raw_html;
                       [description; buttons]
                     ) else [buttons]
                   with ex ->
@@ -846,20 +846,20 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             let cancel _ev = set_editing None; false in
             let submit_ref = ref ignore in
             let keydown (ev:Dom_html.keyboardEvent Js.t) =
-              if ev##keyCode = 13 && Js.to_bool ev##ctrlKey then (!submit_ref ev; false)
+              if ev##.keyCode = 13 && Js.to_bool ev##.ctrlKey then (!submit_ref ev; false)
               else true in
             let value = textarea ~a:[a_rows 5; a_onkeydown keydown]
               (pcdata descr) in
             async ~name:"focus" (fun () ->
               let elem = Tyxml_js.To_dom.of_textarea value in
-              elem##focus ();
+              elem##focus;
               let len = String.length descr in
               (Obj.magic elem)##setSelectionRange (len, len);
               Lwt.return ()
             );
             let submit _ev =
               let elem = Tyxml_js.To_dom.of_textarea value in
-              let v = Js.to_string (elem##value) |> String.trim in
+              let v = Js.to_string (elem##.value) |> String.trim in
               async ~name:"set_description" (fun () -> M.set_description m item v);
               set_editing None in
             submit_ref := submit;
@@ -884,7 +884,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       async ~name:"waiting until" (fun () -> M.set_action_state m action (`Waiting_until date));
       Ck_modal.close () in
     let content = Pikaday.make ?initial:(due action) ~on_select () |> fst in
-    show_modal ~parent:(ev##target) [content]
+    show_modal ~parent:(ev##.target) [content]
 
   let edit_context m ~show_node item ev =
     match React.S.value item with
@@ -894,14 +894,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           auto_focus name_input;
           let add_context _ev =
             let input_elem = Tyxml_js.To_dom.of_input name_input in
-            let name = input_elem##value |> Js.to_string |> String.trim in
+            let name = input_elem##.value |> Js.to_string |> String.trim in
             if name <> "" then async ~name:"add context" (fun () ->
               M.add_context m ~name () >>= function
               | None -> print_endline "Added item no longer exists!"; Lwt.return ()
               | Some (`Context _ as node) ->
                   Ck_modal.close ();
                   show_node node;
-                  M.set_context m action node >|= report_error ~parent:(ev##target)
+                  M.set_context m action node >|= report_error ~parent:(ev##.target)
             ) in
           li [form ~a:[a_onsubmit add_context] [name_input]] in
         let contexts =
@@ -915,7 +915,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           li [a ~a:[a_onclick select] [pcdata (M.candidate_label candidate)]]
         ) in
         let content = ul (new_contact_form :: contexts) in
-        show_modal ~parent:(ev##target) [content]
+        show_modal ~parent:(ev##.target) [content]
     end
     | _ -> ()
 
@@ -927,14 +927,14 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           auto_focus name_input;
           let add_contact _ev =
             let input_elem = Tyxml_js.To_dom.of_input name_input in
-            let name = input_elem##value |> Js.to_string |> String.trim in
+            let name = input_elem##.value |> Js.to_string |> String.trim in
             if name <> "" then async ~name:"add contact" (fun () ->
               M.add_contact m ~name () >>= function
               | None -> print_endline "Added item no longer exists!"; Lwt.return ()
               | Some (`Contact _ as node) ->
                   Ck_modal.close ();
                   show_node node;
-                  M.set_contact m item (Some node) >|= report_error ~parent:(ev##target)
+                  M.set_contact m item (Some node) >|= report_error ~parent:(ev##.target)
             ) in
           li [form ~a:[a_onsubmit add_contact] [name_input]] in
         let contacts =
@@ -948,7 +948,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           li [a ~a:[a_onclick select] [pcdata (M.candidate_label candidate)]]
         ) in
         let content = ul (new_contact_form :: contacts) in
-        show_modal ~parent:(ev##target) [content]
+        show_modal ~parent:(ev##.target) [content]
     end
     | _ -> ()
 
@@ -969,21 +969,21 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let unit_input =
       let unit_option u =
         let attrs =
-          if u = init.repeat_unit then [a_selected `Selected] else [] in
+          if u = init.repeat_unit then [a_selected ()] else [] in
         option ~a:attrs (pcdata ((string_of_time_unit u) ^ "s")) in
       select (unit_options |> Array.map unit_option |> Array.to_list) in
     let on_select date =
       let input_elem = To_dom.of_input n_input in
       let n =
         try
-          let n = input_elem##value |> Js.to_string |> String.trim |> int_of_string in
+          let n = input_elem##.value |> Js.to_string |> String.trim |> int_of_string in
           if n > 0 then Some n else None
         with Failure _ -> None in
       match n with
       | None -> ()
       | Some n ->
       let unit_input = Tyxml_js.To_dom.of_select unit_input in
-      let units = unit_options.(unit_input##selectedIndex) in
+      let units = unit_options.(unit_input##.selectedIndex) in
       async ~name:"edit_repeat" (fun () ->
         Some (make_repeat n units ~from:date)
         |> M.set_repeat m action
@@ -1005,7 +1005,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ];
       picker_elem
     ]
-    |> show_modal ~parent:(ev##target);
+    |> show_modal ~parent:(ev##.target);
     false
 
   let clear_repeat m action =
@@ -1052,7 +1052,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let delete_clicked ev =
       begin match React.S.value item with
       | None -> ()
-      | Some item -> async ~name:"delete" (fun () -> M.delete m item >|= report_error ~parent:(ev##target)) end;
+      | Some item -> async ~name:"delete" (fun () -> M.delete m item >|= report_error ~parent:(ev##.target)) end;
       false in
     let ctime =
       match initial_item with
@@ -1179,12 +1179,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let close () =
       begin match !my_input with
       | None -> assert false
-      | Some input -> (To_dom.of_input input)##value <- Js.string "" end;
+      | Some input -> (To_dom.of_input input)##.value := Js.string "" end;
       set_value "" in
     let oninput ev =
-      Js.Opt.iter (ev##target) (fun input ->
+      Js.Opt.iter (ev##.target) (fun input ->
         Js.Opt.iter (Dom_html.CoerceTo.input input) (fun input ->
-          let v = input##value |> Js.to_string |> String.trim in
+          let v = input##.value |> Js.to_string |> String.trim in
           begin match React.S.value value, v with
           | "", "" -> ()
           | "", _ ->
@@ -1196,7 +1196,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         )
       );
       true in
-    let input_box = input ~a:[a_oninput oninput; a_name "v"; a_placeholder "Add or search"; a_size 20; a_autocomplete `Off] () in
+    let input_box = input ~a:[a_oninput oninput; a_name "v"; a_placeholder "Add or search"; a_size 20; a_autocomplete false] () in
     let add adder _ev =
       match React.S.value value with
       | "" -> ()
@@ -1296,7 +1296,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           let cl = if !showing then cl else "new" :: cl in
           let msg = match log_entry.Git_storage_s.Log_entry.msg with [] -> "-" | summary::_ -> summary in
           let revert ev =
-            async ~name:"revert" (fun () -> M.revert m log_entry >|= report_error ~parent:(ev##target));
+            async ~name:"revert" (fun () -> M.revert m log_entry >|= report_error ~parent:(ev##.target));
             false in
           showing := true;
           [
@@ -1328,12 +1328,12 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       set_s (a ~a:[a_onclick download] [pcdata name])
     );
     [R.Html5.div ~a:[a_class ["ck-export"]] (ReactiveData.RList.singleton_s s)]
-    |> show_modal ~parent:(ev##target);
+    |> show_modal ~parent:(ev##.target);
     false
 
   let sync client ev =
     async ~name:"sync" (fun () ->
-      M.Client.sync client >|= report_error ~parent:(ev##target)
+      M.Client.sync client >|= report_error ~parent:(ev##.target)
     );
     false
 

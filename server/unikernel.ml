@@ -4,14 +4,13 @@
 open Lwt
 open V1_LWT
 
-let () = Log.(set_log_level INFO)
+let src = Logs.Src.create "unikernel" ~doc:"Main unikernel code"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 (* Never used, but needed to create the store. *)
 let task s = Irmin.Task.create ~date:0L ~owner:"Server" s
 
 module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
-
-module Bytes = String
 
 module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
   module TCP  = Stack.TCPV4
@@ -28,10 +27,10 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
       Bytes.set str_digest (i * 2) hex_chars.[(Cstruct.get_uint8 raw_digest i land 0xf0) lsr 4];
       Bytes.set str_digest (i * 2 + 1) hex_chars.[Cstruct.get_uint8 raw_digest i land 0xf];
     done;
-    str_digest
+    Bytes.unsafe_to_string str_digest
 
-  let hash token = token
-    |> Cstruct.of_string
+  let hash token =
+    Cstruct.of_string token
     |> Nocrypto.Hash.digest `SHA256
     |> to_hex
 
@@ -39,7 +38,7 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
   let user_of_token token =
     let hashed = hash token in
     let device = Devices.lookup hashed in
-    if device = None then Log.warn "Invalid access token used (hash = %S)" hashed;
+    if device = None then Log.warn (fun f -> f "Invalid access token used (hash = %S)" hashed);
     device
 
   let handle_request s conn_id request body =
@@ -53,21 +52,21 @@ module Main (Stack:STACKV4) (Conf:KV_RO) (Clock:V1.CLOCK) = struct
           match user_of_token token with
           | None -> `Error (S.respond_error ~status:`Unauthorized ~body:"Invalid access token" ())
           | Some user ->
-              Log.info "Handling request for %S" user;
+              Log.info (fun f -> f "Handling request for %S" user);
               `Ok (s reason) in
     Server.handle_request get_db conn_id request body
 
-  let start stack conf _clock =
+  let start stack conf _clock () =
     Store.Repo.create (Irmin_mem.config ()) >>= Store.master task >>= fun s ->
     let http = S.make ~conn_closed:ignore ~callback:(handle_request s) () in
     X509.certificate conf `Default >>= fun cert ->
     let tls_config = Tls.Config.server ~certificates:(`Single cert) () in
     Stack.listen_tcpv4 stack ~port:8443 (fun flow ->
       let peer, port = TCP.get_dest flow in
-      Log.info "Connection from %s (client port %d)" (Ipaddr.V4.to_string peer) port;
+      Log.info (fun f -> f "Connection from %a (client port %d)" Ipaddr.V4.pp_hum peer port);
       TLS.server_of_flow tls_config flow >>= function
-      | `Error _ -> Log.warn "TLS failed"; TCP.close flow
-      | `Eof     -> Log.warn "TLS eof"; TCP.close flow
+      | `Error _ -> Log.warn (fun f -> f "TLS failed"); TCP.close flow
+      | `Eof     -> Log.warn (fun f -> f "TLS eof"); TCP.close flow
       | `Ok flow  ->
       S.listen http flow >>= fun () ->
       TLS.close flow

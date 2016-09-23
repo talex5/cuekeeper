@@ -9,21 +9,21 @@ module XHR = Cohttp_lwt_xhr.Client
 
 let storage =
   lazy (
-    Js.Optdef.get (Dom_html.window##localStorage)
+    Js.Optdef.get (Dom_html.window##.localStorage)
       (fun () -> failwith "HTML 5 storage is not available")
   )
 
 let token_key = Js.string "CueKeeper.auth.access_token"
 
-let set_token value = (Lazy.force storage)##setItem(token_key, value)
-let remove_token () = (Lazy.force storage)##removeItem(token_key)
+let set_token value = (Lazy.force storage)##setItem token_key value
+let remove_token () = (Lazy.force storage)##removeItem token_key
 let get_token () =
   let v = (Lazy.force storage)##getItem(token_key) in
   Js.Opt.map v Js.to_string
   |> Js.Opt.to_option
 
 let input_token () =
-  Js.Opt.case (Dom_html.window##prompt(Js.string "Enter access token", Js.string ""))
+  Js.Opt.case (Dom_html.window##prompt (Js.string "Enter access token") (Js.string ""))
     (fun () -> `Cancelled_by_user)
     (fun s -> set_token s; `Ok)
 

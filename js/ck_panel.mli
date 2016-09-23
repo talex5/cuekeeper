@@ -7,11 +7,11 @@ type t
 
 val make :
   id:Ck_id.t ->
-  closed:bool React.S.t ->          (** Becomes true when starting to close the box. *)
-  set_closed:(bool -> unit) ->      (** Set to true if the user clicks the close icon. *)
-  on_destroy:(unit -> unit) ->      (** Called when the fade-out is complete. *)
-  title:[< Html5_types.div_content_fun] Html5.elt ->
-  contents:[< Html5_types.div_content_fun] Html5.elt ->
+  closed:bool React.S.t ->          (* Becomes true when starting to close the box. *)
+  set_closed:(bool -> unit) ->      (* Set to true if the user clicks the close icon. *)
+  on_destroy:(unit -> unit) ->      (* Called when the fade-out is complete. *)
+  title:[< Html_types.div_content_fun] Html5.elt ->
+  contents:[< Html_types.div_content_fun] Html5.elt ->
   t
 
 val highlight : Ck_id.t -> unit

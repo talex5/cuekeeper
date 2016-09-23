@@ -21,32 +21,32 @@ class type config =
 
 let make_config () : config Js.t = Js.Unsafe.obj [| |]
 
-let pikaday_constr : (config Js.t -> pikaday Js.t) Js.constr = Js.Unsafe.global##_Pikaday
+let pikaday_constr : (config Js.t -> pikaday Js.t) Js.constr = Js.Unsafe.global##._Pikaday
 
 let to_user_date d =
   Ck_time.make
-    ~year:(d##getFullYear ())
-    ~month:(d##getMonth ())
-    ~day:(d##getDate ())
+    ~year:d##getFullYear
+    ~month:d##getMonth
+    ~day:d##getDate
 
 let make ?(initial:Ck_time.user_date option) ~on_select () =
   let div = Html5.div [] in
   let elem = Tyxml_js.To_dom.of_div div in
   let config = make_config () in
-  config##container <- elem;
-  config##onSelect <- Js.wrap_callback (fun d ->
+  config##.container := elem;
+  config##.onSelect := Js.wrap_callback (fun d ->
     on_select (to_user_date d)
   );
   begin match (initial :> (int * int * int) option) with
   | Some (y, m, d) ->
-      let js_date = jsnew Js.date_day (y, m, d) in
-      config##defaultDate <- Js.Optdef.return js_date;
-      config##setDefaultDate <- Js._true;
+      let js_date = new%js Js.date_day y m d in
+      config##.defaultDate := Js.Optdef.return js_date;
+      config##.setDefaultDate := Js._true;
   | None -> () end;
-  let pd = jsnew pikaday_constr (config) in
+  let pd = new%js pikaday_constr config in
   (div, pd)
 
 let get_date (pd : #pikaday Js.t) =
-  Js.Opt.case (pd##getDate ())
+  Js.Opt.case pd##getDate
     (fun () -> None)
     (fun d -> Some (to_user_date d))

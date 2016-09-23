@@ -3,6 +3,9 @@
 
 open Lwt
 
+let src = Logs.Src.create "cuekeeper" ~doc:"CueKeeper server"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 let show_head = function
   | None -> "(none)"
   | Some head -> String.sub (Irmin.Hash.SHA1.to_hum head) 0 6
@@ -52,24 +55,24 @@ module Make (Store:Irmin.S with type branch_id = string and type commit_id =
     Store.Repo.import (Store.repo s) slice >>= function
     | `Error ->
         let msg = "Failed to import slice" in
-        Log.warn "%s" msg;
+        Log.warn (fun f -> f "%s" msg);
         S.respond_string ~headers ~status:`Bad_request ~body:msg ()
     | `Ok ->
     let commit_store = Store.Private.Repo.commit_t (Store.repo s) in
     Store.Private.Commit.mem commit_store head >>= function
     | false ->
         let msg = "New head not found after import!" in
-        Log.warn "%s" msg;
+        Log.warn (fun f -> f "%s" msg);
         S.respond_string ~headers ~status:`Bad_request ~body:msg ()
     | true ->
     Store.fast_forward_head s head >>= function
     | false ->
         let msg = Printf.sprintf "Non-fast-forward push attempted: %s -> %s"
           (show_head server_head) (show_head (Some head)) in
-        Log.warn "%s" msg;
+        Log.warn (fun f -> f "%s" msg);
         S.respond_string ~headers ~status:`OK ~body:"not-fast-forward" ()
     | true ->
-        Log.info "Update master %s -> %s" (show_head server_head) (show_head (Some head));
+        Log.info (fun f -> f "Update master %s -> %s" (show_head server_head) (show_head (Some head)));
         S.respond_string ~headers ~status:`OK ~body:"ok" ()
 
   (* Export changes in the store since [last_known] to a bundle for the client. *)
@@ -90,16 +93,16 @@ module Make (Store:Irmin.S with type branch_id = string and type commit_id =
     let buf = Cstruct.create (Bundle.size_of bundle) in
     let rest = Bundle.write bundle buf in
     assert (Cstruct.len rest = 0);
-    let body = Cstruct.to_string buf |> B64.encode in
+    let body = B64.encode (Cstruct.to_string buf) in
     S.respond_string ~headers ~status:`OK ~body ()
 
   let handle_request s (_io_conn, http_conn) request body =
     Lwt.catch (fun () ->
       let uri = Cohttp.Request.uri request in
-      Log.info "%s: %s %s"
+      Log.info (fun f -> f "%s: %s %s"
         (Cohttp.Connection.to_string http_conn)
         (Cohttp.Request.meth request |> Cohttp.Code.string_of_method)
-        (Uri.to_string uri);
+        (Uri.to_string uri));
       match Cohttp.Request.meth request, split_path uri with
       | `GET, ["fetch"] -> fetch s None
       | `GET, ["fetch"; last_known] -> fetch s (Some last_known)
@@ -108,7 +111,7 @@ module Make (Store:Irmin.S with type branch_id = string and type commit_id =
       | `GET, segments -> respond_static segments
       | _ -> S.respond_error ~status:`Method_not_allowed ~body:"Invalid request" ()
     ) (fun ex ->
-      Log.warn "Unhandled exception processing HTTP request: %s" (Printexc.to_string ex);
+      Log.warn (fun f -> f "Unhandled exception processing HTTP request: %s" (Printexc.to_string ex));
       fail ex
     )
 end

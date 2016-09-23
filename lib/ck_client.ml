@@ -95,7 +95,7 @@ module Make(Clock : Ck_clock.S)
       (* Our master branch now includes [server_head] *)
       push t server_head >>= function
       | `Concurrent_update ->
-          Log.warn "Concurrent update during sync; retrying";
+          Printf.eprintf "Warning: Concurrent update during sync; retrying\n%!";
           Clock.sleep 2.0 >>= aux
       | `Ok () | `Cancelled_by_user | `Error _ as r -> return r in
     if React.S.value t.sync_in_progress then

@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-type t = private string with sexp
+type t = private string [@@deriving sexp]
 
 val mint : unit -> t
 val to_string : t -> string

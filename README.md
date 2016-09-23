@@ -8,18 +8,15 @@ Installation
 ------------
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
-It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 1.2).
-Ensure you're using OCaml 4.01 (check with `ocaml -version`).
-If not, switch to 4.01.0 (4.02 is not yet supported, as the `bin_prot` patches need updating):
+It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 1.2.2).
+Ensure you're using OCaml 4.03 or later (check with `ocaml -version`). If not, switch to that version:
 
-    opam sw 4.01.0
+    opam sw 4.03.0
 
 Pin a few patches we require:
 
-    opam pin add -n sexplib 'https://github.com/talex5/sexplib.git#js_of_ocaml'
     opam pin add -n reactiveData https://github.com/hhugo/reactiveData.git
-    opam pin add -n bin_prot 'https://github.com/talex5/bin_prot.git#js_of_ocaml'
-    opam pin add -n dolog 'https://github.com/UnixJunkie/dolog.git#no_unix'
+    opam pin add -n bin_prot 'https://github.com/talex5/bin_prot.git#cuekeeper'
 
     opam update
 
@@ -108,7 +105,7 @@ In Chrome:
 1. It will say "Your connection is not private" (in fact, the opposite is true; if encryption wasn't being used it wouldn't have complained at all).
 2. Go to **Settings** -> **Show advanced settings**.
 3. Click the **Manage certificates** button (in the HTTPS/SSL section).
-4. In the **Authorities** tab, click **Import...** and select your `server/conf/tls/server.pem` file.
+4. In the **Authorities** tab, click **Import...** and select your `server/conf/server.pem` file.
 5. Select **Trust this certificate for identifying websites**.
 
 Finally, you should be prompted for your access key.

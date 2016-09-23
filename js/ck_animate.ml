@@ -19,7 +19,7 @@ let fade_out ?when_complete elem =
   let cancelled = ref false in
   let start = Unix.gettimeofday () in
   let shrink_start = start +. resize_time in
-  let full_height = float_of_int elem##offsetHeight in
+  let full_height = float_of_int elem##.offsetHeight in
   let rec aux () =
     if not !cancelled then (
       let t = Unix.gettimeofday () in
@@ -29,8 +29,8 @@ let fade_out ?when_complete elem =
       let o = Printf.sprintf "%g" o in
       let h = full_height *. (1. -. shrink_frac) |> truncate in
       let h = max 0 h in
-      elem##style##opacity <- Js.string o |> Js.Optdef.return;
-      elem##style##maxHeight <- (Js.string (string_of_int h ^ "px"));
+      elem##.style##.opacity := Js.string o |> Js.Optdef.return;
+      elem##.style##.maxHeight := (Js.string (string_of_int h ^ "px"));
       if h > 0 then
         Dom_html._requestAnimationFrame (Js.wrap_callback aux)
       else 
@@ -41,8 +41,8 @@ let fade_out ?when_complete elem =
   aux ();
   fun () ->
     cancelled := true;
-    elem##style##opacity <- Js.string "" |> Js.Optdef.return;
-    elem##style##maxHeight <- Js.string ""
+    elem##.style##.opacity := Js.string "" |> Js.Optdef.return;
+    elem##.style##.maxHeight := Js.string ""
 
 (* Runs in parallel with fade_out.
  * Wait for fade_time (original disappears), then expand this item as the other
@@ -63,8 +63,8 @@ let fade_in_move ~full_height elem =
       let () =
         let elem = Tyxml_js.To_dom.of_element elem in
         let o = Printf.sprintf "%g" o in
-        elem##style##opacity <- Js.string o |> Js.Optdef.return;
-        elem##style##maxHeight <- (Js.string (string_of_int h ^ "px")) in
+        elem##.style##.opacity := Js.string o |> Js.Optdef.return;
+        elem##.style##.maxHeight := (Js.string (string_of_int h ^ "px")) in
       if o < 1.0 then
         Dom_html._requestAnimationFrame (Js.wrap_callback aux)
     ) in
@@ -75,20 +75,20 @@ let fade_in_move ~full_height elem =
   fun () ->
     cancelled := true;
     let elem = Tyxml_js.To_dom.of_element elem in
-    elem##style##opacity <- Js.string "" |> Js.Optdef.return;
-    elem##style##maxHeight <- Js.string ""
+    elem##.style##.opacity := Js.string "" |> Js.Optdef.return;
+    elem##.style##.maxHeight := Js.string ""
 
 let animate_scroll_to (target_x, target_y) =
   let start_x, start_y = Dom_html.getDocumentScroll () in
   if start_x <> target_x || start_y <> target_y then (
     let start = Unix.gettimeofday () in
-    let root = Dom_html.document##documentElement in
+    let root = Dom_html.document##.documentElement in
     let rec aux () =
       let f = (Unix.gettimeofday () -. start) /. scroll_time |> min 1.0 in
       let dx = float_of_int (target_x - start_x) *. f in
       let dy = float_of_int (target_y - start_y) *. f in
-      root##scrollLeft <- start_x + truncate dx;
-      root##scrollTop <- start_y + truncate dy;
+      root##.scrollLeft := start_x + truncate dx;
+      root##.scrollTop := start_y + truncate dy;
       if f < 1.0 then Dom_html._requestAnimationFrame (Js.wrap_callback aux) in
     aux ()
   )
@@ -96,9 +96,9 @@ let animate_scroll_to (target_x, target_y) =
 (** Animate scrolling the window so that the range (top, bottom) is visible.
  * Also, ensure we're fully scrolled to the right. *)
 let scroll_to_show (top, bottom) =
-  let vp_height = Dom_html.document##documentElement##clientHeight in
-  let vp_width = Dom_html.document##documentElement##clientWidth in
-  let full_width = Dom_html.document##body##offsetWidth in
+  let vp_height = Dom_html.document##.documentElement##.clientHeight in
+  let vp_width = Dom_html.document##.documentElement##.clientWidth in
+  let full_width = Dom_html.document##.body##.offsetWidth in
   let region_height = (bottom - top + 2) in
   let region_height = min region_height vp_height in
   let _scroll_left, scroll_top = Dom_html.getDocumentScroll () in

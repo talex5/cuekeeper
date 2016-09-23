@@ -7,4 +7,3 @@ S js/
 S utils/
 S lib/
 PKG irmin react reactiveData lwt sexplib uuidm irmin.mem js_of_ocaml js_of_ocaml.tyxml
-EXT lwt
