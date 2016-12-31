@@ -60,6 +60,7 @@ This allows you to sync between devices (e.g. a laptop and mobile phone).
 - The server does not yet persist the data itself
   (the client sends the whole history the first time it connects after the service is restarted).
 - You have to sync manually by clicking the `Sync` button - it does not send or fetch changes automatically.
+- You must use Irmin 0.10.1, due to https://github.com/talex5/irmin-indexeddb/issues/3.
 
 First, generate an access token (a *long* random string that grants access to the server).
 The `pwgen` command is useful for this:
