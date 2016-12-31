@@ -1,11 +1,21 @@
 CueKeeper
 =========
 
-Copyright Thomas Leonard, 2015
+Copyright Thomas Leonard, 2016
 
 
-Installation
-------------
+Installation (using Docker)
+---------------------------
+
+The easiest way to build CueKeeper is using Docker:
+
+    make docker-build
+
+Then load `test.html` in a browser to test locally (no server required).
+
+
+Installation (without Docker)
+-----------------------------
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
 It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 1.2.2).

@@ -4,10 +4,12 @@ server/Makefile
 server/cuekeeper_libvirt.xml
 server/main.ml
 server/main.native
+server/cuekeeper.xl.in
 server/mir-cuekeeper
 server/static.ml
 server/static1.ml*
 server/log
-server/conf/server.pem
-server/conf/server.key
+server/conf
 server/devices.ml
+cuekeeper-bin-*
+cuekeeper-bin-*.zip

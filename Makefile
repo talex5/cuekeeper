@@ -40,6 +40,10 @@ release:
 	zip -r "${RELEASE_DIR}.zip" ${RELEASE_DIR}
 	rm -rf "${RELEASE_DIR}"
 
+docker-build:
+	docker build -t cuekeeper .
+	docker run --rm -v $(CURDIR):/home/opam/cuekeeper cuekeeper make
+
 server/conf/server.key:
 	@echo Generating server key...
 	[ -d server/conf] || mkdir -p server/conf
