@@ -1,11 +1,37 @@
 CueKeeper
 =========
 
-Copyright Thomas Leonard, 2016
+Copyright Thomas Leonard, 2017
+
+CueKeeper is a web-based [GTD][] system (a fancy TODO list) that runs entirely in your browser (the data is stored on your computer, in your browser).
+
+<a href='https://raw.githubusercontent.com/talex5/cuekeeper/gh-bpages/CueKeeper-0.2.png'><img src="https://raw.githubusercontent.com/talex5/cuekeeper/gh-bpages/CueKeeper-0.2.png" width="50%" height="50%"></a>
+
+Installation
+------------
+
+Download the latest `cuekeeper-bin` zip from the [releases list][], e.g.
+
+https://github.com/talex5/cuekeeper/releases/download/v0.2/cuekeeper-bin-0.2.zip
+
+Extract it somewhere permanent (not your Downloads folder) and open the `index.html` file inside in a web browser. Most browsers will allow you to "pin" the tab so that it is always available. e.g. In Firefox, right-click on the browser tab and choose "Pin Tab" from the menu. The tab icon will go red when something becomes due.
+
+Instructions for using CueKeeper can be found here:
+
+http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/
+
+Backups
+-------
+
+All data will be stored locally in your web browser, so make sure you're backing up your browser's data! Also, the data will be stored based on the location of the `index.html` file - if you move the `cuekeeper` directory, you will get a fresh database (and it will look as if your data has gone - don't panic!).
+
+For example, I use Firefox on Linux. The data is stored at
+
+    ~/.mozilla/firefox/XXX.default/storage/default/file++++home+user+cuekeeper+index.html/
 
 
-Installation (using Docker)
----------------------------
+Building (using Docker)
+-----------------------
 
 The easiest way to build CueKeeper is using Docker:
 
@@ -14,8 +40,8 @@ The easiest way to build CueKeeper is using Docker:
 Then load `test.html` in a browser to test locally (no server required).
 
 
-Installation (without Docker)
------------------------------
+Building (without Docker)
+-------------------------
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
 It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 1.2.2).
@@ -39,14 +65,6 @@ Build:
     make
 
 Load `test.html` in a browser to test locally (no server required).
-
-
-Instructions
-------------
-
-Instructions for using CueKeeper can be found here:
-
-http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/
 
 
 Running a server
@@ -178,4 +196,6 @@ is released under a permissive license.
 Full details of all licenses can be found in the LICENSE file.
 
 
+[GTD]: https://en.wikipedia.org/wiki/Getting_Things_Done
 [mirage]: http://openmirage.org/
+[releases list]: https://github.com/talex5/cuekeeper/releases
