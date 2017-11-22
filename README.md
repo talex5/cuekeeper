@@ -58,7 +58,7 @@ Pin a few patches we require:
 
 Install the dependencies:
 
-    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64 tar-format crunch cohttp irmin-indexeddb ounit mirage-http
+    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64 tar-format crunch cohttp irmin-indexeddb ounit mirage-http tar
 
 Build:
 
