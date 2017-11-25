@@ -115,7 +115,7 @@ module Make(Git : Git_storage_s.S) = struct
       | `Action n -> Ck_disk_node.is_done (`Action n.disk_node)
       | `Project n -> Ck_disk_node.is_done (`Project n.disk_node)
 
-    let key node = (String.lowercase (name node), uuid node)
+    let key node = (String.lowercase_ascii (name node), uuid node)
 
     let is_due action =
       match action_state action with

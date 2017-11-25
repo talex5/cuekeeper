@@ -48,8 +48,6 @@ module Make (I : Irmin.S with type key = string list and type value = string
 
     type id = Irmin.Hash.SHA1.t
 
-    module History = I.History
-
     let id t =
       match I.head_ref (t.store "get commit ID") with
       | `Branch _ | `Empty -> assert false

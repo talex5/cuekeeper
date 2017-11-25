@@ -854,7 +854,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               let elem = Tyxml_js.To_dom.of_textarea value in
               elem##focus;
               let len = String.length descr in
-              (Obj.magic elem)##setSelectionRange len len;
+              let () = (Obj.magic elem)##setSelectionRange len len in
               Lwt.return ()
             );
             let submit _ev =

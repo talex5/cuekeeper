@@ -24,7 +24,7 @@ depends: [
   "js_of_ocaml"
   "omd"
   "ounit" {build}
-  "tar-format"
+  "tar-format" {>= "0.6.0" & < "0.7.1"}
   "cohttp"
   "irmin-indexeddb" {>= "0.3"}
   "crunch" {build}
@@ -34,6 +34,7 @@ depends: [
   "ppx_sexp_conv"
   "lwt" {< "2.7.0"}
   "cstruct" {>= "1.7.0"}
+  "ocamlbuild" {build}
 ]
 depopts: [
   "mirage"
@@ -41,4 +42,6 @@ depopts: [
 conflicts: [
   "mirage-xen-posix" {< "2.3.3"}
   "conduit" {>= "0.14"}
+  "mirage" {> "2.9.1"}
+  "mirage-types" {> "2.9.1"}
 ]

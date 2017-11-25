@@ -27,7 +27,6 @@ module Make(Clock : Ck_clock.S)
     type group = int * string    (* int is the sort order *)
     let group_label (_, s) = s
 
-    module Id_map = Ck_id.M
     module Sort_key = struct
       type t =
         | Item of Sort_key.t

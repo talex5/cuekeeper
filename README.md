@@ -45,9 +45,9 @@ Building (without Docker)
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
 It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 1.2.2).
-Ensure you're using OCaml 4.03 or later (check with `ocaml -version`). If not, switch to that version:
+Ensure you're using OCaml 4.04.2 (check with `ocaml -version`). If not, switch to that version:
 
-    opam sw 4.03.0
+    opam sw 4.04.2
 
 Pin a few patches we require:
 
@@ -58,7 +58,9 @@ Pin a few patches we require:
 
 Install the dependencies:
 
-    opam install sexplib uuidm irmin tyxml reactiveData js_of_ocaml omd base64 tar-format crunch cohttp irmin-indexeddb ounit mirage-http
+    opam pin add -n -k git cuekeeper .
+    opam install mirage-http mirage-types-lwt # (test dependencies)
+    opam install --deps-only cuekeeper
 
 Build:
 
@@ -104,7 +106,12 @@ Make sure the `None` line comes last - this rejects all unknown tokens.
 
 To build the server component:
 
-    opam install mirage
+    opam pin add mirage 2.9.1
+    opam pin add mirage-console 2.1.3
+    opam pin add crunch 1.4.1
+    opam pin add tcpip 2.8.1
+    opam pin add mirage-logs 0.2
+    opam pin add shared-memory-ring 1.3.0
     make server
 
 You will be prompted to create a self-signed X.509 certificate. Just enter your server's hostname
