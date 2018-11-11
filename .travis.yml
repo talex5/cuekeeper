@@ -1,27 +1,6 @@
 language: c
-install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
-script: bash -ex .travis-opam.sh
+script: make docker-build
 sudo: required
 dist: trusty
-addons:
-  apt:
-    sources:
-    - avsm
-    packages:
-    - ocaml
-    - ocaml-base
-    - ocaml-native-compilers
-    - ocaml-compiler-libs
-    - ocaml-interp
-    - ocaml-base-nox
-    - ocaml-nox
-    - camlp4
-    - camlp4-extra
-    - libgmp-dev
-    - libssl-dev
-    - time
-    - libcurl3
-    - curl
-    - libxen-dev
-env:
-- OCAML_VERSION=4.04 PINS="bin_prot:https://github.com/talex5/bin_prot.git#cuekeeper reactiveData:https://github.com/hhugo/reactiveData.git mirage:2.9.1 mirage-console:2.1.3 crunch:1.4.1 tcpip:2.8.1 mirage-logs:0.2 shared-memory-ring:1.3.0 cmdliner:0.9.8" POST_INSTALL_HOOK="bash -eux .travis-post-install.sh"
+services:
+  - docker
