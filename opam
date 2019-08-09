@@ -32,7 +32,7 @@ depends: [
   "mirage-http" {test}
   "mirage-types-lwt" {test}
   "ppx_sexp_conv"
-  "lwt" {< "2.7.0"}
+  "lwt"
   "cstruct" {>= "1.7.0"}
   "ocamlbuild" {build}
 ]
