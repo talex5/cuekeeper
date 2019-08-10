@@ -4,6 +4,7 @@
 (* RPC over XMLHttpRequest, getting the access token from the user if necessary. *)
 
 open Lwt
+open Js_of_ocaml
 
 module XHR = Cohttp_lwt_xhr.Client
 

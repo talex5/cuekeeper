@@ -1,6 +1,10 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
+open Js_of_ocaml
+open Js_of_ocaml_tyxml
+module Lwt_js_events = Js_of_ocaml_lwt.Lwt_js_events
+
 let ignore_listener = ignore
 
 let inside elem child =

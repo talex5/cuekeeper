@@ -6,6 +6,8 @@
  * - escape is pressed, or
  * - the user clicks outside the modal element *)
 
+open Js_of_ocaml
+
 val show : close:(unit -> unit) -> #Dom_html.element Js.t -> unit
 (** Show a new modal (closing any currently-open one first). *)
 

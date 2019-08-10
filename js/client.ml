@@ -3,6 +3,11 @@
 
 open Lwt
 open Ck_utils
+open Js_of_ocaml
+open Js_of_ocaml_tyxml
+
+module Lwt_js = Js_of_ocaml_lwt.Lwt_js
+module Lwt_js_events = Js_of_ocaml_lwt.Lwt_js_events
 
 (* let () = Log.(set_log_level INFO) *)
 
@@ -58,7 +63,7 @@ let start (main:#Dom.node Js.t) =
           msg ^ " Ensure cookies are enabled (needed to access local storage)."
         else msg in
       let error = Tyxml_js.Html5.(div ~a:[a_class ["alert-box"; "alert"]]
-                                    [pcdata msg]) in
+                                    [txt msg]) in
       main##appendChild (Tyxml_js.To_dom.of_node error) |> ignore;
       raise ex
     )

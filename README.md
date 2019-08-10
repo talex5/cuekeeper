@@ -106,12 +106,7 @@ Make sure the `None` line comes last - this rejects all unknown tokens.
 
 To build the server component:
 
-    opam pin add mirage 2.9.1
-    opam pin add mirage-console 2.1.3
-    opam pin add crunch 1.4.1
-    opam pin add tcpip 2.8.1
-    opam pin add mirage-logs 0.2
-    opam pin add shared-memory-ring 1.3.0
+    opam pin add mirage 3.4.1
     make server
 
 You will be prompted to create a self-signed X.509 certificate. Just enter your server's hostname

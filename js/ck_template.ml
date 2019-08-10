@@ -1,8 +1,10 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Tyxml_js
-open Html5
+open Js_of_ocaml
+open Js_of_ocaml_tyxml
+open Js_of_ocaml_tyxml.Tyxml_js
+open Js_of_ocaml_tyxml.Tyxml_js.Html5
 open Ck_utils
 open Ck_js_utils
 
@@ -84,10 +86,10 @@ let current_error, set_current_error = React.S.create None
 let make_error_box error =
   error
   |> React.S.map (function
-    | None -> pcdata ""
+    | None -> txt ""
     | Some err ->
         div ~a:[a_class ["ck-bug"; "alert-box"; "alert"]] [
-          p [pcdata err]; p [pcdata "Refresh this page to continue."];
+          p [txt err]; p [txt "Refresh this page to continue."];
         ]
   )
   |> ReactiveData.RList.singleton_s
@@ -109,7 +111,7 @@ let a_onsubmit fn =
       false
   )
 
-let ck_label s = span ~a:[a_class ["ck-label"]] [pcdata s]
+let ck_label s = span ~a:[a_class ["ck-label"]] [txt s]
 
 let (>>?=) = Js.Opt.bind
 
@@ -147,7 +149,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       async ~name:"waiting" (fun () -> M.set_action_state m action `Waiting);
       Ck_modal.close ();
       false in
-    let waiting = li [a ~a:[a_onclick wait_unspec] [pcdata "Waiting (reason unspecified)"]] in
+    let waiting = li [a ~a:[a_onclick wait_unspec] [txt "Waiting (reason unspecified)"]] in
     match M.Item.contact_node action with
     | None -> [waiting]
     | Some contact ->
@@ -156,7 +158,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           Ck_modal.close ();
           false in
         let name = M.Item.name contact in
-        let waiting_for = li [a ~a:[a_onclick clicked] [pcdata ("Waiting for " ^ name)]] in
+        let waiting_for = li [a ~a:[a_onclick clicked] [txt ("Waiting for " ^ name)]] in
         [waiting_for; waiting]
 
   let is_repeat_action = function
@@ -173,7 +175,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | `Active -> "a", "Active"
       | `SomedayMaybe -> "sm", "Someday/Maybe" in
     if l = "✓" && is_repeat_action item then
-      span ~a:[a_class ["ck-toggle-hidden"]] [span [pcdata l]]
+      span ~a:[a_class ["ck-toggle-hidden"]] [span [txt l]]
     else (
       let cl =
         if due && l = "w" then "ck-active-alert"
@@ -181,7 +183,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let changed ev =
         set_details ev details;
         true in
-      a ~a:[a_class [cl]; a_onclick changed; a_title title] [pcdata l]
+      a ~a:[a_class [cl]; a_onclick changed; a_title title] [txt l]
     )
 
   let make_toggles ~m ~set_details ~item ?(due=false) current options =
@@ -191,7 +193,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let set_star _ev =
       async ~name:"set_starred" (fun () -> M.set_starred m item (not starred));
       true in
-    let star = a ~a:[a_class [cl]; a_onclick set_star] [pcdata "★"] in
+    let star = a ~a:[a_class [cl]; a_onclick set_star] [txt "★"] in
     state_toggles @ [star]
 
   let due action =
@@ -216,7 +218,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           if n = `Waiting then (
             let content = div [
               wait_until_date m item;
-              div ~a:[a_class ["ck-or"]] [pcdata "or"];
+              div ~a:[a_class ["ck-or"]] [txt "or"];
               ul ~a:[a_class ["ck-waiting-menu"]] (waiting_candidates m item)
             ] in
             show_modal ~parent:(ev##.target) [content];
@@ -304,7 +306,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         let close _ev = Ck_modal.close (); false in
         let content =
           div ~a:[a_class ["alert-box"]; a_onclick close] [
-            pcdata msg;
+            txt msg;
           ] in
         show_modal ~parent [content]
 
@@ -316,7 +318,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           false in
         span [
           item_span;
-          a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]
+          a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [txt "+"]
         ]
     | _ -> span [item_span]
 
@@ -326,18 +328,18 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     span ~a:[a_class item_cl] [
       span ~a:[a_class ["ck-toggles"]] (toggles_for_type m item);
       span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
-        a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name item)];
+        a ~a:[a_class ["ck-title"]; a_onclick clicked] [txt (M.Item.name item)];
       ];
     ]
     |> with_adder m ?adder ~show_node
 
   let render_group_item m ?adder ~show_node item =
     let clicked _ev = show_node (item :> M.Item.generic); false in
-    a ~a:[a_onclick clicked; a_class ["ck-group-label"]] [pcdata (M.Item.name item)]
+    a ~a:[a_onclick clicked; a_class ["ck-group-label"]] [txt (M.Item.name item)]
     |> with_adder m ?adder ~show_node
 
   let group_label m ?adder ~show_node s =
-    span ~a:[a_class ["ck-group-label"]] [pcdata s]
+    span ~a:[a_class ["ck-group-label"]] [txt s]
     |> with_adder m ?adder ~show_node
 
   (* A <li>[toggles] name x [children]</li> element *)
@@ -375,7 +377,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             false in
           let cl = if active then ["active"] else [] in
           li ~a:[a_class cl] [
-            a ~a:[a_onclick toggle] [pcdata (M.Item.name item)]
+            a ~a:[a_onclick toggle] [txt (M.Item.name item)]
           ]
         )
       ) |> rlist_of in
@@ -395,8 +397,8 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               false in
             let name = item >|~= M.Item.name in
             span [
-              a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.pcdata name];
-              a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"];
+              a ~a:[a_class ["ck-group"]; a_onclick show_group] [R.Html5.txt name];
+              a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [txt "+"];
             ]
         | `Group label -> group_label m ?adder:(W.adder group) ~show_node label in
       animated group [
@@ -411,13 +413,13 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | _ -> assert false in
     let heading ?adder widget =
       match W.item widget, adder with
-      | `Item _, _ -> pcdata "ERROR: not a heading!"
-      | `Group label, None -> h4 [pcdata label]
+      | `Item _, _ -> txt "ERROR: not a heading!"
+      | `Group label, None -> h4 [txt label]
       | `Group label, Some adder ->
           let add_clicked ev =
             show_add_modal ~show_node ~button:(ev##.target) adder;
             false in
-          h4 [pcdata label; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]] in
+          h4 [txt label; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [txt "+"]] in
     let next_children = W.children groups |> ReactiveData.RList.map make_work_actions in
     let done_children = W.children done_actions |> ReactiveData.RList.map (make_tree_node_view m ~show_node) in
     [
@@ -468,7 +470,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | _ -> [] in
     let item =
       li ~a:[R.Html5.a_class cl] [
-        a ~a:[a_onclick view; R.Html5.a_class a_cl] [pcdata (date ^ ": " ^ summary)];
+        a ~a:[a_onclick view; R.Html5.a_class a_cl] [txt (date ^ ": " ^ summary)];
       ] in
     item_ref := Some item;
     item
@@ -508,7 +510,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       show_add_contact m ~show_node ~parent:ev##.target;
       false in
     [
-      h4 [pcdata "Contacts"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]];
+      h4 [txt "Contacts"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [txt "+"]];
       R.Html5.ul ~a:[a_class ["ck-contacts"]] (
         ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
       )
@@ -539,7 +541,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       show_modal ~parent:(ev##.target) [content];
       false in
     [
-      h4 [pcdata "Schedule"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [pcdata "+"]];
+      h4 [txt "Schedule"; a ~a:[a_class ["ck-add-child"]; a_onclick add_clicked] [txt "+"]];
       R.Html5.ul (
         ReactiveData.RList.map (make_tree_node_view m ~show_node) tree
       )
@@ -548,7 +550,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let review_mode_switcher ~current m =
     let item mode label =
       let clicked _ev = M.set_review_mode m mode; false in
-      div [radio_button ~clicked ~checked:(mode = current); pcdata label] in
+      div [radio_button ~clicked ~checked:(mode = current); txt label] in
     form ~a:[a_class ["ck-review-mode"]] [
       item `Done "Done";
       item `Waiting "Waiting";
@@ -568,7 +570,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let delete_done _ev =
       async ~name:"delete_done" (fun () -> M.delete_done m);
       false in
-    button ~a:[a_onclick delete_done] [pcdata "Delete done items"]
+    button ~a:[a_onclick delete_done] [txt "Delete done items"]
 
   let make_tree ~show_node m = function
     | `Process tree -> make_process_view m ~show_node tree
@@ -609,7 +611,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ) in
       let cl = R.Html5.a_class (React.S.l2 (@) alert_attr active_attr) in
       let button = a ~a:[a_onclick clicked]
-        [pcdata (String.sub name 0 1); span ~a:[a_class ["ck-long-label"]] [pcdata (tail name 1)]] in
+        [txt (String.sub name 0 1); span ~a:[a_class ["ck-long-label"]] [txt (tail name 1)]] in
       li ~a:[cl] [button] in
     ul ~a:[a_class ["ck-mode-selector"]] [
       item "Process" `Process;
@@ -651,16 +653,16 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let start_editing (_:#Dom_html.event Js.t) =
         set_editing (Some adder);
         true in
-      li [a ~a:[a_onclick start_editing] [pcdata label]] in
+      li [a ~a:[a_onclick start_editing] [txt label]] in
     let widgets =
       editing >>~= (function
         (* When we're not editing, display the add buttons. *)
         | None ->
             item >|~= (function
-              | None -> pcdata ""
+              | None -> txt ""
               | Some item ->
                   match item with
-                  | `Action _ | `Contact _ | `Context _ -> pcdata ""
+                  | `Action _ | `Contact _ | `Context _ -> txt ""
                   | `Project _ as item -> ul ~a:[a_class ["ck-adders"]] [
                       add_button (M.add_project m ~state:`Active ~parent:item) "+sub-project";
                       add_button (M.add_action m ~state:`Next ~parent:item ?context:None ?contact:None) "+action";
@@ -696,7 +698,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               true in
             [
               span ~a:[a_class ["allow-strikethrough"]] [   (* CSS hack to allow strikethrough and underline together *)
-                a ~a:[a_class ["ck-title"]; a_onclick edit] [R.Html5.pcdata name];
+                a ~a:[a_class ["ck-title"]; a_onclick edit] [R.Html5.txt name];
               ]
             ]
         | Some item ->
@@ -735,7 +737,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         true in
       li [
         a ~a:[a_onclick clicked] [
-          pcdata (M.candidate_label candidate)
+          txt (M.candidate_label candidate)
         ]
       ]
     )
@@ -746,7 +748,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         Ck_modal.close ();
         async ~name:label (fun () -> fn m item >|= report_error ~parent:button);
         false in
-      li [a ~a:[a_onclick clicked] [pcdata label]] in
+      li [a ~a:[a_onclick clicked] [txt label]] in
     let content = ul (
       match item with
       | `Action _ as item -> [make "Convert to project" M.convert_to_project item]
@@ -761,15 +763,15 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       edit ev;
       false in
     match current with
-    | None -> [a ~a:[a_onclick clicked] [pcdata if_none]]
+    | None -> [a ~a:[a_onclick clicked] [txt if_none]]
     | Some current ->
         let current = (current :> M.Item.generic) in
         let cl = ["ck-item"; class_of_node_type current] in
         let show_clicked _ev = show_node current; false in
-        let show_button = a ~a:[a_onclick show_clicked] [pcdata " (show)"] in
+        let show_button = a ~a:[a_onclick show_clicked] [txt " (show)"] in
         [
           span ~a:[a_class cl] [
-            a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name current)]
+            a ~a:[a_class ["ck-title"]; a_onclick clicked] [txt (M.Item.name current)]
           ];
           show_button;
         ]
@@ -778,7 +780,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let pair = React.S.l2 ~eq:assume_changed (fun a b -> (a, b)) details.M.details_item details.M.details_parent in
     rlist_of (pair >|~= fun (item, parent) ->
       match item with
-      | None -> [pcdata "(deleted)"]
+      | None -> [txt "(deleted)"]
       | Some item ->
       let make_parent item =
         let edit ev =
@@ -791,7 +793,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           let change_type label =
             let on_click ev =
               show_type_modal m ~button:(ev##.target) item; false in
-            a ~a:[a_onclick on_click] [pcdata label] in
+            a ~a:[a_onclick on_click] [txt label] in
           match item with
           | `Action _ -> ck_label "An " :: change_type "action" :: ck_label " in " :: make_parent item
           | `Project _ -> ck_label "A " :: change_type "project" :: ck_label " in " :: make_parent item
@@ -825,10 +827,10 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                   let buttons =
                     div ~a:[a_class ["row"]] [
                       div ~a:[a_class ["small-6"; "columns"; "ck-add-log"]] [
-                        a ~a:[a_onclick append_log] [pcdata "(add log entry)"];
+                        a ~a:[a_onclick append_log] [txt "(add log entry)"];
                       ];
                       div ~a:[a_class ["small-6"; "columns"; "ck-edit"]] [
-                        a ~a:[a_onclick edit] [pcdata "(edit)"];
+                        a ~a:[a_onclick edit] [txt "(edit)"];
                       ]
                     ] in
                   try
@@ -840,7 +842,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
                       [description; buttons]
                     ) else [buttons]
                   with ex ->
-                    [div [pcdata (Printexc.to_string ex)]; buttons]
+                    [div [txt (Printexc.to_string ex)]; buttons]
             );
         | Some (item, descr) ->
             let cancel _ev = set_editing None; false in
@@ -849,7 +851,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               if ev##.keyCode = 13 && Js.to_bool ev##.ctrlKey then (!submit_ref ev; false)
               else true in
             let value = textarea ~a:[a_rows 5; a_onkeydown keydown]
-              (pcdata descr) in
+              (txt descr) in
             async ~name:"focus" (fun () ->
               let elem = Tyxml_js.To_dom.of_textarea value in
               elem##focus;
@@ -867,7 +869,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               form ~a:[a_onsubmit submit] [
                 value;
                 div ~a:[a_class ["actions"]] [
-                  a ~a:[a_onclick cancel] [pcdata "(cancel) "];
+                  a ~a:[a_onclick cancel] [txt "(cancel) "];
                   submit_button "OK";
                 ]
               ]
@@ -912,7 +914,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               M.choose_candidate candidate
             );
             false in
-          li [a ~a:[a_onclick select] [pcdata (M.candidate_label candidate)]]
+          li [a ~a:[a_onclick select] [txt (M.candidate_label candidate)]]
         ) in
         let content = ul (new_contact_form :: contexts) in
         show_modal ~parent:(ev##.target) [content]
@@ -945,7 +947,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               M.choose_candidate candidate
             );
             false in
-          li [a ~a:[a_onclick select] [pcdata (M.candidate_label candidate)]]
+          li [a ~a:[a_onclick select] [txt (M.candidate_label candidate)]]
         ) in
         let content = ul (new_contact_form :: contacts) in
         show_modal ~parent:(ev##.target) [content]
@@ -970,7 +972,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       let unit_option u =
         let attrs =
           if u = init.repeat_unit then [a_selected ()] else [] in
-        option ~a:attrs (pcdata ((string_of_time_unit u) ^ "s")) in
+        option ~a:attrs (txt ((string_of_time_unit u) ^ "s")) in
       select (unit_options |> Array.map unit_option |> Array.to_list) in
     let on_select date =
       let input_elem = To_dom.of_input n_input in
@@ -1012,7 +1014,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let clear _ev =
       async ~name:"clear_repeat" (fun () -> M.set_repeat m action None);
       false in
-    a ~a:[a_onclick clear; a_class ["delete"]] [pcdata "×"]
+    a ~a:[a_onclick clear; a_class ["delete"]] [txt "×"]
 
   let make_conflicts m item =
     item >|~= function
@@ -1027,11 +1029,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         [
           div ~a:[a_class ["ck-conflicts"]] [
             div ~a:[a_class ["ck-box-title"]] [
-              h4 [pcdata "Merge conflicts"];
-              a ~a:[a_class ["close"]; a_onclick clear_conflicts] [pcdata "×"];
+              h4 [txt "Merge conflicts"];
+              a ~a:[a_class ["close"]; a_onclick clear_conflicts] [txt "×"];
             ];
             ul (
-              ms |> List.map (fun msg -> li [pcdata msg])
+              ms |> List.map (fun msg -> li [txt msg])
             )
           ]
         ]
@@ -1071,7 +1073,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               match M.Item.action_state action with
               | `Waiting_until time ->
                   let clicked ev = edit_date ~ev m action; false in
-                  [ck_label "Waiting until "; a ~a:[a_onclick clicked] [pcdata (Ck_time.string_of_user_date time)]]
+                  [ck_label "Waiting until "; a ~a:[a_onclick clicked] [txt (Ck_time.string_of_user_date time)]]
               | _ -> [] in
             let repeating, clear =
               match M.Item.action_repeat action with
@@ -1082,7 +1084,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               div (
                 [
                   ck_label "Repeats: ";
-                  a ~a:[a_onclick (edit_repeat m action)] [pcdata repeating];
+                  a ~a:[a_onclick (edit_repeat m action)] [txt repeating];
                 ] @ clear
               )
             ]
@@ -1102,7 +1104,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               make_node_chooser ~edit ~show_node ~if_none:"(no contact)" opt_contact
             ) |> rlist_of in
           [
-            span ~a:[a_class ["ck-label"]] [R.Html5.pcdata label];
+            span ~a:[a_class ["ck-label"]] [R.Html5.txt label];
             R.Html5.span value;
           ] in
     let context =
@@ -1131,7 +1133,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           | _ -> "Created " in
         div [
           ck_label (created_msg ^ ctime);
-          a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [pcdata " (delete)"];
+          a ~a:[a_onclick delete_clicked; a_class ["ck-delete"]] [txt " (delete)"];
         ];
       ] in
     (title, div contents)
@@ -1152,7 +1154,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       false in
     li [
       span ~a:[a_class cl] [
-        a ~a:[a_class ["ck-title"]; a_onclick clicked] [pcdata (M.Item.name item)]
+        a ~a:[a_class ["ck-title"]; a_onclick clicked] [txt (M.Item.name item)]
       ]
     ]
 
@@ -1214,7 +1216,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         add (M.add_action ~state:`Next ?context:None ?contact:None ?parent:None ?description:None) ev in
     my_input := Some input_box;
     let action adder label =
-      li [a ~a:[a_onclick (fun ev -> add adder ev; false)] [pcdata label]] in
+      li [a ~a:[a_onclick (fun ev -> add adder ev; false)] [txt label]] in
     let f = form ~a:[a_onsubmit submit; a_class ["ck-main-entry"]] [
       input_box;
       div ~a:[R.Html5.a_class cl] [
@@ -1267,7 +1269,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       ) in
     let show_history () =
       show_or_create history_uuid (fun closed set_closed ->
-        let title = b [pcdata "History"] in
+        let title = b [txt "History"] in
         let contents = make_sync m in
         let on_destroy () =
           remove history_uuid;
@@ -1301,22 +1303,22 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
           showing := true;
           [
             div ~a:[a_class cl] [
-              p [pcdata (
+              p [txt (
                 Printf.sprintf "Time-travel active: you are viewing the state of CueKeeper as at %s."
                   (Ck_time.string_of_unix_time log_entry.Git_storage_s.Log_entry.date)
               )];
               p [
-                button ~a:[a_onclick revert] [pcdata "Revert this change"];
-                pcdata msg;
+                button ~a:[a_onclick revert] [txt "Revert this change"];
+                txt msg;
               ];
-              a ~a:[a_class ["close"]; a_onclick return_to_present] [pcdata "×"]
+              a ~a:[a_class ["close"]; a_onclick return_to_present] [txt "×"]
             ]
           ]
     )
     |> rlist_of
 
   let export m ev =
-    let s, set_s = React.S.create (pcdata "Exporting...") in
+    let s, set_s = React.S.create (txt "Exporting...") in
     async ~name:"export" (fun () ->
       M.export_tar m >|= fun data ->
       let data = make_blob ~mime:"application/x-tar" data in
@@ -1325,7 +1327,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         save_as data name;
         Ck_modal.close ();
         false in
-      set_s (a ~a:[a_onclick download] [pcdata name])
+      set_s (a ~a:[a_onclick download] [txt name])
     );
     [R.Html5.div ~a:[a_class ["ck-export"]] (ReactiveData.RList.singleton_s s)]
     |> show_modal ~parent:(ev##.target);
@@ -1341,9 +1343,9 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     let current_tree = M.tree m in
     let details_area, show_node, show_history, close_all = make_details_area m in
     let actions = [
-      a ~a:[a_onclick (export m)] [pcdata "Export"];
-      a ~a:[a_onclick (fun _ -> show_history (); false)] [pcdata "Show history"];
-      a ~a:[a_onclick (fun _ -> close_all (); false)] [pcdata "Close all"];
+      a ~a:[a_onclick (export m)] [txt "Export"];
+      a ~a:[a_onclick (fun _ -> show_history (); false)] [txt "Show history"];
+      a ~a:[a_onclick (fun _ -> close_all (); false)] [txt "Close all"];
     ] in
     let actions =
       match M.client m with
@@ -1352,7 +1354,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
             | false -> []
             | true -> ["ck-in-progress"]
           ) in
-          a ~a:[a_onclick (sync client); R.Html5.a_class cl] [pcdata "Sync"] :: actions
+          a ~a:[a_onclick (sync client); R.Html5.a_class cl] [txt "Sync"] :: actions
       | None -> actions in
     let left_panel =
       let live = current_tree >|~= make_tree ~show_node m in

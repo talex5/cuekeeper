@@ -4,7 +4,8 @@
 (** Bindings for Pikadate.
  * See https://github.com/dbushell/Pikaday/ *)
 
-open Tyxml_js
+open Js_of_ocaml
+open Js_of_ocaml_tyxml.Tyxml_js
 
 class type pikaday =
   object
@@ -31,7 +32,7 @@ let to_user_date d =
 
 let make ?(initial:Ck_time.user_date option) ~on_select () =
   let div = Html5.div [] in
-  let elem = Tyxml_js.To_dom.of_div div in
+  let elem = To_dom.of_div div in
   let config = make_config () in
   config##.container := elem;
   config##.onSelect := Js.wrap_callback (fun d ->

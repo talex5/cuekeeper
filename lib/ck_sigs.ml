@@ -156,10 +156,10 @@ module type RPC = sig
 
   val get :
     ?headers:Cohttp.Header.t ->
-    Uri.t -> (Response.t * Cohttp_lwt_body.t) or_cancelled Lwt.t
+    Uri.t -> (Response.t * Cohttp_lwt.Body.t) or_cancelled Lwt.t
 
   val post :
-    ?body:Cohttp_lwt_body.t ->
+    ?body:Cohttp_lwt.Body.t ->
     ?headers:Cohttp.Header.t ->
-    Uri.t -> (Response.t * Cohttp_lwt_body.t) or_cancelled Lwt.t
+    Uri.t -> (Response.t * Cohttp_lwt.Body.t) or_cancelled Lwt.t
 end

@@ -10,9 +10,14 @@ let show_head = function
   | None -> "(none)"
   | Some head -> String.sub (Irmin.Hash.SHA1.to_hum head) 0 6
 
+let b64encode s =
+  match Base64.encode s with
+  | Ok x -> x
+  | Error (`Msg m) -> failwith m    (* Encoding can't really fail *)
+
 module Make (Store:Irmin.S with type branch_id = string and type commit_id =
                                                               Irmin.Hash.SHA1.t)
-    (S:Cohttp_lwt.Server) = struct
+    (S:Cohttp_lwt.S.Server) = struct
   module Bundle = Tc.Pair(Store.Private.Slice)(Store.Hash)
 
   let respond_static segments =
@@ -37,7 +42,7 @@ module Make (Store:Irmin.S with type branch_id = string and type commit_id =
       | hd::tl -> hd :: aux tl
     in
     List.filter (fun e -> e <> "")
-      (aux (Re_str.(split_delim (regexp_string "/") path)))
+      (aux (Re.Str.(split_delim (regexp_string "/") path)))
 
   (* Import bundle from client into store. *)
   let accept_push s body =
@@ -45,8 +50,13 @@ module Make (Store:Irmin.S with type branch_id = string and type commit_id =
     match s "import" with
     | `Error resp -> resp
     | `Ok s ->
-    Cohttp_lwt_body.to_string body >>= fun body ->
-    let buf = Mstruct.of_string (B64.decode body) in
+    Cohttp_lwt.Body.to_string body >>= fun body ->
+    match Base64.decode body with
+    | Error (`Msg msg) ->
+        Log.warn (fun f -> f "%s" msg);
+        S.respond_string ~headers ~status:`Bad_request ~body:msg ()
+    | Ok body ->
+    let buf = Mstruct.of_string body in
     let (slice, head) = Bundle.read buf in
     Store.head s >>= function
     | Some server_head when server_head = head ->
@@ -93,7 +103,7 @@ module Make (Store:Irmin.S with type branch_id = string and type commit_id =
     let buf = Cstruct.create (Bundle.size_of bundle) in
     let rest = Bundle.write bundle buf in
     assert (Cstruct.len rest = 0);
-    let body = B64.encode (Cstruct.to_string buf) in
+    let body = b64encode (Cstruct.to_string buf) in
     S.respond_string ~headers ~status:`OK ~body ()
 
   let handle_request s (_io_conn, http_conn) request body =

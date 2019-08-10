@@ -9,8 +9,14 @@ module Make(Clock : Ck_clock.S) = struct
   let listener = ref ignore_listener
 
   module Test_network = struct
+    type error = unit
+    let pp_error f () = Format.pp_print_string f "error"
+
     module IO = struct
       include Lwt
+
+      type error = unit
+      let pp_error f () = Format.pp_print_string f "IO error"
 
       type ic = Lwt_io.input_channel
       type oc = Lwt_io.output_channel
@@ -27,6 +33,8 @@ module Make(Clock : Ck_clock.S) = struct
             | ex -> raise ex
           )
       let write = Lwt_io.write
+
+      let catch f = f () >|= fun x -> Ok x
     end
 
     type ctx = unit

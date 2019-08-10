@@ -21,6 +21,7 @@ module Queue = Lwt_pqueue.Make(struct
   let compare a b =
     compare (fst a) (fst b)
 end)
+[@@warning "-3"]
 
 let debug fmt = Printf.ksprintf ignore fmt
 

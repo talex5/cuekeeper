@@ -2,6 +2,7 @@
  * See the README file for details. *)
 
 open Ck_sigs
+open Js_of_ocaml_tyxml
 
 module Gui_tree_data : GUI_DATA
 

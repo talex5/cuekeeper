@@ -1,6 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
+open Js_of_ocaml
 open Ck_js_utils
 
 type t = {

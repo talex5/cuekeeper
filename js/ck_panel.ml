@@ -1,7 +1,10 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Tyxml_js
+open Js_of_ocaml_tyxml.Tyxml_js
+module Tyxml_js = Js_of_ocaml_tyxml.Tyxml_js
+module Lwt_js_events = Js_of_ocaml_lwt.Lwt_js_events
+module Lwt_js = Js_of_ocaml_lwt.Lwt_js
 open Html5
 open Ck_utils
 open Lwt

@@ -1,6 +1,9 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
+open Js_of_ocaml
+open Js_of_ocaml_tyxml
+
 val ignore_listener : Dom_html.event_listener_id -> unit
 (** Version of [ignore] restricted to event listeners. *)
 

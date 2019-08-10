@@ -1,8 +1,8 @@
 true: strict_sequence, bin_annot, warn(A-4-44-48)
-true: package(irmin,lwt,sexplib,uuidm,irmin.mem,irmin-indexeddb,base64,ocamlgraph,reactiveData,omd,tar,cohttp.lwt)
+true: package(irmin,lwt,sexplib,uuidm,irmin.mem,irmin-indexeddb,base64,ocamlgraph,reactiveData,omd,tar,cohttp,cohttp-lwt)
 <lib/*>: package(ppx_sexp_conv)
-<tests/*>: package(oUnit, lwt.unix, mirage-types, mirage-http)
-<js/*>: package(js_of_ocaml.ppx,js_of_ocaml,js_of_ocaml.tyxml,cohttp.js)
+<tests/*>: package(oUnit, lwt.unix, cohttp-lwt)
+<js/*>: package(js_of_ocaml-ppx,js_of_ocaml,js_of_ocaml-tyxml,js_of_ocaml-lwt,cohttp-lwt-jsoo)
 true: debug
 <js>: include
 <lib>: include

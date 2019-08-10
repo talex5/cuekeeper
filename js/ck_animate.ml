@@ -1,6 +1,11 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
+open Js_of_ocaml
+open Js_of_ocaml_tyxml
+module Lwt_js = Js_of_ocaml_lwt.Lwt_js
+module Lwt_js_events = Js_of_ocaml_lwt.Lwt_js_events
+
 (* Ck_model gives us 1s for the whole fade-out, resize, fade-in sequence *)
 let fade_time = 0.33
 let resize_time = 0.33

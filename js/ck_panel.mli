@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Tyxml_js
+open Js_of_ocaml_tyxml.Tyxml_js
 
 type t
 

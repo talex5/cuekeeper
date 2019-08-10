@@ -21,27 +21,20 @@ depends: [
   "irmin"
   "tyxml"
   "reactiveData"
-  "js_of_ocaml"
+  "js_of_ocaml" {>= "3.0.0"}
+  "js_of_ocaml-tyxml"
   "omd"
   "ounit" {build}
-  "tar-format" {>= "0.6.0" & < "0.7.1"}
+  "tar"
   "cohttp"
+  "cohttp-lwt-jsoo"
   "irmin-indexeddb" {>= "0.3"}
   "crunch" {build}
   "ocamlfind" {build}
-  "mirage-http" {test}
-  "mirage-types-lwt" {test}
   "ppx_sexp_conv"
   "lwt"
   "cstruct" {>= "1.7.0"}
+  "bin_prot" {< "114.03"}
+  "ppx_deriving"
   "ocamlbuild" {build}
-]
-depopts: [
-  "mirage"
-]
-conflicts: [
-  "mirage-xen-posix" {< "2.3.3"}
-  "conduit" {>= "0.14"}
-  "mirage" {> "2.9.1"}
-  "mirage-types" {> "2.9.1"}
 ]
