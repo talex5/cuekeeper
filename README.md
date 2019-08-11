@@ -1,7 +1,7 @@
 CueKeeper
 =========
 
-Copyright Thomas Leonard, 2017
+Copyright Thomas Leonard, 2019
 
 CueKeeper is a web-based [GTD][] system (a fancy TODO list) that runs entirely in your browser (the data is stored on your computer, in your browser).
 
@@ -45,22 +45,20 @@ Building (without Docker)
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
 It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 1.2.2).
-Ensure you're using OCaml 4.04.2 (check with `ocaml -version`). If not, switch to that version:
+Ensure you're using OCaml 4.05.0 (check with `ocaml -version`). If not, switch to that version:
 
-    opam sw 4.04.2
+    opam switch create 4.05.0
 
 Pin a few patches we require:
 
-    opam pin add -n reactiveData https://github.com/hhugo/reactiveData.git
-    opam pin add -n bin_prot 'https://github.com/talex5/bin_prot.git#cuekeeper'
+    opam pin add -yn reactiveData https://github.com/hhugo/reactiveData.git
+    opam pin add -yn bin_prot.113.33.00+4.05 'https://github.com/talex5/bin_prot.git#113.33.00+4.05'
+    opam pin add -yn irmin.0.10.1 'https://github.com/talex5/irmin.git#cuekeeper'
+    opam pin add -yn irmin-indexeddb.0.5 'https://github.com/talex5/irmin-indexeddb.git#v0.5'
 
-    opam update
+Install the dependencies (`-t` includes the test dependencies too):
 
-Install the dependencies:
-
-    opam pin add -n -k git cuekeeper .
-    opam install mirage-http mirage-types-lwt # (test dependencies)
-    opam install --deps-only cuekeeper
+    opam install --deps-only -t .
 
 Build:
 
