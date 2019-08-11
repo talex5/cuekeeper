@@ -66,6 +66,9 @@ Build:
 
 Load `test.html` in a browser to test locally (no server required).
 
+Note that this defaults to "dev" mode, where the Javascript generated will be very large (about 9 MB) and not optimised.
+To get a smaller file, use `dune build --profile=release ./js/client.bc.js` (should be about 950 KB).
+
 
 Running a server
 ----------------
@@ -112,7 +115,7 @@ as the "Common Name" (for testing, you could use "localhost" here and generate a
 
 To run the server:
 
-    ./server/mir-cuekeeper
+    ./server/cuekeeper
 
 By default the server listens on TCP port 8443, but this can be changed by editing `server/unikernel.ml`.
 

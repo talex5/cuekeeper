@@ -1,0 +1,5 @@
+.git
+_build
+cuekeeper-bin*
+server/_build
+server/static.ml

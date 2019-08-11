@@ -1,0 +1,15 @@
+(include_subdirs unqualified)
+
+(library
+ (wrapped false)
+ (preprocess (pps ppx_sexp_conv))
+ (libraries sexplib lwt react reactiveData uuidm cohttp cohttp-lwt irmin tar)
+ (name cuekeeper))
+
+(data_only_dirs init)
+
+(rule
+ (target ck_init.ml)
+ (deps (source_tree init))
+ (action
+  (run ocaml-crunch init -o ck_init.ml -m plain)))

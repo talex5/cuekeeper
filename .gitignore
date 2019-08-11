@@ -1,5 +1,5 @@
 _build
-ck_init.ml
+.merlin
 server/Makefile
 server/cuekeeper_libvirt.xml
 server/main.ml

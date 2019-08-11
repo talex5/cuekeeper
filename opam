@@ -24,17 +24,16 @@ depends: [
   "js_of_ocaml" {>= "3.0.0"}
   "js_of_ocaml-tyxml"
   "omd"
-  "ounit" {build}
+  "ounit" {test}
   "tar"
   "cohttp"
   "cohttp-lwt-jsoo"
   "irmin-indexeddb" {>= "0.3"}
   "crunch" {build}
-  "ocamlfind" {build}
   "ppx_sexp_conv"
   "lwt"
-  "cstruct" {>= "1.7.0"}
+  "cstruct" {>= "4.0.0"}
   "bin_prot" {< "114.03"}
   "ppx_deriving"
-  "ocamlbuild" {build}
+  "dune" {>= "1.11.0"}
 ]

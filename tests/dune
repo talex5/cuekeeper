@@ -1,0 +1,7 @@
+(executable
+ (name test)
+ (libraries cuekeeper lwt.unix oUnit irmin.mem))
+
+(alias
+ (name   runtest)
+ (action (run ./test.bc)))
