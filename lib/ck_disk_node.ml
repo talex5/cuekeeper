@@ -5,12 +5,12 @@ open Sexplib.Conv
 open Ck_utils
 
 type node_details = {
-  parent : Ck_id.t sexp_option;
+  parent : Ck_id.t option [@sexp.option];
   name : string;
   description : string;
   ctime : float;
-  contact : Ck_id.t sexp_option;
-  conflicts : string sexp_list;
+  contact : Ck_id.t option [@sexp.option];
+  conflicts : string list [@sexp.list];
 } [@@deriving sexp]
 
 type astate =
@@ -25,8 +25,8 @@ type astate =
 type action_details = {
   astarred : bool [@default false];
   astate : astate;
-  context : Ck_id.t sexp_option;
-  repeat: Ck_time.repeat sexp_option;
+  context : Ck_id.t option [@sexp.option];
+  repeat: Ck_time.repeat option [@sexp.option];
 } [@@deriving sexp]
 
 type project_details = {

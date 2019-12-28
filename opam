@@ -16,7 +16,7 @@ build-test: [
 ]
 depends: [
   "base64"
-  "sexplib"
+  "sexplib" {>= "v0.13.0"}
   "uuidm"
   "irmin"
   "tyxml"
