@@ -429,7 +429,8 @@ let suite =
         let wait s =
           Test_clock.run_to (!Test_clock.time +. s) in
         run_to_day 0;
-        Git.make config task >>= M.make >>= fun m ->
+        Store.Repo.create config >>= fun repo ->
+        Git.make repo task >>= M.make >>= fun m ->
         M.set_mode m `Process;
         let process_tree = M.tree m |> expect_tree in
         let job = lookup ["Job"] process_tree |> expect_area in
@@ -888,7 +889,8 @@ let suite =
                 let branch_d name =
                   Store.Repo.create config >>= fun repo ->
                   Store.Repo.remove_branch repo name in
-                Git.make config task >>= fun repo ->
+                Store.Repo.create config >>= fun repo ->
+                Git.make repo task >>= fun repo ->
                 let commit ~parents msg =
                   branch_d msg >>= fun () ->
                   random_state ~common ~random repo >>= fun s ->
@@ -966,7 +968,8 @@ let suite =
 
         (* Start a new client ("laptop").
          * It will see that the server is empty, create a new default state and push it. *)
-        Laptop_client.Git.make config task >>= fun client_git ->
+        Laptop_store.Repo.create config >>= fun repo ->
+        Laptop_client.Git.make repo task >>= fun client_git ->
         Laptop_client.M.make ~server:(Uri.of_string "http://example.com/") client_git >>= fun laptop ->
 
         (* Check the server now has the new state. *)
@@ -1000,7 +1003,8 @@ let suite =
 
         (* Create a new client ("mobile"). It should see the sync'd changes. *)
         Mobile_client.(
-          Git.make config task >>= fun mobile_git ->
+          Mobile_store.Repo.create config >>= fun repo ->
+          Git.make repo task >>= fun mobile_git ->
           M.make ~server:(Uri.of_string "http://example.com/") mobile_git >>= fun mobile ->
           let next_actions = M.tree mobile |> expect_tree in
           next_actions |> assert_tree ~label:"fresh mobile client" [
