@@ -1270,3 +1270,9 @@ pre code {
 a.ck-in-progress {
 	background: yellow;
 }
+
+pre.migration-log {
+	margin: 1em;
+	padding: 1em;
+	border: 1px solid black;
+}

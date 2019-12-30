@@ -5,7 +5,8 @@ RUN sudo apt-get -y update && sudo apt-get -y install aspcud zip m4 autoconf bui
 RUN opam init --comp=4.05.0+32bit --disable-sandboxing
 RUN opam pin add -n reactiveData https://github.com/hhugo/reactiveData.git
 RUN opam pin add -n irmin.0.10.1 https://github.com/talex5/irmin.git#cuekeeper
-RUN opam pin add -n irmin-indexeddb.0.5 https://github.com/talex5/irmin-indexeddb.git#v0.5
+RUN opam pin add -n irmin-indexeddb.0.6 https://github.com/talex5/irmin-indexeddb.git#v0.6
+RUN opam pin add -n git.1.7.1 https://github.com/talex5/ocaml-git.git#cuekeeper
 RUN mkdir /home/opam/cuekeeper
 COPY --chown=opam opam /home/opam/cuekeeper/opam
 WORKDIR /home/opam/cuekeeper
