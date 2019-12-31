@@ -19,7 +19,7 @@ depends: [
   "sexplib" {>= "v0.13.0"}
   "uuidm"
   "irmin"
-  "tyxml"
+  "tyxml" {>= "4.3.0"}
   "reactiveData"
   "js_of_ocaml" {>= "3.0.0"}
   "js_of_ocaml-tyxml"
