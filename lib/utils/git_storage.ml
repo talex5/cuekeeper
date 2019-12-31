@@ -309,13 +309,12 @@ module Make (I : Irmin.S with type key = string list and type value = string
     let empty t = V.empty () >|= Staging.of_view t
   end
 
-  let make config task_maker =
+  let make r task_maker =
     begin match Bin_prot.Size.bin_size_int64 0x8000L with
     | 5 -> ()
     | x ->
         Ck_utils.bug
           "Bin_prot serialisation is broken (says it needs %d bytes to store 0x8000). \
           Ensure js_of_ocaml branch is pinned." x end;
-    I.Repo.create config >|= fun r ->
-    {r; task_maker}
+    Lwt.return {r; task_maker}
 end

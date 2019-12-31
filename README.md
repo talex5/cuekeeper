@@ -54,7 +54,8 @@ Pin a few patches we require:
     opam pin add -yn reactiveData https://github.com/hhugo/reactiveData.git
     opam pin add -yn bin_prot.113.33.00+4.05 'https://github.com/talex5/bin_prot.git#113.33.00+4.05'
     opam pin add -yn irmin.0.10.1 'https://github.com/talex5/irmin.git#cuekeeper'
-    opam pin add -yn irmin-indexeddb.0.5 'https://github.com/talex5/irmin-indexeddb.git#v0.5'
+    opam pin add -yn irmin-indexeddb.0.6 https://github.com/talex5/irmin-indexeddb.git#v0.6
+    opam pin add -yn git.1.7.1 https://github.com/talex5/ocaml-git.git#cuekeeper
 
 Install the dependencies (`-t` includes the test dependencies too):
 

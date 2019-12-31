@@ -25,7 +25,8 @@ module Clock = struct
   let sleep = Lwt_js.sleep
 end
 
-module Git = Git_storage.Make(Irmin_IDB.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1))
+module Store = Irmin_IDB.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+module Git = Git_storage.Make(Store)
 module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)(Ck_authn_RPC)
 module T = Ck_template.Make(M)
 
@@ -43,7 +44,21 @@ let start (main:#Dom.node Js.t) =
       let task s =
         let date = Unix.time () |> Int64.of_float in
         Irmin.Task.create ~date ~owner:"User" s in
-      Git.make config task >>= M.make ?server >>= fun m ->
+      let migration_log = lazy (
+        let box = Tyxml_js.Html5.(pre ~a:[a_class ["migration-log"]] [])
+                  |> Tyxml_js.To_dom.of_node in
+        main##appendChild box |> ignore;
+        box
+      ) in
+      let log msg =
+        let box = Lazy.force migration_log in
+        box##appendChild (Tyxml_js.To_dom.of_node (Tyxml_js.Html5.txt (msg ^ "\n"))) |> ignore
+      in
+      Store.create_full ~log config >>= fun repo ->
+      if Lazy.is_val migration_log then (
+        main##removeChild (Lazy.force migration_log) |> ignore
+      );
+      Git.make repo task >>= M.make ?server >>= fun m ->
       let icon =
         let open Tyxml_js in
         let href = M.alert m >|~= (function
