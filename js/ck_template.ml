@@ -461,9 +461,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       false in
     let open Git_storage_s.Log_entry in
     let summary =
-      match log_entry.msg with
-      | [] -> "(no log message)"
-      | x::_ -> x in
+      let msg = log_entry.msg in
+      match String.index_opt msg '\n' with
+      | None -> msg
+      | Some i -> String.sub msg 0 i
+    in
     let date = Ck_time.string_of_unix_time log_entry.date in
     let a_cl = M.server_head m >|~= function
       | Some id when log_entry.id = id -> ["ck-server-head"]
@@ -1296,7 +1298,6 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
       | Some log_entry ->
           let cl = ["alert-box"; "ck-time-travel-warning"] in
           let cl = if !showing then cl else "new" :: cl in
-          let msg = match log_entry.Git_storage_s.Log_entry.msg with [] -> "-" | summary::_ -> summary in
           let revert ev =
             async ~name:"revert" (fun () -> M.revert m log_entry >|= report_error ~parent:(ev##.target));
             false in
@@ -1309,7 +1310,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
               )];
               p [
                 button ~a:[a_onclick revert] [txt "Revert this change"];
-                txt msg;
+                txt log_entry.Git_storage_s.Log_entry.msg;
               ];
               a ~a:[a_class ["close"]; a_onclick return_to_present] [txt "×"]
             ]

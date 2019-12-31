@@ -25,7 +25,7 @@ module Clock = struct
   let sleep = Lwt_js.sleep
 end
 
-module Store = Irmin_IDB.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+module Store = Irmin_IDB.Make(Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)
 module Git = Git_storage.Make(Store)
 module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)(Ck_authn_RPC)
 module T = Ck_template.Make(M)
@@ -43,22 +43,9 @@ let start (main:#Dom.node Js.t) =
       let config = Irmin_IDB.config "CueKeeper" in
       let task s =
         let date = Unix.time () |> Int64.of_float in
-        Irmin.Task.create ~date ~owner:"User" s in
-      let migration_log = lazy (
-        let box = Tyxml_js.Html5.(pre ~a:[a_class ["migration-log"]] [])
-                  |> Tyxml_js.To_dom.of_node in
-        main##appendChild box |> ignore;
-        box
-      ) in
-      let log msg =
-        let box = Lazy.force migration_log in
-        box##appendChild (Tyxml_js.To_dom.of_node (Tyxml_js.Html5.txt (msg ^ "\n"))) |> ignore
-      in
-      Store.create_full ~log config >>= fun repo ->
-      if Lazy.is_val migration_log then (
-        main##removeChild (Lazy.force migration_log) |> ignore
-      );
-      Git.make repo task >>= M.make ?server >>= fun m ->
+        Irmin.Info.v ~date ~author:"User" s in
+      Store.Repo.v config >>= fun repo ->
+      M.make ?server (Git.make repo task) >>= fun m ->
       let icon =
         let open Tyxml_js in
         let href = M.alert m >|~= (function
@@ -72,11 +59,17 @@ let start (main:#Dom.node Js.t) =
       return ()
     )
     (fun ex ->
-      let msg = Printexc.to_string ex in
       let msg =
-        if Regexp.string_match (Regexp.regexp_string "SecurityError:") msg 0 <> None then
-          msg ^ " Ensure cookies are enabled (needed to access local storage)."
-        else msg in
+        match ex with
+        | Irmin_IDB.Format_too_old `Irmin_0_10 ->
+          "Please upgrade to CueKeeper 0.3 first. This will convert your old data to the standard Git format, \
+            which is the only format the current version of CueKeeper can read."
+        | _ ->
+          let msg = Printexc.to_string ex in
+          if Regexp.string_match (Regexp.regexp_string "SecurityError:") msg 0 <> None then
+            msg ^ " Ensure cookies are enabled (needed to access local storage)."
+          else msg
+      in
       let error = Tyxml_js.Html5.(div ~a:[a_class ["alert-box"; "alert"]]
                                     [txt msg]) in
       main##appendChild (Tyxml_js.To_dom.of_node error) |> ignore;

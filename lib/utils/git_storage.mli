@@ -3,9 +3,13 @@
 
 (** A Git-like storage abstraction over Irmin. *)
 
-module Make (I : Irmin.S with type key = string list and type value = string and
-            type commit_id = Irmin.Hash.SHA1.t and type branch_id = string) : sig
+module Make (I : Irmin.S
+             with type key = string list
+              and type contents = string
+              and type Commit.Hash.t = Irmin.Hash.SHA1.t
+              and type branch = string
+              and type step = string) : sig
   include Git_storage_s.S
 
-  val make : I.Repo.t -> (string -> Irmin.task) -> Repository.t Lwt.t
+  val make : I.Repo.t -> (string -> Irmin.Info.t) -> Repository.t
 end

@@ -54,10 +54,9 @@ Ensure you're using OCaml 4.05.0 (check with `ocaml -version`). If not, switch t
 Pin a few patches we require:
 
     opam pin add -yn reactiveData https://github.com/hhugo/reactiveData.git
-    opam pin add -yn bin_prot.113.33.00+4.05 'https://github.com/talex5/bin_prot.git#113.33.00+4.05'
-    opam pin add -yn irmin.0.10.1 'https://github.com/talex5/irmin.git#cuekeeper'
-    opam pin add -yn irmin-indexeddb.0.6 https://github.com/talex5/irmin-indexeddb.git#v0.6
-    opam pin add -yn git.1.7.1 https://github.com/talex5/ocaml-git.git#cuekeeper
+    opam pin add -yn irmin-git.1.0.0 https://github.com/talex5/irmin.git#1.0.0-cuekeeper
+    opam pin add -yn irmin-indexeddb.1.0 https://github.com/talex5/irmin-indexeddb.git#v1.0
+    opam pin add -yn git.1.10.0 https://github.com/talex5/ocaml-git.git#1.10.0-cuekeeper
 
 Install the dependencies (`-t` includes the test dependencies too):
 
@@ -84,7 +83,6 @@ This allows you to sync between devices (e.g. a laptop and mobile phone).
 - The server does not yet persist the data itself
   (the client sends the whole history the first time it connects after the service is restarted).
 - You have to sync manually by clicking the `Sync` button - it does not send or fetch changes automatically.
-- You must use Irmin 0.10.1, due to https://github.com/talex5/irmin-indexeddb/issues/3.
 
 First, generate an access token (a *long* random string that grants access to the server).
 The `pwgen` command is useful for this:
@@ -110,7 +108,7 @@ Make sure the `None` line comes last - this rejects all unknown tokens.
 
 To build the server component:
 
-    opam pin add mirage 3.4.1
+    opam pin add mirage 3.5.2
     make server
 
 You will be prompted to create a self-signed X.509 certificate. Just enter your server's hostname

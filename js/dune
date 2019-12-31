@@ -4,4 +4,5 @@
  (preprocess (pps js_of_ocaml-ppx))
  (libraries cuekeeper js_of_ocaml js_of_ocaml-tyxml js_of_ocaml-lwt
             cohttp-lwt-jsoo irmin-indexeddb omd)
- (js_of_ocaml (javascript_files helpers.js)))
+ (js_of_ocaml
+  (flags +cstruct/cstruct.js)))

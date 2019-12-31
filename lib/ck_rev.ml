@@ -271,46 +271,40 @@ module Make(Git : Git_storage_s.S) = struct
     check_version tree >>= fun () ->
     (* Load areas, projects and actions *)
     Git.Staging.list tree ["db"] >>=
-    Lwt_list.iter_s (function
-      | ["db"; uuid] as key ->
-          let uuid = Ck_id.of_string uuid in
-          Git.Staging.read_exn tree key >|= fun s ->
-          let disk_node = Ck_disk_node.of_string s in
-          let node =
-            match disk_node with
-            | `Action disk_node -> `Action {rev = t; uuid; disk_node}
-            | `Project disk_node -> `Project {rev = t; uuid; disk_node}
-            | `Area disk_node -> `Area {rev = t; uuid; disk_node} in
-          apa_nodes := !apa_nodes |> Ck_id.M.add uuid node;
-          let parent = Ck_disk_node.parent disk_node |> default root_id in
-          let old_children =
-            try Hashtbl.find children parent
-            with Not_found -> [] in
-          Hashtbl.replace children parent (uuid :: old_children);
-      | _ -> assert false
+    Lwt_list.iter_s (fun uuid ->
+        Git.Staging.read_exn tree ["db"; uuid] >|= fun s ->
+        let uuid = Ck_id.of_string uuid in
+        let disk_node = Ck_disk_node.of_string s in
+        let node =
+          match disk_node with
+          | `Action disk_node -> `Action {rev = t; uuid; disk_node}
+          | `Project disk_node -> `Project {rev = t; uuid; disk_node}
+          | `Area disk_node -> `Area {rev = t; uuid; disk_node} in
+        apa_nodes := !apa_nodes |> Ck_id.M.add uuid node;
+        let parent = Ck_disk_node.parent disk_node |> default root_id in
+        let old_children =
+          try Hashtbl.find children parent
+          with Not_found -> [] in
+        Hashtbl.replace children parent (uuid :: old_children);
     ) >>= fun () ->
     let apa_nodes = !apa_nodes in
     (* Load contacts *)
     Git.Staging.list tree ["contact"] >>=
-    Lwt_list.iter_s (function
-      | ["contact"; uuid] as key ->
-          let uuid = Ck_id.of_string uuid in
-          Git.Staging.read_exn tree key >|= fun s ->
-          let `Contact disk_node = Ck_disk_node.contact_of_string s in
-          let contact = {rev = t; uuid; disk_node} in
-          contacts := !contacts |> Ck_id.M.add uuid contact;
-      | _ -> assert false
-    ) >>= fun () ->
+    Lwt_list.iter_s (fun uuid ->
+        Git.Staging.read_exn tree ["contact"; uuid] >|= fun s ->
+        let uuid = Ck_id.of_string uuid in
+        let `Contact disk_node = Ck_disk_node.contact_of_string s in
+        let contact = {rev = t; uuid; disk_node} in
+        contacts := !contacts |> Ck_id.M.add uuid contact;
+      ) >>= fun () ->
     (* Load contexts *)
     Git.Staging.list tree ["context"] >>=
-    Lwt_list.iter_s (function
-      | ["context"; uuid] as key ->
-          let uuid = Ck_id.of_string uuid in
-          Git.Staging.read_exn tree key >|= fun s ->
-          let `Context disk_node = Ck_disk_node.context_of_string s in
-          let context = {rev = t; uuid; disk_node} in
-          contexts := !contexts |> Ck_id.M.add uuid context;
-      | _ -> assert false
+    Lwt_list.iter_s (fun uuid ->
+        Git.Staging.read_exn tree ["context"; uuid] >|= fun s ->
+        let uuid = Ck_id.of_string uuid in
+        let `Context disk_node = Ck_disk_node.context_of_string s in
+        let context = {rev = t; uuid; disk_node} in
+        contexts := !contexts |> Ck_id.M.add uuid context;
     ) >>= fun () ->
     (* todo: reject cycles *)
     children |> Hashtbl.iter (fun parent children ->

@@ -11,7 +11,8 @@ let main =
 let conf = crunch "conf"
 
 let packages = [
-  package "irmin" ~sublibs:["mem"];
+  package "irmin" ~min:"1.0.0" ~max:"1.1.0";
+  package "irmin-git" ~min:"1.0.0" ~max:"1.1.0";
   package "tls";
   package "cohttp-mirage";
 ]

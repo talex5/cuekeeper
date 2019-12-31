@@ -13,16 +13,6 @@ let (>>!=) x f =
   | `Ok y -> f y
   | `Cancelled_by_user as c -> return c
 
-let b64encode s =
-  match Base64.encode s with
-  | Ok x -> x
-  | Error (`Msg m) -> failwith m    (* Encoding can't really fail *)
-
-let b64decode s =
-  match Base64.decode s with
-  | Ok x -> x
-  | Error (`Msg m) -> failwith ("b64decode: " ^ m)
-
 module Make(Clock : Ck_clock.S)
            (Git : Git_storage_s.S)
            (RPC : RPC) = struct
@@ -51,7 +41,7 @@ module Make(Clock : Ck_clock.S)
     | code -> return (error "Bad status code '%s' from server" (Cohttp.Code.string_of_status code))
 
   let post ~base path body =
-    let body = Cohttp_lwt.Body.of_string (b64encode body) in
+    let body = Cohttp_lwt.Body.of_string body in
     let headers = Cohttp.Header.init_with "Content-Type" "application/octet-stream" in
     RPC.post ~headers ~body (Uri.with_path base path) >>= function
     | `Cancelled_by_user -> return `Cancelled_by_user
@@ -63,13 +53,13 @@ module Make(Clock : Ck_clock.S)
   let fetch ~base ~server_branch =
     let path =
       match React.S.value (Git.Branch.head server_branch) with
-      | Some last_known -> "fetch/" ^ Irmin.Hash.SHA1.to_hum (Git.Commit.id last_known)
+      | Some last_known -> "fetch/" ^ Fmt.to_to_string Irmin.Hash.SHA1.pp (Git.Commit.id last_known)
       | None -> "fetch" in
     get ~base path >>!= function
     | "" ->
         Git.Branch.force server_branch None >|= fun () -> `Ok None
     | bundle ->
-        Git.Branch.fetch_bundle server_branch (b64decode bundle) >>!= fun commit ->
+        Git.Branch.fetch_bundle server_branch bundle >>!= fun commit ->
         return (`Ok (Some commit))
 
   let pull t  =

@@ -14,12 +14,12 @@ module Log_entry = struct
     id : Irmin.Hash.SHA1.t;
     rank : int;
     date : float;
-    msg : string list;
+    msg : string;
   }
   let compare b a = (* Newest first *)
     compare a.rank b.rank
   let id x = x.id
-  let show x = String.concat "\n" x.msg
+  let show x = x.msg
   let equal a b =
     a.id = b.id
 end
@@ -30,7 +30,7 @@ module type S = sig
   module Staging : sig
     type t
 
-    val list : t -> path -> path list Lwt.t
+    val list : t -> path -> string list Lwt.t
     val read : t -> path -> string option Lwt.t
     val read_exn : t -> path -> string Lwt.t
     val update : t -> path -> string -> unit Lwt.t
@@ -48,7 +48,7 @@ module type S = sig
     val history : ?depth:int -> t -> Log_entry.t Log_entry_map.t Lwt.t
     val export_tar : t -> string Lwt.t
     val parents : t -> t list Lwt.t
-    val task : t -> Irmin.Task.t Lwt.t
+    val info : t -> Irmin.Info.t
     val lcas : t -> t -> t list Lwt.t
     (** Find the least common ancestor(s) of two commits.
      * This is used as the base when doing a 3-way merge. *)
@@ -94,7 +94,7 @@ module type S = sig
     val commit : t -> Irmin.Hash.SHA1.t -> Commit.t option Lwt.t
     (** Look up a commit by its hash. *)
 
-    val empty : t -> Staging.t Lwt.t
+    val empty : t -> Staging.t
     (** Create an empty checkout with no parent. *)
   end
 end

@@ -8,7 +8,6 @@ homepage: "https://github.com/talex5/cuekeeper"
 bug-reports: "https://github.com/talex5/cuekeeper/issues"
 depends: [
   "ocaml"
-  "base64"
   "sexplib" {>= "v0.13.0"}
   "uuidm"
   "irmin"
@@ -17,16 +16,17 @@ depends: [
   "js_of_ocaml" {>= "3.0.0"}
   "js_of_ocaml-tyxml"
   "omd"
+  "fmt"
+  "logs"
   "ounit" {with-test}
   "tar"
   "cohttp"
   "cohttp-lwt-jsoo"
-  "irmin-indexeddb" {= "0.6"}
+  "irmin-indexeddb" {>= "1.0"}
   "crunch" {build}
   "ppx_sexp_conv"
   "lwt"
   "cstruct" {>= "4.0.0"}
-  "bin_prot" {< "114.03"}
   "ppx_deriving"
   "dune" {>= "1.11.0"}
 ]

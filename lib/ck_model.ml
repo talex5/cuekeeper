@@ -917,8 +917,12 @@ module Make(Clock : Ck_clock.S)
 
   let fixed_head t = t.fixed_head
 
+  let or_fail label = function
+    | Ok x -> x
+    | Error (`Msg m) -> Fmt.failwith "%s: %s" label m
+
   let init_new_repo ~did_init repo =
-    Git.Repository.empty repo >>= fun staging ->
+    let staging = Git.Repository.empty repo in
     Ck_init.file_list |> Lwt_list.iter_p (fun path ->
       match Ck_init.read path with
       | None -> assert false
@@ -938,7 +942,7 @@ module Make(Clock : Ck_clock.S)
                       Ck_disk_node.to_string a end
               | _ -> assert false
             ) else value in
-          let key = Irmin.Path.String_list.of_hum path in
+          let key = Irmin.Path.String_list.of_string path |> or_fail "invalid path" in
           Git.Staging.update staging key value
     ) >>= fun () ->
     Git.Commit.commit staging ~msg:["Initialise repository"] >|= fun commit ->

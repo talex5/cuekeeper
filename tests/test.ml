@@ -4,6 +4,14 @@
 open OUnit
 open Lwt
 
+module Mem () : Irmin.S
+  with type key = string list
+   and type step = string
+   and type contents = string
+   and type branch = string
+   and type Commit.Hash.t = Irmin.Hash.SHA1.t
+  = Irmin_mem.Make(Irmin.Metadata.None)(Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)(Irmin.Hash.SHA1)
+
 module StringList = OUnitDiff.ListSimpleMake(struct
   type t = string
   let compare = String.compare
@@ -11,7 +19,21 @@ module StringList = OUnitDiff.ListSimpleMake(struct
   let pp_print_sep = Format.pp_print_newline
 end)
 
-(* let () = Log.(set_log_level INFO) *)
+let reporter =
+  let report src level ~over k msgf =
+    let k _ = over (); k () in
+    let src = Logs.Src.name src in
+    msgf @@ fun ?header ?tags:_ fmt ->
+    Fmt.kpf k Fmt.stdout ("%a %a @[" ^^ fmt ^^ "@]@.")
+      Fmt.(styled `Magenta string) (Printf.sprintf "%14s" src)
+      Logs_fmt.pp_header (level, header)
+  in
+  { Logs.report = report }
+
+let () =
+  Fmt_tty.setup_std_outputs ();
+  Logs.(set_level (Some Warning));
+  Logs.set_reporter reporter
 
 let () = Random.self_init ()
 (* let () = Random.init 8 *)
@@ -88,7 +110,7 @@ let config = Irmin_mem.config ()
 
 let task s =
   let date = Test_clock.now () |> Int64.of_float in
-  Irmin.Task.create ~date ~owner:"User" s
+  Irmin.Info.v ~date ~author:"User" s
 
 let format_list l = "[" ^ (String.concat "; " l) ^ "]"
 
@@ -97,9 +119,13 @@ let n name children = N (name, children)
 
 let assert_str_equal = assert_equal ~printer:(fun x -> x)
 
-module Test_repo (Store : Irmin.S with type key = string list
-                                   and type value = string and
-                 type branch_id = string and type commit_id = Irmin.Hash.SHA1.t)(Test_rpc:Ck_sigs.RPC) = struct
+module Test_repo
+    (Store : Irmin.S with type key = string list
+                      and type contents = string
+                      and type branch = string
+                      and type Commit.Hash.t = Irmin.Hash.SHA1.t
+                      and type step = string)
+    (Test_rpc:Ck_sigs.RPC) = struct
   module Git = Git_storage.Make(Store)
   module ItemMap = Map.Make(Key)
   module Slow = Slow_set.Make(Test_clock)(Key)(ItemMap)
@@ -110,11 +136,12 @@ module Test_repo (Store : Irmin.S with type key = string list
   (* Workaround for Irmin creating empty directories *)
   let filter_list staging path =
     Git.Staging.list staging path
-    >>= Lwt_list.filter_s (fun p ->
-      Git.Staging.list staging p >|= function
+    >>= Lwt_list.filter_s (fun step ->
+        Git.Staging.list staging (path @ [step]) >|= function
         | [] -> false
         | _ -> true
-    )
+      )
+    >|= List.map (fun s -> path @ [s])
 
   let assert_git_tree_equals ~msg expected actual =
     Git.Commit.checkout expected >>= fun expected ->
@@ -196,7 +223,7 @@ module Test_repo (Store : Irmin.S with type key = string list
     let choose options =
       options.(rand_int (Array.length options)) in
 
-    Git.Repository.empty repo >>= fun s ->
+    let s = Git.Repository.empty repo in
     Git.Staging.update s ["ck-version"] "0.1\n" >>= fun () ->
 
     let make_n n dir fn =
@@ -308,7 +335,7 @@ let day d = Ck_time.make ~year:2015 ~month:4 ~day:d
 let suite = 
   "cue-keeper">:::[
     "delay_rlist">:: (fun () ->
-      let module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+      let module Store = Mem () in
       let module T = Test_repo(Store)(No_network) in
       let open T in
       Test_clock.reset ();
@@ -419,7 +446,7 @@ let suite =
     );
 
     "model">:: (fun () ->
-      let module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+      let module Store = Mem () in
       let module T = Test_repo(Store)(No_network) in
       let open T in
       run_with_exn begin fun () ->
@@ -429,8 +456,8 @@ let suite =
         let wait s =
           Test_clock.run_to (!Test_clock.time +. s) in
         run_to_day 0;
-        Store.Repo.create config >>= fun repo ->
-        Git.make repo task >>= M.make >>= fun m ->
+        Store.Repo.v config >>= fun repo ->
+        M.make (Git.make repo task) >>= fun m ->
         M.set_mode m `Process;
         let process_tree = M.tree m |> expect_tree in
         let job = lookup ["Job"] process_tree |> expect_area in
@@ -753,7 +780,7 @@ let suite =
         M.enable_log m >>= fun live_log ->
         let log = ReactiveData.RList.value live_log |> List.map Slow_set.data in
         log
-        |> List.map (fun entry -> entry.Git_storage_s.Log_entry.msg |> List.hd)
+        |> List.map (fun entry -> entry.Git_storage_s.Log_entry.msg)
         |> StringList.assert_equal
         [
           "Delete done items";
@@ -786,13 +813,13 @@ let suite =
         ];
 
         let delete_fix_merging = List.nth log 5 in
-        assert_str_equal "Fix merging: deleted" (List.hd delete_fix_merging.Git_storage_s.Log_entry.msg);
+        assert_str_equal "Fix merging: deleted" delete_fix_merging.Git_storage_s.Log_entry.msg;
         M.revert m delete_fix_merging >>= function
         | `Error msg -> assert_failure msg
         | `Ok () ->
 
         let revert_entry = ReactiveData.RList.value live_log |> List.hd |> Slow_set.data in
-        revert_entry.Git_storage_s.Log_entry.msg |> List.hd |> assert_str_equal "Revert \"Fix merging: deleted\"";
+        revert_entry.Git_storage_s.Log_entry.msg |> Astring.String.cuts ~sep:"\n" |> List.hd |> assert_str_equal "Revert \"Fix merging: deleted\"";
         wait 2.0;
         next_actions |> assert_tree ~label:"revert" [
           n "Next actions" [
@@ -880,17 +907,17 @@ let suite =
             | i ->
                 let common = Random.State.int random 1000 in
                 (* Note: need to reapply functor to get a fresh memory store *)
-                let module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+                let module Store = Mem () in
                 let module T = Test_repo(Store)(No_network) in
                 let module Merge = Ck_merge.Make(T.Git)(T.Rev) in
                 let open T in
 
                 (* Printf.printf "test %d\n%!" i; *)
                 let branch_d name =
-                  Store.Repo.create config >>= fun repo ->
-                  Store.Repo.remove_branch repo name in
-                Store.Repo.create config >>= fun repo ->
-                Git.make repo task >>= fun repo ->
+                  Store.Repo.v config >>= fun repo ->
+                  Store.Branch.remove repo name in
+                Store.Repo.v config >>= fun repo ->
+                let repo = Git.make repo task in
                 let commit ~parents msg =
                   branch_d msg >>= fun () ->
                   random_state ~common ~random repo >>= fun s ->
@@ -943,37 +970,36 @@ let suite =
 
     "server">:: (fun () ->
       let module Net = Test_net.Make(Test_clock) in
-      let module Server_store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+      let module Server_store = Mem () in
       let module Server = Server.Make(Server_store)(Net.Server) in
-      let module Laptop_store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+      let module Laptop_store = Mem () in
       let module Laptop_client = Test_repo(Laptop_store)(Net.Client) in
-      let module Mobile_store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+      let module Mobile_store = Mem () in
       let module Mobile_client = Test_repo(Mobile_store)(Net.Client) in
       run_with_exn begin fun () ->
         (* Start the server *)
-        Server_store.Repo.create config >>= fun server_repo ->
-        Server_store.master task server_repo >>= fun server_store ->
-        let get_db reason = `Ok (server_store reason) in (* (no access control for testing) *)
+        Server_store.Repo.v config >>= fun server_repo ->
+        Server_store.master server_repo >>= fun server_store ->
+        let get_db () = `Ok server_store in (* (no access control for testing) *)
         let s = Net.Server.make ~callback:(Server.handle_request get_db) () in
         let accept ~ic ~oc =
           Lwt.async (fun () -> Net.Server.callback s () ic oc) in
         Net.listener := accept;
 
         (* Check it is empty *)
-        Server_store.of_branch_id task "master" server_repo >>= fun server_master ->
-        let server_master = server_master "test" in
-        Server_store.head server_master >>= function
+        Server_store.of_branch server_repo "master" >>= fun server_master ->
+        Server_store.Head.find server_master >>= function
         | Some _ -> assert_failure "Server contains data before starting!"
         | None ->
 
         (* Start a new client ("laptop").
          * It will see that the server is empty, create a new default state and push it. *)
-        Laptop_store.Repo.create config >>= fun repo ->
-        Laptop_client.Git.make repo task >>= fun client_git ->
+        Laptop_store.Repo.v config >>= fun repo ->
+        let client_git = Laptop_client.Git.make repo task in
         Laptop_client.M.make ~server:(Uri.of_string "http://example.com/") client_git >>= fun laptop ->
 
         (* Check the server now has the new state. *)
-        Server_store.head server_master >>= function
+        Server_store.Head.find server_master >>= function
         | None -> assert_failure "Client initialised without pushing to server!"
         | Some _ ->
 
@@ -1003,8 +1029,8 @@ let suite =
 
         (* Create a new client ("mobile"). It should see the sync'd changes. *)
         Mobile_client.(
-          Mobile_store.Repo.create config >>= fun repo ->
-          Git.make repo task >>= fun mobile_git ->
+          Mobile_store.Repo.v config >>= fun repo ->
+          let mobile_git = Git.make repo task in
           M.make ~server:(Uri.of_string "http://example.com/") mobile_git >>= fun mobile ->
           let next_actions = M.tree mobile |> expect_tree in
           next_actions |> assert_tree ~label:"fresh mobile client" [

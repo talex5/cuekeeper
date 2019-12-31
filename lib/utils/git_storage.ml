@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard.
  * See the README file for details. *)
 
-open Lwt
+open Lwt.Infix
 
 module IO = struct
   type in_channel = unit
@@ -12,86 +12,87 @@ module IO = struct
   let close_out _ = ()
 end
 
+let option_map f = function
+  | None -> None
+  | Some x -> Some (f x)
+
 module T = Tar.Make(IO)
 
-module Make (I : Irmin.S with type key = string list and type value = string
-             and type commit_id = Irmin.Hash.SHA1.t and type branch_id = string) = struct
-  module V = Irmin.View(I)
-
-  module Bundle = Tc.Pair(I.Private.Slice)(I.Hash)
+module Make (I : Irmin.S
+             with type key = string list
+              and type contents = string
+              and type Commit.Hash.t = Irmin.Hash.SHA1.t
+              and type branch = string
+              and type step = string) = struct
+  let bundle_t = Irmin.Type.pair I.Private.Slice.t I.Commit.Hash.t
 
   type repo = {
     r : I.Repo.t;
-    task_maker : string -> Irmin.task;
+    info_maker : string -> Irmin.Info.t;
   }
 
   module Staging = struct
     type t = {
       repo : repo;
-      view : V.t;
+      parents : I.Commit.t list;
+      mutable view : I.tree;
     }
 
-    let of_view repo view = {repo; view}
-    let list t = V.list t.view
-    let read t = V.read t.view
-    let read_exn t = V.read_exn t.view
-    let update t = V.update t.view
-    let remove t = V.remove t.view
-    let mem t = V.mem t.view
+    let create repo ~parents ~tree =
+      {repo; parents; view = tree }
+
+    let list t path = I.Tree.list t.view path >|= List.map fst
+    let read t = I.Tree.find t.view
+    let read_exn t = I.Tree.get t.view
+
+    let update t k v =
+      I.Tree.add t.view k v >|= fun v2 ->
+      t.view <- v2
+
+    let remove t k =
+      I.Tree.remove t.view k >|= fun v2 ->
+      t.view <- v2
+
+    let mem t = I.Tree.mem t.view
   end
 
   module Commit = struct
     type t = {
       repo : repo;
-      store : string -> I.t;
+      commit : I.Commit.t;
     }
 
-    type id = Irmin.Hash.SHA1.t
+    type id = I.Commit.Hash.t
 
-    let id t =
-      match I.head_ref (t.store "get commit ID") with
-      | `Branch _ | `Empty -> assert false
-      | `Head id -> id
+    let v repo commit = { repo; commit }
+
+    let id t = I.Commit.hash t.commit
 
     let equal a b =
       id a = id b
 
-    let of_id repo id =
-      I.of_commit_id repo.task_maker id repo.r >|= fun store ->
-      {repo; store}
-
-    let of_id_opt repo hash =
-      of_id repo hash >>= fun c ->
-      I.Private.Commit.mem (I.Private.Repo.commit_t repo.r) hash >|= function
-      | true -> Some c
-      | false -> None
-
     let checkout t =
-      V.of_path (t.store "Make view") I.Key.empty >|= Staging.of_view t.repo
+      I.Commit.tree t.commit >|= fun tree ->
+      Staging.create t.repo ~parents:[t.commit] ~tree
 
     let commit ?parents staging ~msg =
       let repo = staging.Staging.repo in
       let parents =
         match parents with
-        | Some parents -> parents |> List.map id
-        | None -> V.parents staging.Staging.view in
-      let task =
+        | Some parents -> List.map (fun t -> t.commit) parents
+        | None -> staging.Staging.parents
+      in
+      let info =
         match msg with
         | [] -> failwith "Empty commit message!"
-        | [summary] -> repo.task_maker summary
-        | summary :: body ->
-            let t = repo.task_maker summary in
-            body |> List.iter (Irmin.Task.add t);
-            t in
-      I.empty repo.task_maker repo.r >>= fun empty ->
-      V.make_head (empty (List.hd msg)) task ~parents ~contents:staging.Staging.view >>= fun head ->
-      I.of_commit_id repo.task_maker head repo.r
-      >|= fun store -> { repo; store }
+        | [summary] -> repo.info_maker summary
+        | summary :: body -> repo.info_maker (summary ^ "\n" ^ String.concat "\n" body)
+      in
+      I.Commit.v repo.r ~info ~parents staging.Staging.view >|= fun commit ->
+      { repo; commit }
 
     let history ?depth t =
-      let store = t.store "Read history" in
       let open Git_storage_s in
-      let task_of_hash = Hashtbl.create 100 in
       let module Top = Graph.Topological.Make_stable(struct
         type t = I.History.t
         let in_degree = I.History.in_degree
@@ -100,103 +101,99 @@ module Make (I : Irmin.S with type key = string list and type value = string
         module V = struct
           include I.History.V
           let compare a b =
-            let ta = Hashtbl.find task_of_hash a in
-            let tb = Hashtbl.find task_of_hash b in
-            match Int64.compare (Irmin.Task.date ta) (Irmin.Task.date tb) with
+            let ta = I.Commit.info a in
+            let tb = I.Commit.info b in
+            match Int64.compare (Irmin.Info.date ta) (Irmin.Info.date tb) with
             | 0 -> I.History.V.compare a b
             | r -> r
         end
       end) in
 
-      I.history ?depth store >>= fun history ->
-      let hashes_needed = ref [] in
-      (* Start fetching all commits in the history *)
-      history |> I.History.iter_vertex (fun hash ->
-        hashes_needed := hash :: !hashes_needed
-      );
-      (* Wait for them to complete and put in a hash table *)
-      !hashes_needed |> Lwt_list.iter_s (fun hash ->
-        I.Repo.task_of_commit_id t.repo.r hash >|= Hashtbl.add task_of_hash hash
-      ) >>= fun () ->
+      I.of_commit t.commit >>= I.history ?depth >>= fun history ->
       (* Set rank field according to topological order and build final result map *)
       let map = ref Log_entry_map.empty in
       let rank = ref 0 in
-      history |> Top.iter (fun hash ->
-        let task = Hashtbl.find task_of_hash hash in
+      history |> Top.iter (fun commit ->
+        let info = I.Commit.info commit in
         incr rank;
-        let msg = Irmin.Task.messages task in
-        let date = Irmin.Task.date task |> Int64.to_float in
-        let entry = {Log_entry.date; rank = !rank; msg; id = hash} in
+        let msg = Irmin.Info.message info in
+        let date = Irmin.Info.date info |> Int64.to_float in
+        let id = I.Commit.hash commit in
+        let entry = { Log_entry.date; rank = !rank; msg; id } in
         map := !map |> Log_entry_map.add entry entry
       );
-      return !map
+      Lwt.return !map
 
     let merge a b =
-      I.of_commit_id a.repo.task_maker (id a) a.repo.r >>= fun tmp ->
-      I.merge_head (tmp "Merge") (id b) >|= function
-      | `Ok () -> `Ok {a with store = tmp}
-      | `Conflict _ as c -> c
+      I.of_commit a.commit >>= fun tmp ->
+      let info () = a.repo.info_maker "Merge" in
+      I.merge_with_commit tmp b.commit ~info >>= function
+      | Ok () -> I.Head.get tmp >|= fun commit -> `Ok { a with commit }
+      | Error (`Conflict _ as c) -> Lwt.return c
 
     let export_tar t =
-      V.of_path (t.store "export_tar") I.Key.empty >>= fun v ->
       let buf = Buffer.create 10240 in
       let files = ref [] in
-      let rec scan dir =
-        V.list v dir >>=
-        Lwt_list.iter_s (fun path ->
-          V.read v path >>= function
-          | None -> scan path
-          | Some data ->
-              let header = T.Header.make
-                ~file_mode:0o644
-                (String.concat "/" path) (String.length data |> Int64.of_int) in
-              let write b = Buffer.add_string b data in
-              files := (header, write) :: !files;
-              return ()
-        ) in
-      scan [] >|= fun () ->
+      let rec scan ~path tree =
+        I.Tree.list tree [] >>= fun items ->
+        items |> Lwt_list.iter_s @@ function
+        | step, `Contents ->
+          I.Tree.get tree [step] >>= fun data ->
+          let header = T.Header.make
+              ~file_mode:0o644
+              (String.concat "/" (path @ [step])) (String.length data |> Int64.of_int) in
+          let write b = Buffer.add_string b data in
+          files := (header, write) :: !files;
+          Lwt.return_unit
+        | step, `Node ->
+          I.Tree.find_tree tree [step] >>= scan ~path:(path @ [step])
+      in
+      (* Cannot use [I.Tree.to_concrete] here due to https://github.com/mirage/irmin/pull/525 *)
+      I.Commit.tree t.commit >>= fun root ->
+      scan ~path:[] root >|= fun () ->
       T.Archive.create_gen (Stream.of_list !files) buf;
       Buffer.contents buf
 
-    let bundle_create repo ~basis head =
-      I.Repo.export repo ~min:basis ~max:[head] >|= fun slice ->
-      let bundle = (slice, head) in
-      let buf = Cstruct.create (Bundle.size_of bundle) in
-      let rest = Bundle.write bundle buf in
-      assert (Cstruct.len rest = 0);
-      Some (Cstruct.to_string buf)
+    let bundle_create t ~basis =
+      I.Repo.export t.repo.r ~min:basis ~max:[t.commit] >|= fun slice ->
+      let b = Buffer.create 10240 in
+      let encoder = Jsonm.encoder ~minify:true (`Buffer b) in
+      Irmin.Type.encode_json bundle_t encoder (slice, I.Commit.hash t.commit);
+      ignore @@ Jsonm.encode encoder `End;
+      Some (Buffer.contents b)
 
-    let bundle ~tracking_branch commit =
-      let head = id commit in (* commit id *)
-      I.of_branch_id commit.repo.task_maker tracking_branch commit.repo.r >>= fun s ->
-      let s = s "bundle" in
-      I.head s >>= function
-      | Some old_head when old_head = head -> return None
-      | Some old_head -> bundle_create (I.repo s) ~basis:[old_head] head
-      | None -> bundle_create (I.repo s) ~basis:[] head
+    let bundle ~tracking_branch t =
+      let equal c1 c2 =
+        Cstruct.equal
+          (I.Commit.Hash.to_raw (I.Commit.hash c1))
+          (I.Commit.Hash.to_raw (I.Commit.hash c2))
+      in
+      I.of_branch t.repo.r tracking_branch >>= fun tracking_branch ->
+      I.Head.find tracking_branch >>= function
+      | Some old_head when equal old_head t.commit -> Lwt.return_none
+      | Some old_head -> bundle_create t ~basis:[old_head]
+      | None -> bundle_create t ~basis:[]
 
     let parents t =
-      let head = id t in
-      I.history ~depth:1 (t.store "parents") >>= fun history ->
-      I.History.pred history head
-      |> Lwt_list.map_s (of_id t.repo)
+      I.Commit.parents t.commit >|= List.map (fun commit -> {t with commit})
 
-    let task t =
-      I.Repo.task_of_commit_id t.repo.r (id t)
+    let info t =
+      I.Commit.info t.commit
 
     let lcas t other =
-      I.lcas "lcas" t.store other.store >>= function
-      | `Ok ids -> ids |> Lwt_list.map_s (of_id t.repo)
-      | `Max_depth_reached |`Too_many_lcas -> assert false  (* Can't happen *)
+      I.of_commit t.commit >>= fun tmp ->
+      I.lcas_with_commit tmp other.commit >|= function
+      | Ok ids -> ids |> List.map (fun commit -> { t with commit })
+      | Error (`Max_depth_reached |`Too_many_lcas) -> assert false  (* Can't happen *)
   end
 
   module Branch = struct
     type t = {
       repo : repo;
-      store : string -> I.t;
+      store : I.t;
       head_id : Commit.id option ref;
       head : Commit.t option React.S.t;
-      unwatch : unit -> unit Lwt.t;
+      watch : I.watch;
     }
 
     let opt_commit_equal a b =
@@ -206,115 +203,100 @@ module Make (I : Irmin.S with type key = string list and type value = string
       | _ -> false
 
     let of_store ?if_new repo store =
-      let commit_of_id = function
-        | None -> return None
-        | Some id -> Commit.of_id repo id >|= fun commit -> Some commit in
-      I.head (store "Get latest commit") >>= (function
-        | Some id -> return (Some id)
-        | None ->
+      I.Head.find store >>= (function
+          | Some commit -> Lwt.return_some (Commit.v repo commit)
+          | None ->
             match if_new with
-            | None -> return None
+            | None -> Lwt.return_none
             | Some (lazy if_new) ->
-            if_new >>= fun commit ->
-            let new_id = Commit.id commit in
-            I.compare_and_set_head (store "Initialise repository") ~test:None ~set:(Some new_id) >>= function
-            | true -> return (Some new_id)
-            | false ->
+              if_new >>= fun commit ->
+              I.Head.test_and_set store ~test:None ~set:(Some commit.Commit.commit) >>= function
+              | true -> Lwt.return_some commit
+              | false ->
                 Printf.eprintf "Warning: Concurrent attempt to initialise new branch; discarding our attempt\n%!";
-                I.head (store "Read new head")
-      ) >>= fun initial_head_id ->
+                I.Head.get store >|= fun commit -> Some (Commit.v repo commit)
+      ) >>= fun initial_head ->
+      let initial_head_commit = initial_head |> option_map (fun x -> x.Commit.commit) in
+      let initial_head_id = initial_head |> option_map Commit.id in
       let head_id = ref initial_head_id in
-      begin match initial_head_id with
-      | None -> return None
-      | Some id -> Commit.of_id repo id >|= fun commit -> Some commit
-      end >>= fun initial_head ->
       let head, set_head = React.S.create ~eq:opt_commit_equal initial_head in
-      I.watch_head (store "Watch branch") ?init:initial_head_id (fun _diff ->
+      I.watch store ?init:initial_head_commit (fun _diff ->
         (* (ignore the commit ID in the update message; we want the latest) *)
-        I.head (store "Get latest commit") >>= fun new_head_id ->
+        I.Head.find store >|= fun new_head ->
+        let new_head_id = option_map I.Commit.hash new_head in
         if new_head_id <> !head_id then (
           head_id := new_head_id;
-          commit_of_id new_head_id >|= set_head
-        ) else return ()
-      ) >>= fun unwatch ->
-      return {
+          new_head |> option_map (Commit.v repo) |> set_head
+        )
+      ) >>= fun watch ->
+      Lwt.return {
         repo;
         store;
         head_id;
         head;
-        unwatch;
+        watch;
       }
 
     let head t = t.head
 
     let fast_forward_to t commit =
-      (* Note: can't use [I.fast_forward_head] because it can sometimes return [false] on success
-       * (when already up-to-date). *)
-      let store = t.store "Fast-forward" in
-      let commit_id = Commit.id commit in
-      let old_head = !(t.head_id) in
-      let do_ff () =
-        I.compare_and_set_head store ~test:old_head ~set:(Some commit_id) >|= function
-        | true -> `Ok
-        | false -> `Not_fast_forward in   (* (concurrent update) *)
-      match old_head with
-      | None -> do_ff ()
-      | Some expected ->
-          I.lcas_head store commit_id >>= function
-          | `Ok lcas ->
-              if List.mem expected lcas then do_ff ()
-              else return `Not_fast_forward
-          (* These shouldn't happen, because we didn't set any limits *)
-          | `Max_depth_reached | `Too_many_lcas -> assert false
+      I.Head.fast_forward t.store commit.Commit.commit >|= function
+      | Ok () | Error `No_change -> `Ok
+      | Error `Rejected -> `Not_fast_forward  (* (concurrent update) *)
+      | Error (`Max_depth_reached | `Too_many_lcas) ->
+        (* These shouldn't happen, because we didn't set any limits *)
+        assert false
 
     let force t = function
-      | Some commit -> I.update_head (t.store "force") (Commit.id commit)
+      | Some commit -> I.Head.set t.store commit.Commit.commit
       | None ->
-          let store = t.store "delete branch" in
-          I.name store >>= function
-          | None -> assert false
-          | Some branch_name -> I.Repo.remove_branch t.repo.r branch_name
+          match I.status t.store with
+          | `Empty | `Commit _ -> assert false
+          | `Branch branch_name -> I.Branch.remove t.repo.r branch_name
 
     let fetch_bundle tracking_branch bundle =
       let repo = tracking_branch.repo in
-      let s = tracking_branch.store "import" in
-      let (slice, head) = Bundle.read (Mstruct.of_string bundle) in
-      Commit.of_id_opt repo head >>= function
-      | Some c -> I.update_head s head >|= fun () -> `Ok c
-      | None ->
-      I.Repo.import tracking_branch.repo.r slice >>= function
-      | `Error -> return (`Error "Failed to import slice")
-      | `Ok ->
-      Commit.of_id_opt repo head >>= function
-      | None -> return (`Error "Head commit not found after importing bundle!")
-      | Some head_commit ->
-      I.update_head s head >|= fun () -> `Ok head_commit
+      let decoder = Jsonm.decoder (`String bundle) in
+      match Irmin.Type.decode_json bundle_t decoder with
+      | Error (`Msg m) -> Lwt.return (`Error (Fmt.strf "Failed to decode slice JSON: %s" m))
+      | Ok (slice, head) ->
+        (* Check whether we already have [head]. *)
+        begin
+          I.Commit.of_hash repo.r head >>= function
+          | Some commit -> Lwt.return_ok commit
+          | None ->
+            (* If not, import the slice *)
+            I.Repo.import tracking_branch.repo.r slice >>= function
+            | Error (`Msg m) -> Lwt_result.fail (Fmt.strf "Failed to import slice: %s" m)
+            | Ok () ->
+              I.Commit.of_hash repo.r head >>= function
+              | Some commit -> Lwt_result.return commit
+              | None -> Lwt_result.fail "Head commit not found after importing bundle!"
+        end >>= function
+        | Error m -> Lwt.return (`Error m)
+        | Ok head ->
+          I.Head.set tracking_branch.store head >|= fun () ->
+          `Ok (Commit.v repo head)
 
     let release t =
-      t.unwatch ()
+      I.unwatch t.watch
   end
 
   module Repository = struct
     type t = repo
 
     let branch t ?if_new name =
-      I.of_branch_id t.task_maker name t.r >>= Branch.of_store ?if_new t
+      I.of_branch t.r name >>= Branch.of_store ?if_new t
 
     let branch_head t branch =
-      I.of_branch_id t.task_maker branch t.r >>= fun s ->
-      I.head (s "branch_head")
+      I.Branch.find t.r branch >|= option_map I.Commit.hash
 
-    let commit = Commit.of_id_opt
+    let commit t id =
+      I.Commit.of_hash t.r id >|= option_map (Commit.v t)
 
-    let empty t = V.empty () >|= Staging.of_view t
+    let empty t =
+      Staging.create t ~parents:[] ~tree:I.Tree.empty
   end
 
-  let make r task_maker =
-    begin match Bin_prot.Size.bin_size_int64 0x8000L with
-    | 5 -> ()
-    | x ->
-        Ck_utils.bug
-          "Bin_prot serialisation is broken (says it needs %d bytes to store 0x8000). \
-          Ensure js_of_ocaml branch is pinned." x end;
-    Lwt.return {r; task_maker}
+  let make r info_maker = {r; info_maker}
 end

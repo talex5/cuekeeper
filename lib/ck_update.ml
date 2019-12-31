@@ -124,8 +124,8 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
         )
     | Some commit as new_head ->
         Lwt_mutex.with_lock t.mutex (fun () ->
-          Git.Commit.task commit >>= fun task ->
-          let time = Irmin.Task.date task |> Int64.to_float in
+          let info = Git.Commit.info commit in
+          let time = Irmin.Info.date info |> Int64.to_float in
           t.fixed_head <- Some time;
           maybe_update_head t new_head
         )

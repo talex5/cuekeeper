@@ -151,13 +151,11 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     let nodes = Hashtbl.create 100 in
     (* Load all the nodes into [nodes] *)
     Git.Staging.list staging [APA.dir] >>=
-    Lwt_list.iter_s (function
-      | ["db"; uuid] as key ->
-          let uuid = Ck_id.of_string uuid in
-          Git.Staging.read_exn staging key >|= fun node ->
-          Ck_disk_node.of_string node |> Hashtbl.add nodes uuid
-      | _ -> assert false
-    ) >>= fun () ->
+    Lwt_list.iter_s (fun uuid ->
+        Git.Staging.read_exn staging [APA.dir; uuid] >|= fun node ->
+        let uuid = Ck_id.of_string uuid in
+        Ck_disk_node.of_string node |> Hashtbl.add nodes uuid
+      ) >>= fun () ->
     let get uuid =
       try Some (Hashtbl.find nodes uuid)
       with Not_found -> None in
@@ -290,11 +288,16 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     Git.Repository.commit repo log_entry.Log_entry.id >>= function
     | None -> return (`Error "Commit to revert does not exist!")
     | Some commit ->
-    let orig_summary = match log_entry.Log_entry.msg with [] -> "-" | summary::_ -> summary in
+    let orig_summary =
+      let msg = log_entry.Log_entry.msg in
+      match String.index_opt msg '\n' with
+      | None -> msg
+      | Some i -> String.sub msg 0 i
+    in
     let msg = [
       Printf.sprintf "Revert \"%s\"" orig_summary;
       "";
-      Printf.sprintf "This reverts commit %s." (Irmin.Hash.SHA1.to_hum log_entry.Log_entry.id)
+      Fmt.strf "This reverts commit %a." Irmin.Hash.SHA1.pp log_entry.Log_entry.id
     ] in
     Git.Commit.parents commit >>= function
     | [] -> return (`Error "Can't revert initial commit!")

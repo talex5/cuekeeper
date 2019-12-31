@@ -6,10 +6,21 @@ open Lwt
 let src = Logs.Src.create "unikernel" ~doc:"Main unikernel code"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-(* Never used, but needed to create the store. *)
-let task s = Irmin.Task.create ~date:0L ~owner:"Server" s
+module IO = struct
+  (* We don't use Git's sync, but it requires us to provide this module anyway. *)
+  type ic
+  type oc
+  type ctx
+  let with_connection ?ctx:_ _uri ?init:_ _f = failwith "with_connection"
+  let read_all _ = failwith "read_all"
+  let read_exactly _ _ = failwith "read_exactly"
+  let write _ _ = failwith "write"
+  let flush _ = failwith "flush"
+  let ctx () = Lwt.return_none
+end
 
-module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+module Store = Irmin_git.Mem.Make(IO)(Git.Inflate.None)
+    (Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)
 
 module Main
     (Stack:Mirage_stack_lwt.V4)
@@ -46,7 +57,7 @@ module Main
   let handle_request s conn_id request body =
     (* Instead of handing the Git store directly to [Server.handle_request], wrap it in a function
      * that authenticates the request first, so it can't use it without checking. *)
-    let get_db reason =
+    let get_db () =
       let uri = Cohttp.Request.uri request in
       match Uri.get_query_param uri "token" with
       | None -> `Error (S.respond_error ~status:`Bad_request ~body:"Missing access token" ())
@@ -55,11 +66,11 @@ module Main
           | None -> `Error (S.respond_error ~status:`Unauthorized ~body:"Invalid access token" ())
           | Some user ->
               Log.info (fun f -> f "Handling request for %S" user);
-              `Ok (s reason) in
+              `Ok s in
     Server.handle_request get_db conn_id request body
 
   let start stack conf _clock () =
-    Store.Repo.create (Irmin_mem.config ()) >>= Store.master task >>= fun s ->
+    Store.Repo.v (Irmin_mem.config ()) >>= Store.master >>= fun s ->
     let http = S.make ~conn_closed:ignore ~callback:(handle_request s) () in
     X509.certificate conf `Default >>= fun cert ->
     let tls_config = Tls.Config.server ~certificates:(`Single cert) () in
