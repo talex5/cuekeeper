@@ -20,6 +20,8 @@ Instructions for using CueKeeper can be found here:
 
 http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/
 
+Chromium note: If it says "The user denied permission to access the database." try turning off `Block third-party cookies` (I don't know why it thinks a local HTML file writing to a local database is a third-party cookie). Also, it seems that all `file://...` pages will see the same database on Chromium, whereas on Firefox each page gets its own one.
+
 Backups
 -------
 
