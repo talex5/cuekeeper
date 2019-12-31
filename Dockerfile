@@ -8,7 +8,7 @@ RUN opam pin add -n irmin.0.10.1 https://github.com/talex5/irmin.git#cuekeeper
 RUN opam pin add -n irmin-indexeddb.0.6 https://github.com/talex5/irmin-indexeddb.git#v0.6
 RUN opam pin add -n git.1.7.1 https://github.com/talex5/ocaml-git.git#cuekeeper
 RUN mkdir /home/opam/cuekeeper
-COPY --chown=opam opam /home/opam/cuekeeper/opam
+COPY --chown=opam cuekeeper.opam /home/opam/cuekeeper/
 WORKDIR /home/opam/cuekeeper
 RUN opam install --solver=aspcud -y -t --deps-only .
 ENTRYPOINT ["opam", "config", "exec", "--"]

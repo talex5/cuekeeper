@@ -1,20 +1,13 @@
-opam-version: "1.2"
+opam-version: "2.0"
 name: "cuekeeper"
-version: "dev"
+synopsis: "Web-based GTD system with Git-based history"
 maintainer: "Thomas Leonard <talex5@gmail.com>"
 authors: "Thomas Leonard <talex5@gmail.com>"
+license: "GNU LESSER GENERAL PUBLIC LICENSE, v2.1"
 homepage: "https://github.com/talex5/cuekeeper"
 bug-reports: "https://github.com/talex5/cuekeeper/issues"
-license: "GNU LESSER GENERAL PUBLIC LICENSE, v2.1"
-dev-repo: "https://github.com/talex5/cuekeeper.git"
-build: [
-  [make "client"]
-]
-build-test: [
-  [make "test"]
-  [make "slow_test"]
-]
 depends: [
+  "ocaml"
   "base64"
   "sexplib" {>= "v0.13.0"}
   "uuidm"
@@ -24,7 +17,7 @@ depends: [
   "js_of_ocaml" {>= "3.0.0"}
   "js_of_ocaml-tyxml"
   "omd"
-  "ounit" {test}
+  "ounit" {with-test}
   "tar"
   "cohttp"
   "cohttp-lwt-jsoo"
@@ -37,3 +30,14 @@ depends: [
   "ppx_deriving"
   "dune" {>= "1.11.0"}
 ]
+build: [
+  [make "client"]
+  [make "test"] {with-test}
+  [make "slow_test"] {with-test}
+]
+dev-repo: "git+https://github.com/talex5/cuekeeper.git"
+description: """
+CueKeeper is a web-based GTD system (a fancy TODO list) that runs entirely in
+your browser (the data is stored on your computer, in your browser). It uses
+Irmin to keep a full history of all updates.
+"""
