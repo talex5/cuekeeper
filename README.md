@@ -12,7 +12,7 @@ Installation
 
 Download the latest `cuekeeper-bin` zip from the [releases list][], e.g.
 
-https://github.com/talex5/cuekeeper/releases/download/v0.2/cuekeeper-bin-0.2.zip
+https://github.com/talex5/cuekeeper/releases/download/v0.3/cuekeeper-bin-0.3.zip
 
 Extract it somewhere permanent (not your Downloads folder) and open the `index.html` file inside in a web browser. Most browsers will allow you to "pin" the tab so that it is always available. e.g. In Firefox, right-click on the browser tab and choose "Pin Tab" from the menu. The tab icon will go red when something becomes due.
 
