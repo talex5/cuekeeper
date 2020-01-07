@@ -146,7 +146,7 @@ module Make (I : Irmin.S
           files := (header, write) :: !files;
           Lwt.return_unit
         | step, `Node ->
-          I.Tree.find_tree tree [step] >>= scan ~path:(path @ [step])
+          I.Tree.get_tree tree [step] >>= scan ~path:(path @ [step])
       in
       (* Cannot use [I.Tree.to_concrete] here due to https://github.com/mirage/irmin/pull/525 *)
       I.Commit.tree t.commit >>= fun root ->

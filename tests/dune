@@ -1,6 +1,6 @@
 (executable
  (name test)
- (libraries cuekeeper lwt.unix oUnit irmin fmt.tty logs.fmt))
+ (libraries cuekeeper lwt.unix oUnit irmin fmt.tty logs.fmt irmin-mem))
 
 (alias
  (name   runtest)
