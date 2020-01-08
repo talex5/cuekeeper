@@ -23,9 +23,9 @@ module Store = Irmin_git.Mem.Make(IO)(Git.Inflate.None)
     (Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)
 
 module Main
-    (Stack:Mirage_stack_lwt.V4)
-    (Conf:Mirage_kv_lwt.RO)
-    (Clock:Mirage_clock_lwt.PCLOCK) = struct
+    (Stack:Mirage_stack.V4)
+    (Conf:Mirage_kv.RO)
+    (Clock:Mirage_clock.PCLOCK) = struct
   module TCP  = Stack.TCPV4
   module TLS  = Tls_mirage.Make (TCP)
   module X509 = Tls_mirage.X509 (Conf) (Clock)

@@ -1,7 +1,7 @@
 CueKeeper
 =========
 
-Copyright Thomas Leonard, 2019
+Copyright Thomas Leonard, 2020
 
 CueKeeper is a web-based [GTD][] system (a fancy TODO list) that runs entirely in your browser (the data is stored on your computer, in your browser).
 
@@ -46,10 +46,10 @@ Building (without Docker)
 -------------------------
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
-It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 1.2.2).
-Ensure you're using OCaml 4.05.0 (check with `ocaml -version`). If not, switch to that version:
+It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 2.0.4).
+Ensure you're using OCaml 4.07.1 (check with `ocaml -version`). If not, switch to that version:
 
-    opam switch create 4.05.0
+    opam switch create 4.07.1
 
 Pin a few patches we require:
 
@@ -59,7 +59,9 @@ Pin a few patches we require:
 
 Install the dependencies (`-t` includes the test dependencies too):
 
-    opam install --deps-only -t .
+    opam pin add -yn cuekeeper.dev .
+    opam depext -t cuekeeper
+    opam install --deps-only -t cuekeeper
 
 Build:
 
@@ -68,7 +70,7 @@ Build:
 Load `test.html` in a browser to test locally (no server required).
 
 Note that this defaults to "dev" mode, where the Javascript generated will be very large (about 9 MB) and not optimised.
-To get a smaller file, use `dune build --profile=release ./js/client.bc.js` (should be about 950 KB).
+To get a smaller file, use `dune build --profile=release ./js/client.bc.js` (should be about 980 KB).
 
 
 Running a server
@@ -107,7 +109,7 @@ Make sure the `None` line comes last - this rejects all unknown tokens.
 
 To build the server component:
 
-    opam pin add mirage 3.5.2
+    opam pin mirage 3.7.3
     make server
 
 You will be prompted to create a self-signed X.509 certificate. Just enter your server's hostname
@@ -148,7 +150,7 @@ Deploying as a Xen VM
 
 In fact, the server is a [Mirage unikernel][mirage] and can also be compiled and booted as a Xen virtual machine:
 
-    make server MIRAGE_FLAGS="--xen"
+    make server MIRAGE_FLAGS="-t xen"
     cd server
     xl create -c cuekeeper.xl
 

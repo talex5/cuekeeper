@@ -8,7 +8,7 @@ module IO = struct
   type out_channel = Buffer.t
   let really_input _ch _buf _pos _len = failwith "unused"
   let input = really_input
-  let output = Buffer.add_substring
+  let output = Buffer.add_subbytes
   let close_out _ = ()
 end
 
