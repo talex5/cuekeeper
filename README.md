@@ -12,13 +12,15 @@ Installation
 
 Download the latest `cuekeeper-bin` zip from the [releases list][], e.g.
 
-https://github.com/talex5/cuekeeper/releases/download/v0.3/cuekeeper-bin-0.3.zip
+https://github.com/talex5/cuekeeper/releases/download/v0.4/cuekeeper-bin-0.4.zip
 
 Extract it somewhere permanent (not your Downloads folder) and open the `index.html` file inside in a web browser. Most browsers will allow you to "pin" the tab so that it is always available. e.g. In Firefox, right-click on the browser tab and choose "Pin Tab" from the menu. The tab icon will go red when something becomes due.
 
 Instructions for using CueKeeper can be found here:
 
 http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/
+
+Upgrading: You can just unpack the new archive over the old one and refresh the browser tab. If you just get a blank window, you probably have another CueKeeper tab open somewhere and will need to close that first so it can update the database schema to the latest version. If upgrading from versions earlier than 0.3, you will need to upgrade to version 0.3 first (it will prompt you to do this if needed).
 
 Chromium note: If it says "The user denied permission to access the database." try turning off `Block third-party cookies` (I don't know why it thinks a local HTML file writing to a local database is a third-party cookie). Also, it seems that all `file://...` pages will see the same database on Chromium, whereas on Firefox each page gets its own one.
 
