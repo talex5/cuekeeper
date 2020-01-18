@@ -1,3 +1,7 @@
+## v0.4
+
+- Upgrade to OCaml 4.07, Mirage 3.7.3 and Irmin 1.4.
+
 ## v0.3
 
 - CueKeeper now stores its data in standard Git format, rather than the old
