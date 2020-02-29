@@ -53,12 +53,6 @@ Ensure you're using OCaml 4.07.1 (check with `ocaml -version`). If not, switch t
 
     opam switch create 4.07.1
 
-Pin a few patches we require:
-
-    opam pin add -yn reactiveData https://github.com/hhugo/reactiveData.git
-    opam pin add -yn irmin-git.1.4.0 https://github.com/talex5/irmin.git#1.4.0-cuekeeper
-    opam pin add -yn irmin-indexeddb.1.3 https://github.com/talex5/irmin-indexeddb.git#irmin-1.3
-
 Install the dependencies (`-t` includes the test dependencies too):
 
     opam pin add -yn cuekeeper.dev .
