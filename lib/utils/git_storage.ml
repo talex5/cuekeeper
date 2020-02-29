@@ -91,24 +91,24 @@ module Make (I : Irmin.S
       I.Commit.v repo.r ~info ~parents staging.Staging.view >|= fun commit ->
       { repo; commit }
 
+    module Top = Graph.Topological.Make_stable(struct
+      type t = I.History.t
+      let in_degree = I.History.in_degree
+      let iter_succ = I.History.iter_succ
+      let iter_vertex = I.History.iter_vertex
+      module V = struct
+        include I.History.V
+        let compare a b =
+          let ta = I.Commit.info a in
+          let tb = I.Commit.info b in
+          match Int64.compare (Irmin.Info.date ta) (Irmin.Info.date tb) with
+          | 0 -> I.History.V.compare a b
+          | r -> r
+      end
+    end)
+
     let history ?depth t =
       let open Git_storage_s in
-      let module Top = Graph.Topological.Make_stable(struct
-        type t = I.History.t
-        let in_degree = I.History.in_degree
-        let iter_succ = I.History.iter_succ
-        let iter_vertex = I.History.iter_vertex
-        module V = struct
-          include I.History.V
-          let compare a b =
-            let ta = I.Commit.info a in
-            let tb = I.Commit.info b in
-            match Int64.compare (Irmin.Info.date ta) (Irmin.Info.date tb) with
-            | 0 -> I.History.V.compare a b
-            | r -> r
-        end
-      end) in
-
       I.of_commit t.commit >>= I.history ?depth >>= fun history ->
       (* Set rank field according to topological order and build final result map *)
       let map = ref Log_entry_map.empty in

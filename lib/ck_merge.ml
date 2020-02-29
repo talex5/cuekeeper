@@ -2,12 +2,12 @@
  * See the README file for details. *)
 
 open Ck_utils
-open Lwt
+open Lwt.Infix
 
 module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t) = struct
   open R.Node.Types
 
-  let ok x = return (`Ok x)
+  let ok x = Lwt.return (`Ok x)
 
   type 'a patch =
     [ `Add of 'a
@@ -120,10 +120,10 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
           |> K.with_conflict "Deleted and modified; keeping modified version"
           |> save
       | `Add ours, Some (`Add theirs) ->
-          if K.equal ours theirs then return ()
+          if K.equal ours theirs then Lwt.return ()
           else K.merge ?base:None ~theirs:(K.to_disk theirs) (K.to_disk ours) |> save
       | `Update (base, ours), Some (`Update (_, theirs)) ->
-          if K.equal ours theirs then return ()
+          if K.equal ours theirs then Lwt.return ()
           else K.merge ~base:(K.to_disk base) ~theirs:(K.to_disk theirs) (K.to_disk ours) |> save
       | `Add _, Some (`Update _ | `Remove _)
       | (`Update _ | `Remove _), Some (`Add _) ->
@@ -241,7 +241,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     |> Lwt_list.iter_s (fun uuid ->
         let path = [K.dir; Ck_id.to_string uuid] in
         Git.Staging.mem stage path >>= function
-        | true -> return ()
+        | true -> Lwt.return ()
         | false ->
             match get uuid with
             | None -> bug "Keep node '%a' doesn't exist in base!" Ck_id.fmt uuid
@@ -256,7 +256,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     Git.Commit.checkout theirs >>= fun stage ->
     let time = Ck_time.make ~year:2000 ~month:0 ~day:1 in
     begin match base with
-    | None -> return None
+    | None -> Lwt.return None
     | Some base -> R.make ~time base >|= fun r -> Some r
     end >>= fun base_rev ->
     R.make ~time theirs >>= fun their_rev ->
@@ -269,7 +269,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     merge_k (module Context) ~their_changes ~our_changes ~stage >>= fun () ->
     merge_k (module Contact) ~their_changes ~our_changes ~stage >>= fun () ->
     begin match base_rev with
-    | None -> return () (* If there's no base, there can't be anything in it to keep *)
+    | None -> Lwt.return () (* If there's no base, there can't be anything in it to keep *)
     | Some base_rev ->
         keep (module Contact) ~base_rev required.required_contacts stage >>= fun () ->
         keep (module Context) ~base_rev required.required_contexts stage
@@ -286,7 +286,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
   let revert ~repo ~master log_entry =
     let open Git_storage_s in
     Git.Repository.commit repo log_entry.Log_entry.id >>= function
-    | None -> return (`Error "Commit to revert does not exist!")
+    | None -> Lwt.return (`Error "Commit to revert does not exist!")
     | Some commit ->
     let orig_summary =
       let msg = log_entry.Log_entry.msg in
@@ -300,8 +300,8 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
       Fmt.strf "This reverts commit %a." Irmin.Hash.SHA1.pp log_entry.Log_entry.id
     ] in
     Git.Commit.parents commit >>= function
-    | [] -> return (`Error "Can't revert initial commit!")
-    | _::_::_ -> return (`Error "Can't revert merges, sorry")
+    | [] -> Lwt.return (`Error "Can't revert initial commit!")
+    | _::_::_ -> Lwt.return (`Error "Can't revert merges, sorry")
     | [parent] ->
     stage_merge ~base:commit ~theirs:master parent >>= fun stage ->
     Git.Commit.commit ~parents:[master] stage ~msg >>= ok

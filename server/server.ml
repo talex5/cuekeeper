@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Lwt
+open Lwt.Infix
 
 let src = Logs.Src.create "cuekeeper" ~doc:"CueKeeper server"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -130,6 +130,6 @@ module Make
       | _ -> S.respond_error ~status:`Method_not_allowed ~body:"Invalid request" ()
     ) (fun ex ->
       Log.warn (fun f -> f "Unhandled exception processing HTTP request: %s" (Printexc.to_string ex));
-      fail ex
+      Lwt.fail ex
     )
 end

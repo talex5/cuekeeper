@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Lwt
+open Lwt.Infix
 open Ck_utils
 open Js_of_ocaml
 open Js_of_ocaml_tyxml
@@ -56,7 +56,7 @@ let start (main:#Dom.node Js.t) =
       Dom_html.document##.head##appendChild (Tyxml_js.To_dom.of_node icon) |> ignore;
       T.make_top m
       |> List.iter (fun child -> main##appendChild (Tyxml_js.To_dom.of_node child) |> ignore);
-      return ()
+      Lwt.return ()
     )
     (fun ex ->
       let msg =

@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Lwt
+open Lwt.Infix
 
 open Ck_utils
 
@@ -324,7 +324,7 @@ module Make(Git : Git_storage_s.S) = struct
     ensure_no_cycles t;
     check_for_problems t;
     if t.problems <> [] then t.alert <- true;
-    return t
+    Lwt.return t
 
   let last = ref None
   let make ~time commit =
@@ -336,7 +336,7 @@ module Make(Git : Git_storage_s.S) = struct
     | Some last when Git.Commit.equal last.commit commit ->
         begin match last.expires with
         | Some etime when time >= etime -> reload ()
-        | _ -> return {last with valid_from = time} end
+        | _ -> Lwt.return {last with valid_from = time} end
     | _ -> reload ()
 
   let nodes t = !(t.apa_nodes)

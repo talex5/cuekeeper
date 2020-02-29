@@ -7,7 +7,7 @@ module Lwt_js_events = Js_of_ocaml_lwt.Lwt_js_events
 module Lwt_js = Js_of_ocaml_lwt.Lwt_js
 open Html5
 open Ck_utils
-open Lwt
+open Lwt.Infix
 
 type t = {
   id : Ck_id.t;

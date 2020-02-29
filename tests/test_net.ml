@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Lwt
+open Lwt.Infix
 
 let client = Logs.Src.create "client-net" ~doc:"CueKeeper test client"
 module Client_log = (val Logs.src_log client : Logs.LOG)
@@ -43,7 +43,7 @@ module Make(Clock : Ck_clock.S) = struct
             Some line
           )
           (function
-            | End_of_file -> return None
+            | End_of_file -> Lwt.return None
             | ex -> raise ex
           )
       let write = Lwt_io.write
@@ -66,7 +66,7 @@ module Make(Clock : Ck_clock.S) = struct
       let ic_req, oc_req = Lwt_io.pipe () in
       let ic_resp, oc_resp = Lwt_io.pipe () in
       !listener ~ic:ic_req ~oc:oc_resp;
-      return ((), ic_resp, oc_req)
+      Lwt.return ((), ic_resp, oc_req)
   end
 
   module CNet = Test_network(Client_log)

@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Lwt
+open Lwt.Infix
 
 let src = Logs.Src.create "unikernel" ~doc:"Main unikernel code"
 module Log = (val Logs.src_log src : Logs.LOG)
