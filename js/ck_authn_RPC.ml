@@ -3,7 +3,7 @@
 
 (* RPC over XMLHttpRequest, getting the access token from the user if necessary. *)
 
-open Lwt
+open Lwt.Infix
 open Js_of_ocaml
 
 module XHR = Cohttp_lwt_xhr.Client
@@ -33,7 +33,7 @@ let rec with_token fn uri =
   | None ->
       begin match input_token () with
       | `Ok -> with_token fn uri
-      | `Cancelled_by_user as c -> return c
+      | `Cancelled_by_user as c -> Lwt.return c
       end
   | Some access_token ->
       let uri = Uri.add_query_param uri ("token", [access_token]) in
@@ -41,7 +41,7 @@ let rec with_token fn uri =
       | (resp, _body) when resp.Cohttp.Response.status = `Unauthorized ->
           remove_token ();
           with_token fn uri
-      | result -> return (`Ok result)
+      | result -> Lwt.return (`Ok result)
 
 let get ?headers uri = with_token (XHR.get ?headers) uri
 let post ?body ?headers uri = with_token (XHR.post ?body ?headers) uri

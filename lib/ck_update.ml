@@ -2,7 +2,7 @@
  * See the README file for details. *)
 
 open Ck_utils
-open Lwt
+open Lwt.Infix
 
 let async : (unit -> unit Lwt.t) -> unit = Lwt.async
 
@@ -47,11 +47,11 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
                 )
               ) else (
                 update_alarm t;
-                return ()
+                Lwt.return ()
               )
             )
             (function
-              | Canceled -> return ()
+              | Lwt.Canceled -> Lwt.return ()
               | ex -> raise ex
             )
         )
@@ -74,7 +74,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     let old_head = R.commit t.head in
     match new_head with
     | None -> failwith "Branch has been deleted!"
-    | Some new_head when Git.Commit.equal old_head new_head -> return ()
+    | Some new_head when Git.Commit.equal old_head new_head -> Lwt.return ()
     | Some new_head -> update_head t new_head
 
   let make ~on_update branch =
@@ -107,13 +107,13 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
                 (* Head might have changed while we waited for the lock. *)
                 React.S.value (Git.Branch.head branch)
                 |> maybe_update_head t
-              ) else return ()  (* Fixed head - ignore updates *)
+              ) else Lwt.return ()  (* Fixed head - ignore updates *)
             )
           )
         )
       );
     update_alarm t;
-    return t
+    Lwt.return t
 
   let fix_head t = function
     | None ->
@@ -149,7 +149,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
         (Printexc.to_string ex)) >>= fun () ->
     Lwt_mutex.with_lock t.mutex (fun () ->
       if R.commit t.head |> Git.Commit.equal commit then
-        return (`Ok, return ())
+        Lwt.return (`Ok, Lwt.return ())
       else (
         (* At this point, head cannot contain our commit because we haven't merged it yet,
          * and no updates can happen while we hold the lock. *)
@@ -179,10 +179,10 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       Merge.merge ~base:base_commit ~theirs:old_head pull_rq >>= function
       | `Nothing_to_do ->
           (* Our change had no effect, so there's nothing to do. *)
-          return (return ())
+          Lwt.return (Lwt.return ())
       | `Ok merged ->
           ff_master t merged >>= function
-          | `Ok, updated -> return updated
+          | `Ok, updated -> Lwt.return updated
           | `Not_fast_forward, _updated ->
               Printf.eprintf "Update while we were trying to merge - retrying...\n%!";
               Clock.sleep 1.0 >>= fun () ->      (* Might be a bug - avoid hanging the browser *)
@@ -192,17 +192,17 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       in
     aux () >>= fun updated ->     (* Changes have been committed. *)
     updated >>= fun () ->         (* [on_update] has been called. *)
-    return result
+    Lwt.return result
 
   let revert t ~repo log_entry =
     Merge.revert ~repo ~master:(branch_head t) log_entry >>= function
-    | `Nothing_to_do -> return (`Ok ())
-    | `Error _ as e -> return e
+    | `Nothing_to_do -> Lwt.return (`Ok ())
+    | `Error _ as e -> Lwt.return e
     | `Ok commit ->
         ff_master t commit >>= function
         | `Ok, updated -> updated >|= fun () -> `Ok ()
         | `Not_fast_forward, _updated ->
-            return (error "Update while we were trying to revert - aborting")
+            Lwt.return (error "Update while we were trying to revert - aborting")
 
   let sync t ~from:theirs =
     let ours = branch_head t in
@@ -210,10 +210,10 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
       ff_master t commit >>= function
       | `Ok, updated -> updated >|= fun () -> `Ok ()
       | `Not_fast_forward, _updated ->
-          return (error "Update while we were trying to sync - aborting") in
+          Lwt.return (error "Update while we were trying to sync - aborting") in
     let sync_with ~base =
       Merge.merge ?base ~theirs ours >>= function
-      | `Nothing_to_do -> return (`Ok ())
+      | `Nothing_to_do -> Lwt.return (`Ok ())
       | `Ok merge -> ff merge in
     Git.Commit.lcas ours theirs >>= function
     | [] -> sync_with ~base:None
@@ -259,7 +259,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
 
   let delete t ?msg nodes =
     match nodes with
-    | [] -> return (`Ok ())
+    | [] -> Lwt.return (`Ok ())
     | x :: _ ->
         let base = R.Node.rev x in
         let msg =
@@ -303,7 +303,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
                       error "Can't delete because of child '%s'" (R.Node.name child)
         ) (`Ok []) in
         match paths with
-        | `Error _ as e -> return e
+        | `Error _ as e -> Lwt.return e
         | `Ok paths ->
             merge_to_master ~base ~msg t (fun view ->
               paths |> Lwt_list.iter_s (Git.Staging.remove view)
@@ -471,7 +471,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
               error "Can't convert to a project because it has a sub-area (%s)" (R.Node.name subarea)
     in
     match new_details with
-    | `Error _ as e -> return e
+    | `Error _ as e -> Lwt.return e
     | `Ok new_details ->
     let msg = Printf.sprintf "Convert %s to project" (R.Node.name node) in
     update t ~msg node new_details >|= fun () ->
@@ -481,7 +481,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     let new_details = Ck_disk_node.as_area (R.project_node node) in
     match R.parent (R.Node.rev node) node with
     | Some p when not (is_area p) ->
-        return (error "Can't convert to area because parent (%s) is not an area" (R.Node.name p))
+        Lwt.return (error "Can't convert to area because parent (%s) is not an area" (R.Node.name p))
     | _ ->
     let msg = Printf.sprintf "Convert %s to area" (R.Node.name node) in
     update t ~msg node new_details >|= fun () ->
@@ -491,7 +491,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     let new_details = Ck_disk_node.as_action (R.project_node node) in
     try
       let (_, child) = Ck_utils.M.min_binding (R.child_nodes node) in
-      error "Can't convert to an action because it has a child (%s)" (R.Node.name child) |> return
+      error "Can't convert to an action because it has a child (%s)" (R.Node.name child) |> Lwt.return
     with Not_found ->
     let msg = Printf.sprintf "Convert %s to action" (R.Node.name node) in
     update t ~msg node new_details >|= fun () ->

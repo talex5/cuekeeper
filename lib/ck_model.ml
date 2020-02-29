@@ -1,7 +1,7 @@
 (* Copyright (C) 2015, Thomas Leonard
  * See the README file for details. *)
 
-open Lwt
+open Lwt.Infix
 
 open Ck_sigs
 open Ck_utils
@@ -250,8 +250,8 @@ module Make(Clock : Ck_clock.S)
   let set_context t item context =
     match R.get t.r (Node.uuid item), R.get_context t.r (Node.uuid context) with
     | Some (`Action _ as action), Some context -> Up.set_context t.master action (Some context) >|= fun () -> `Ok ()
-    | _, None -> `Error "Context no longer exists!" |> return
-    | _, _ -> `Error "Action no longer exists!" |> return
+    | _, None -> `Error "Context no longer exists!" |> Lwt.return
+    | _, _ -> `Error "Action no longer exists!" |> Lwt.return
 
   let set_contact t item contact =
     match contact with
@@ -259,8 +259,8 @@ module Make(Clock : Ck_clock.S)
     | Some contact ->
         match R.get t.r (Node.uuid item), R.get_contact t.r (Node.uuid contact) with
         | Some node, Some contact -> Up.set_contact t.master node (Some contact) >|= fun () -> `Ok ()
-        | _, None -> `Error "Contact no longer exists!" |> return
-        | _, _ -> `Error "Item no longer exists!" |> return
+        | _, None -> `Error "Contact no longer exists!" |> Lwt.return
+        | _, _ -> `Error "Item no longer exists!" |> Lwt.return
 
   let add_child t parent name =
     match parent with
@@ -955,7 +955,7 @@ module Make(Clock : Ck_clock.S)
     | Some base ->
         Client.fetch ~base ~server_branch >>= function
         | `Ok None -> init_new_repo ~did_init repo        (* Server is empty *)
-        | `Ok (Some commit) -> return commit
+        | `Ok (Some commit) -> Lwt.return commit
         | `Cancelled_by_user -> failwith "Initial clone cancelled by user. Refresh to retry."
         | `Error msg -> failwith (Printf.sprintf "Failed to clone remote repository: %s" msg)
 
@@ -1025,7 +1025,7 @@ module Make(Clock : Ck_clock.S)
       t.update_tree r;
       if not (Up.fixed_head t.master) then set_fixed_head None;
       match t.update_log with
-      | None -> return ()
+      | None -> Lwt.return ()
       | Some set_log ->
           (* If we're still processing an [enable_log], finish that first *)
           Lwt_mutex.with_lock log_lock (fun () ->
@@ -1038,9 +1038,9 @@ module Make(Clock : Ck_clock.S)
         | `Ok () | `Cancelled_by_user -> ()
         | `Error msg -> failwith (Printf.sprintf "Initialised new repository, but failed to push changes: %s" msg)
         end
-    | _ -> return ()
+    | _ -> Lwt.return ()
     end >>= fun () ->
-    return t
+    Lwt.return t
 
   let alert t = t.alert
 

@@ -2,7 +2,7 @@
  * See the README file for details. *)
 
 open OUnit
-open Lwt
+open Lwt.Infix
 
 module Mem () : Irmin.S
   with type key = string list
@@ -60,7 +60,7 @@ module Test_clock = struct
 
   let async ~name f =
     let (_ : unit Lwt.t) =
-      catch (fun () -> sleep 0.0 >>= f)
+      Lwt.catch (fun () -> sleep 0.0 >>= f)
         (fun ex ->
           Printf.printf "Async error from '%s': %s\n" name (Printexc.to_string ex);
           exit 1) in
@@ -297,7 +297,7 @@ module Test_repo
     make_n (rand_int 2) "contact" random_contact >>= fun contacts ->
     make_n (rand_int 2) "context" random_context >>= fun contexts ->
     make_n (rand_int 5) "db" (random_apa ~contacts ~contexts) >>= fun _nodes ->
-    return s
+    Lwt.return s
 end
 
 let expect_tree s =
@@ -858,7 +858,7 @@ let suite =
           n "Recently completed" []
         ];
 
-        return ()
+        Lwt.return ()
       end
     );
 
@@ -903,7 +903,7 @@ let suite =
       try
         run_with_exn begin fun () ->
           let rec aux = function
-            | 0 -> return ()
+            | 0 -> Lwt.return ()
             | i ->
                 let common = Random.State.int random 1000 in
                 (* Note: need to reapply functor to get a fresh memory store *)
@@ -922,19 +922,19 @@ let suite =
                   branch_d msg >>= fun () ->
                   random_state ~common ~random repo >>= fun s ->
                   Git.Commit.commit ~parents s ~msg:[msg] >>= fun commit ->
-                  Git.Repository.branch repo ~if_new:(lazy (return commit)) msg >>= fun _branch ->
-                  return commit in
+                  Git.Repository.branch repo ~if_new:(lazy (Lwt.return commit)) msg >>= fun _branch ->
+                  Lwt.return commit in
                 commit ~parents:[] "base" >>= fun base ->
                 commit ~parents:[base] "theirs" >>= fun theirs ->
                 commit ~parents:[base] "ours" >>= fun ours ->
 
                 let assert_git_tree_equals ~msg expected actual =
-                  catch (fun () -> assert_git_tree_equals ~msg expected actual)
+                  Lwt.catch (fun () -> assert_git_tree_equals ~msg expected actual)
                     (fun ex ->
                       (* Commit the result so we can view it with git *)
                       branch_d "result" >>= fun () ->
-                      Git.Repository.branch repo ~if_new:(lazy (return actual)) "result" >>= fun _ ->
-                      fail ex) in
+                      Git.Repository.branch repo ~if_new:(lazy (Lwt.return actual)) "result" >>= fun _ ->
+                      Lwt.fail ex) in
 
                 (* This is the common case, and so is optimised *)
                 Merge.merge ~base ~theirs:base ours >>= function
@@ -944,21 +944,21 @@ let suite =
 
                 (* This isn't, so we can use it to test the merge *)
                 Merge.merge ~base ~theirs base >>= (function
-                | `Nothing_to_do -> return theirs
-                | `Ok result -> return result
+                | `Nothing_to_do -> Lwt.return theirs
+                | `Ok result -> Lwt.return result
                 ) >>= assert_git_tree_equals ~msg:"theirs+base" theirs >>= fun () ->
 
                 (* Add an extra commit on theirs to force it to try the trivial merge *)
                 Git.Commit.checkout base >>= fun s ->
                 Git.Commit.commit s ~msg:["empty commit"] >>= fun base2 ->
                 Merge.merge ~base ~theirs:base2 ours >>= (function
-                | `Nothing_to_do -> return base2
-                | `Ok result -> return result
+                | `Nothing_to_do -> Lwt.return base2
+                | `Ok result -> Lwt.return result
                 ) >>= assert_git_tree_equals ~msg:"ours+base" ours >>= fun () ->
 
                 Merge.merge ~base ~theirs ours >>= (function
-                | `Nothing_to_do -> return base2
-                | `Ok result -> return result
+                | `Nothing_to_do -> Lwt.return base2
+                | `Ok result -> Lwt.return result
                 ) >>= Rev.make ~time:(Ck_time.of_unix_time 0.0) >>= fun _rev ->
                 aux (i - 1) in
           aux (try Sys.getenv "CK_TEST_ITERS" |> int_of_string with Not_found -> 100)
@@ -1043,10 +1043,10 @@ let suite =
             ];
             n "@Recently completed" []
           ];
-          return ()
+          Lwt.return ()
         ) >>= fun () ->
 
-        return ()
+        Lwt.return ()
       end
     );
   ]
