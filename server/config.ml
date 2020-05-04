@@ -14,7 +14,7 @@ let packages = [
   package "irmin" ~min:"1.3.0" ~max:"2.0.0";
   package "irmin-git" ~min:"1.3.0" ~max:"2.0.0";
   package "irmin-mem" ~min:"1.3.0" ~max:"2.0.0";
-  package "tls";
+  package "tls" ~max:"0.11.0";
   package "cohttp-mirage";
 ]
 

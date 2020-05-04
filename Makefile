@@ -51,7 +51,7 @@ server/conf/server.pem: server/conf/server.key
 
 server: server/conf/server.pem
 	rm -rf _build/static
-	mkdir _build/static
+	mkdir -p _build/static
 	cp -r resources _build/static/
 	dune build --profile=release ./js/client.bc.js
 	cp _build/default/js/client.bc.js _build/static/resources/js/cuekeeper.js
