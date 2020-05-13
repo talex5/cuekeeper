@@ -67,7 +67,7 @@ let rlist_of ?init s =
     | None -> React.S.value s
     | Some v -> v in
   let changes = React.S.changes s |> React.E.map (fun x -> ReactiveData.RList.Set x) in
-  ReactiveData.RList.make_from init changes
+  ReactiveData.RList.from_event init changes
 
 (* Get the index of an item in an assoc list. *)
 let index_of key items =

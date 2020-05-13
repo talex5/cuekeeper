@@ -12,7 +12,7 @@ depends: [
   "uuidm"
   "irmin"
   "tyxml" {>= "4.3.0"}
-  "reactiveData"
+  "reactiveData" {>= "0.2"}
   "js_of_ocaml" {>= "3.0.0"}
   "js_of_ocaml-tyxml"
   "omd"
@@ -32,9 +32,8 @@ depends: [
   "dune" {>= "1.11.0"}
 ]
 pin-depends: [
-  ["reactiveData.dev" "git+https://github.com/hhugo/reactiveData.git"]
-  ["irmin-git.1.4.0" "git+https://github.com/talex5/irmin.git#1.4.0-cuekeeper"]
-  ["irmin-indexeddb.1.3" "git+https://github.com/talex5/irmin-indexeddb.git#irmin-1.3"]
+  ["irmin-git.1.4.0" "git+https://github.com/talex5/irmin.git#dedb0dd44b70806b1ab68c666c140c27caebe1c2"]
+  ["irmin-indexeddb.1.3" "git+https://github.com/talex5/irmin-indexeddb.git#c13c3e489af66868ddd86be37c958e56375db43b"]
 ]
 build: [
   [make "client"]
