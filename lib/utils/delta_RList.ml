@@ -38,5 +38,5 @@ module Make (Key : Set.OrderedType)
           current := new_list;
           patch
       ) in
-    ReactiveData.RList.make_from (List.map snd !current) e
+    ReactiveData.RList.from_event (List.map snd !current) e
 end

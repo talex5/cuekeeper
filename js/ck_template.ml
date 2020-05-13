@@ -61,7 +61,7 @@ let omd_date_ext =
   end
 
 let show_modal, modal_div =
-  let dropdown, set_dropdown = ReactiveData.RList.make [] in
+  let dropdown, set_dropdown = ReactiveData.RList.create [] in
   let dropdown_style, set_dropdown_style = React.S.create "" in
   let modal_div =
     R.Html5.div ~a:[a_class ["f-dropdown"; "ck-modal"]; R.Html5.a_style dropdown_style] dropdown in
@@ -478,11 +478,11 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
     item
 
   let make_sync m =
-    let log_elem, log_elem_h = ReactiveData.RList.make [] in
+    let log_elem, log_elem_h = ReactiveData.RList.create [] in
     let log_t = M.enable_log m in
     async ~name:"make_sync" (fun () ->
       log_t >|= fun items ->
-      log_elem_h |> ReactiveData.RList.append (
+      log_elem_h |> ReactiveData.RList.snoc (
         R.Html5.ol ~a:[a_class ["ck-history"]] (ReactiveData.RList.map (make_log_entry m) items)
       )
     );
@@ -1238,7 +1238,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
   let history_uuid = Ck_id.of_string "aeeb4ba1-ae68-43ff-b23e-1f66e8b950a3"
 
   let make_details_area m =
-    let details_pane, details_handle = ReactiveData.RList.make [] in
+    let details_pane, details_handle = ReactiveData.RList.create [] in
     let remove uuid =
       let current_items = ReactiveData.RList.value details_pane in
       match index_of uuid current_items with
