@@ -7,7 +7,7 @@ license: "GNU LESSER GENERAL PUBLIC LICENSE, v2.1"
 homepage: "https://github.com/talex5/cuekeeper"
 bug-reports: "https://github.com/talex5/cuekeeper/issues"
 depends: [
-  "ocaml"
+  "ocaml" {>= "4.07"}
   "sexplib" {>= "v0.13.0"}
   "uuidm"
   "irmin"
