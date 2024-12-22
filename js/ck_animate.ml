@@ -18,6 +18,10 @@ let async : (unit -> unit Lwt.t) -> unit = Lwt_js_events.async
 let clamp lo hi v =
   min (max v lo) hi
 
+let request_animation_frame f =
+  let callback = Js.wrap_callback (fun (_ : float) -> f ()) in
+  ignore (Dom_html.window##requestAnimationFrame callback : Dom_html.animation_frame_request_id)
+
 (* Fade out, then animate max-height down to zero. Can't do this with CSS because of FF bug #830056.
  * [when_complete] is called on success (but not if cancelled). *)
 let fade_out ?when_complete elem =
@@ -37,7 +41,7 @@ let fade_out ?when_complete elem =
       elem##.style##.opacity := Js.string o |> Js.Optdef.return;
       elem##.style##.maxHeight := (Js.string (string_of_int h ^ "px"));
       if h > 0 then
-        Dom_html._requestAnimationFrame (Js.wrap_callback aux)
+        request_animation_frame aux
       else 
         match when_complete with
         | None -> ()
@@ -71,7 +75,7 @@ let fade_in_move ~full_height elem =
         elem##.style##.opacity := Js.string o |> Js.Optdef.return;
         elem##.style##.maxHeight := (Js.string (string_of_int h ^ "px")) in
       if o < 1.0 then
-        Dom_html._requestAnimationFrame (Js.wrap_callback aux)
+        request_animation_frame aux
     ) in
   async (fun () -> Lwt_js.sleep fade_time >|= fun () ->
     (* By this time, we've had a chance to fill in the height of the removed item. *)
@@ -94,7 +98,7 @@ let animate_scroll_to (target_x, target_y) =
       let dy = float_of_int (target_y - start_y) *. f in
       root##.scrollLeft := start_x + truncate dx;
       root##.scrollTop := start_y + truncate dy;
-      if f < 1.0 then Dom_html._requestAnimationFrame (Js.wrap_callback aux) in
+      if f < 1.0 then request_animation_frame aux in
     aux ()
   )
 

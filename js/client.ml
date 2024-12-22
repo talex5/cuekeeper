@@ -31,7 +31,7 @@ module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)(Ck_authn_RPC)
 module T = Ck_template.Make(M)
 
 let server =
-  let use_server = Js.Unsafe.variable "ck_use_server" |> Js.to_bool in
+  let use_server = Js.Unsafe.pure_js_expr "ck_use_server" |> Js.to_bool in
   if use_server then Some (
     Js.to_string Dom_html.window##.location##.protocol ^ Js.to_string Dom_html.window##.location##.host
     |> Uri.of_string
