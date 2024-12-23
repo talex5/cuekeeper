@@ -11,12 +11,12 @@ depends: [
   "sexplib" {>= "v0.13.0"}
   "uuidm"
   "irmin"
-  "tyxml" {>= "4.3.0"}
+  "tyxml" {>= "4.6.0"}
   "reactiveData" {>= "0.2"}
-  "js_of_ocaml" {>= "3.0.0"}
+  "js_of_ocaml" {>= "4.0.0"}
   "js_of_ocaml-tyxml"
-  "omd"
-  "fmt"
+  "omd" {>= "1.2.4" & < "2.0.0~"}
+  "fmt" {>= "0.8.9" }
   "logs"
   "irmin-mem" {with-test}
   "ounit" {with-test}

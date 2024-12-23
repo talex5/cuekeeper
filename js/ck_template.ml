@@ -1200,7 +1200,7 @@ module Make (M : Ck_model_s.MODEL with type gui_data = Gui_tree_data.t) = struct
         )
       );
       true in
-    let input_box = input ~a:[a_oninput oninput; a_name "v"; a_placeholder "Add or search"; a_size 20; a_autocomplete false] () in
+    let input_box = input ~a:[a_oninput oninput; a_name "v"; a_placeholder "Add or search"; a_size 20; a_autocomplete `Off] () in
     let add adder _ev =
       match React.S.value value with
       | "" -> ()
