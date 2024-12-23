@@ -48,16 +48,14 @@ Building (without Docker)
 -------------------------
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
-It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 2.0.4).
+It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 2.2.1).
 Ensure you're using OCaml 4.07.1 (check with `ocaml -version`). If not, switch to that version:
 
     opam switch create 4.07.1
 
 Install the dependencies (`-t` includes the test dependencies too):
 
-    opam pin add -yn cuekeeper.dev .
-    opam depext -t cuekeeper
-    opam install --deps-only -t cuekeeper
+    opam install --deps-only -t .
 
 Build:
 
