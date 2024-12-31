@@ -253,7 +253,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     )
 
   let stage_merge ?base ~theirs ours =
-    Git.Commit.checkout theirs >>= fun stage ->
+    let stage = Git.Commit.checkout theirs in
     let time = Ck_time.make ~year:2000 ~month:0 ~day:1 in
     begin match base with
     | None -> Lwt.return None
@@ -297,7 +297,7 @@ module Make(Git : Git_storage_s.S) (R : Ck_rev.S with type commit = Git.Commit.t
     let msg = [
       Printf.sprintf "Revert \"%s\"" orig_summary;
       "";
-      Fmt.strf "This reverts commit %a." Irmin.Hash.SHA1.pp log_entry.Log_entry.id
+      Fmt.str "This reverts commit %a." Digestif.SHA1.pp log_entry.Log_entry.id
     ] in
     Git.Commit.parents commit >>= function
     | [] -> Lwt.return (`Error "Can't revert initial commit!")

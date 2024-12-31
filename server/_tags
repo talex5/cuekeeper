@@ -1,2 +1,0 @@
-true: strict_sequence, bin_annot, safe_string
-not (<main.*> or <static1.*>): warn(A-4-44-48-3)

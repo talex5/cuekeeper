@@ -25,7 +25,8 @@ module Clock = struct
   let sleep = Lwt_js.sleep
 end
 
-module Store = Irmin_IDB.Make(Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)
+module Store = Irmin_git.Generic(Irmin_indexeddb.Content_store)(Irmin_indexeddb.Branch_store)
+    (Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)
 module Git = Git_storage.Make(Store)
 module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)(Ck_authn_RPC)
 module T = Ck_template.Make(M)
@@ -40,7 +41,7 @@ let server =
 let start (main:#Dom.node Js.t) =
   Lwt.catch
     (fun () ->
-      let config = Irmin_IDB.config "CueKeeper" in
+      let config = Irmin_indexeddb.config "CueKeeper" in
       let task s =
         let date = Unix.time () |> Int64.of_float in
         Irmin.Info.v ~date ~author:"User" s in
@@ -61,7 +62,7 @@ let start (main:#Dom.node Js.t) =
     (fun ex ->
       let msg =
         match ex with
-        | Irmin_IDB.Format_too_old `Irmin_0_10 ->
+        | Irmin_indexeddb.Format_too_old `Irmin_0_10 ->
           "Please upgrade to CueKeeper 0.3 first. This will convert your old data to the standard Git format, \
             which is the only format the current version of CueKeeper can read."
         | _ ->

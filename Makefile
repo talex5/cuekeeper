@@ -56,8 +56,7 @@ server: server/conf/server.pem
 	dune build --profile=release ./js/client.bc.js
 	cp _build/default/js/client.bc.js _build/static/resources/js/cuekeeper.js
 	sed 's!_build/default/js/client.bc.js!resources/js/cuekeeper.js!;s!var ck_use_server=false;!var ck_use_server=true;!' test.html > _build/static/index.html
-	ocaml-crunch _build/static -e html -e js -e css -e ico -o server/static.ml -m plain
-	(cd server && mirage configure ${MIRAGE_FLAGS} && make depend && make)
+	dune build ./server/main.exe
 
 clean:
 	dune clean

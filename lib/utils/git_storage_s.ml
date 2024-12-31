@@ -7,11 +7,11 @@ type path = string list
 
 module Log_entry = struct
   module Id = struct
-    type t = Irmin.Hash.SHA1.t
+    type t = Digestif.SHA1.t
     let compare  = compare
   end
   type t = {
-    id : Irmin.Hash.SHA1.t;
+    id : Digestif.SHA1.t;
     rank : int;
     date : float;
     msg : string;
@@ -21,7 +21,7 @@ module Log_entry = struct
   let id x = x.id
   let show x = x.msg
   let equal a b =
-    a.id = b.id
+    Digestif.SHA1.equal a.id b.id
 end
 
 module Log_entry_map = Map.Make(Log_entry)
@@ -41,7 +41,7 @@ module type S = sig
   module Commit : sig
     type t
 
-    val checkout : t -> Staging.t Lwt.t
+    val checkout : t -> Staging.t
     val commit : ?parents:t list -> Staging.t -> msg:string list -> t Lwt.t
     val merge : t -> t -> [ `Conflict of string | `Ok of t ] Lwt.t
     val equal : t -> t -> bool
@@ -59,7 +59,7 @@ module type S = sig
      * into the remote repository that [tracking_branch] tracks.
      * If there is nothing to export, returns None. *)
 
-    val id : t -> Irmin.Hash.SHA1.t
+    val id : t -> Digestif.SHA1.t
   end
 
   module Branch : sig
@@ -88,10 +88,10 @@ module type S = sig
     (** Get the named branch.
      * If the branch does not exist yet, [if_new] is called to get the initial commit. *)
 
-    val branch_head : t -> branch_name -> Irmin.Hash.SHA1.t option Lwt.t
+    val branch_head : t -> branch_name -> Digestif.SHA1.t option Lwt.t
     (** Check the current head of a branch. None if the branch doesn't exist. *)
 
-    val commit : t -> Irmin.Hash.SHA1.t -> Commit.t option Lwt.t
+    val commit : t -> Digestif.SHA1.t -> Commit.t option Lwt.t
     (** Look up a commit by its hash. *)
 
     val empty : t -> Staging.t

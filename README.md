@@ -1,7 +1,7 @@
 CueKeeper
 =========
 
-Copyright Thomas Leonard, 2020
+Copyright Thomas Leonard, 2025
 
 CueKeeper is a web-based [GTD][] system (a fancy TODO list) that runs entirely in your browser (the data is stored on your computer, in your browser).
 
@@ -49,9 +49,9 @@ Building (without Docker)
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
 It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 2.2.1).
-Ensure you're using OCaml 4.07.1 (check with `ocaml -version`). If not, switch to that version:
+Ensure you're using OCaml 4.10.2 (check with `ocaml -version`). If not, switch to that version:
 
-    opam switch create 4.07.1
+    opam switch create 4.10.2
 
 Install the dependencies (`-t` includes the test dependencies too):
 
@@ -63,8 +63,8 @@ Build:
 
 Load `test.html` in a browser to test locally (no server required).
 
-Note that this defaults to "dev" mode, where the Javascript generated will be very large (about 9 MB) and not optimised.
-To get a smaller file, use `dune build --profile=release ./js/client.bc.js` (should be about 980 KB).
+Note that this defaults to "dev" mode, where the Javascript generated will be very large (about 12 MB) and not optimised.
+To get a smaller file, use `dune build --profile=release ./js/client.bc.js` (should be about 1.3 MB).
 
 
 Running a server
@@ -85,25 +85,20 @@ The `pwgen` command is useful for this:
     $ pwgen -s 32 1
     dtXZ7fQfX52VsnJNk22J6uKy8JSn6klb
 
-To avoid storing the secret in the server binary, generate its SHA256 hash:
+To avoid storing the secret itself, generate its SHA256 hash:
 
     $ echo -n dtXZ7fQfX52VsnJNk22J6uKy8JSn6klb | sha256sum
     774400f3384a6f37cc2bc54b2fd0280193b613a5bc401c0e54fd17fe4ec19572
 
-Copy the file `server/devices.ml.example` as `server/devices.ml` and add the hash
-you generated above, e.g.:
+Create a `devices` file with the hash(es) you generated above, e.g.:
 
-    let lookup = function
-      | "774400f3384a6f37cc2bc54b2fd0280193b613a5bc401c0e54fd17fe4ec19572" -> Some "Laptop"
-      | _ -> None
+    774400f3384a6f37cc2bc54b2fd0280193b613a5bc401c0e54fd17fe4ec19572 Laptop
 
 The string at the end ("Laptop") is just used for logging.
 You can generate a different access token for each device you want to sync and list them all here, one per line.
-Make sure the `None` line comes last - this rejects all unknown tokens.
 
 To build the server component:
 
-    opam pin mirage 3.7.3
     make server
 
 You will be prompted to create a self-signed X.509 certificate. Just enter your server's hostname
@@ -111,9 +106,9 @@ as the "Common Name" (for testing, you could use "localhost" here and generate a
 
 To run the server:
 
-    ./server/cuekeeper
+    dune exec -- cuekeeper --devices=./devices
 
-By default the server listens on TCP port 8443, but this can be changed by editing `server/unikernel.ml`.
+By default the server listens on TCP port 8443, but this can be changed by editing `server/main.ml`.
 
 Open the URL in a browser, e.g.
 
@@ -138,15 +133,6 @@ In Chrome:
 
 Finally, you should be prompted for your access key.
 Paste in the token you generated above (e.g. `dtXZ7fQfX52VsnJNk22J6uKy8JSn6klb` in the example above - *not* the hash).
-
-Deploying as a Xen VM
----------------------
-
-In fact, the server is a [Mirage unikernel][mirage] and can also be compiled and booted as a Xen virtual machine:
-
-    make server MIRAGE_FLAGS="-t xen"
-    cd server
-    xl create -c cuekeeper.xl
 
 
 Bugs

@@ -53,7 +53,7 @@ module Make(Clock : Ck_clock.S)
   let fetch ~base ~server_branch =
     let path =
       match React.S.value (Git.Branch.head server_branch) with
-      | Some last_known -> "fetch/" ^ Fmt.to_to_string Irmin.Hash.SHA1.pp (Git.Commit.id last_known)
+      | Some last_known -> "fetch/" ^ Digestif.SHA1.to_hex (Git.Commit.id last_known)
       | None -> "fetch" in
     get ~base path >>!= function
     | "" ->
