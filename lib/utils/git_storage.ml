@@ -139,7 +139,7 @@ module Make (I : Irmin.S
         items |> Lwt_list.iter_s @@ function
         | step, `Contents ->
           I.Tree.get tree [step] >>= fun data ->
-          let header = T.Header.make
+          let header = Tar.Header.make
               ~file_mode:0o644
               (String.concat "/" (path @ [step])) (String.length data |> Int64.of_int) in
           let write b = Buffer.add_string b data in
