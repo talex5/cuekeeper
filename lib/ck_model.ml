@@ -195,7 +195,7 @@ module Make(Clock : Ck_clock.S)
     mutable review_mode : review_mode;
     hidden_areas : Ck_id.S.t ref;   (* Filter in Work tab *)
     client : Client.t option;
-    server_head : Irmin.Hash.SHA1.t option React.S.t;
+    server_head : Digestif.SHA1.t option React.S.t;
   }
 
   module X : sig
@@ -942,7 +942,7 @@ module Make(Clock : Ck_clock.S)
                       Ck_disk_node.to_string a end
               | _ -> assert false
             ) else value in
-          let key = Irmin.Path.String_list.of_string path |> or_fail "invalid path" in
+          let key = Irmin.Type.of_string Irmin.Path.String_list.t path |> or_fail "invalid path" in
           Git.Staging.update staging key value
     ) >>= fun () ->
     Git.Commit.commit staging ~msg:["Initialise repository"] >|= fun commit ->

@@ -6,7 +6,7 @@
 module Make (I : Irmin.S
              with type key = string list
               and type contents = string
-              and type Commit.Hash.t = Irmin.Hash.SHA1.t
+              and type hash = Digestif.SHA1.t
               and type branch = string
               and type step = string) : sig
   include Git_storage_s.S

@@ -1,6 +1,0 @@
-(* Copy this file as devices.ml and add hash of access token.
-   See the README.md for details. *)
-
-let lookup = function
-  | "PUT SHA256 OF ACCESS TOKEN HERE" -> Some "Laptop"
-  | _ -> None

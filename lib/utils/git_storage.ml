@@ -21,10 +21,10 @@ module T = Tar.Make(IO)
 module Make (I : Irmin.S
              with type key = string list
               and type contents = string
-              and type Commit.Hash.t = Irmin.Hash.SHA1.t
+              and type hash = Digestif.SHA1.t
               and type branch = string
               and type step = string) = struct
-  let bundle_t = Irmin.Type.pair I.Private.Slice.t I.Commit.Hash.t
+  let bundle_t = Irmin.Type.pair I.Private.Slice.t I.Hash.t
 
   type repo = {
     r : I.Repo.t;
@@ -62,7 +62,7 @@ module Make (I : Irmin.S
       commit : I.Commit.t;
     }
 
-    type id = I.Commit.Hash.t
+    type id = I.Hash.t
 
     let v repo commit = { repo; commit }
 
@@ -72,15 +72,15 @@ module Make (I : Irmin.S
       id a = id b
 
     let checkout t =
-      I.Commit.tree t.commit >|= fun tree ->
+      let tree = I.Commit.tree t.commit in
       Staging.create t.repo ~parents:[t.commit] ~tree
 
     let commit ?parents staging ~msg =
       let repo = staging.Staging.repo in
       let parents =
         match parents with
-        | Some parents -> List.map (fun t -> t.commit) parents
-        | None -> staging.Staging.parents
+        | Some parents -> List.map (fun t -> I.Commit.hash t.commit) parents
+        | None -> List.map I.Commit.hash staging.Staging.parents
       in
       let info =
         match msg with
@@ -149,13 +149,13 @@ module Make (I : Irmin.S
           I.Tree.get_tree tree [step] >>= scan ~path:(path @ [step])
       in
       (* Cannot use [I.Tree.to_concrete] here due to https://github.com/mirage/irmin/pull/525 *)
-      I.Commit.tree t.commit >>= fun root ->
+      let root = I.Commit.tree t.commit in
       scan ~path:[] root >|= fun () ->
       T.Archive.create_gen (Stream.of_list !files) buf;
       Buffer.contents buf
 
     let bundle_create t ~basis =
-      I.Repo.export t.repo.r ~min:basis ~max:[t.commit] >|= fun slice ->
+      I.Repo.export t.repo.r ~min:basis ~max:(`Max [t.commit]) >|= fun slice ->
       let b = Buffer.create 10240 in
       let encoder = Jsonm.encoder ~minify:true (`Buffer b) in
       Irmin.Type.encode_json bundle_t encoder (slice, I.Commit.hash t.commit);
@@ -164,9 +164,9 @@ module Make (I : Irmin.S
 
     let bundle ~tracking_branch t =
       let equal c1 c2 =
-        Cstruct.equal
-          (I.Commit.Hash.to_raw (I.Commit.hash c1))
-          (I.Commit.Hash.to_raw (I.Commit.hash c2))
+        Irmin.Type.equal I.Hash.t
+          (I.Commit.hash c1)
+          (I.Commit.hash c2)
       in
       I.of_branch t.repo.r tracking_branch >>= fun tracking_branch ->
       I.Head.find tracking_branch >>= function
@@ -175,7 +175,11 @@ module Make (I : Irmin.S
       | None -> bundle_create t ~basis:[]
 
     let parents t =
-      I.Commit.parents t.commit >|= List.map (fun commit -> {t with commit})
+      I.Commit.parents t.commit |> Lwt_list.map_s (fun hash ->
+          I.Commit.of_hash t.repo.r hash >|= function
+          | Some commit -> {t with commit}
+          | None -> assert false
+        )
 
     let info t =
       I.Commit.info t.commit
@@ -258,7 +262,7 @@ module Make (I : Irmin.S
       let repo = tracking_branch.repo in
       let decoder = Jsonm.decoder (`String bundle) in
       match Irmin.Type.decode_json bundle_t decoder with
-      | Error (`Msg m) -> Lwt.return (`Error (Fmt.strf "Failed to decode slice JSON: %s" m))
+      | Error (`Msg m) -> Lwt.return (`Error (Fmt.str "Failed to decode slice JSON: %s" m))
       | Ok (slice, head) ->
         (* Check whether we already have [head]. *)
         begin
@@ -267,7 +271,7 @@ module Make (I : Irmin.S
           | None ->
             (* If not, import the slice *)
             I.Repo.import tracking_branch.repo.r slice >>= function
-            | Error (`Msg m) -> Lwt_result.fail (Fmt.strf "Failed to import slice: %s" m)
+            | Error (`Msg m) -> Lwt_result.fail (Fmt.str "Failed to import slice: %s" m)
             | Ok () ->
               I.Commit.of_hash repo.r head >>= function
               | Some commit -> Lwt_result.return commit

@@ -170,7 +170,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
    * Returns only once [on_update] has been run for the new revision. *)
   let merge_to_master t ~base ~msg fn =
     let base_commit = R.commit base in
-    Git.Commit.checkout base_commit >>= fun view ->
+    let view = Git.Commit.checkout base_commit in
     fn view >>= fun result ->
     Git.Commit.commit ~msg:[msg] view >>= fun pull_rq ->
     let rec aux () =

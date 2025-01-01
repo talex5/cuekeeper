@@ -9,8 +9,9 @@ module Mem () : Irmin.S
    and type step = string
    and type contents = string
    and type branch = string
-   and type Commit.Hash.t = Irmin.Hash.SHA1.t
-  = Irmin_mem.Make(Irmin.Metadata.None)(Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)(Irmin.Hash.SHA1)
+   and type hash = Digestif.SHA1.t
+  = Irmin_mem.Make(Irmin.Metadata.None)(Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)
+    (Irmin.Hash.Make(Digestif.SHA1))
 
 module StringList = OUnitDiff.ListSimpleMake(struct
   type t = string
@@ -123,7 +124,7 @@ module Test_repo
     (Store : Irmin.S with type key = string list
                       and type contents = string
                       and type branch = string
-                      and type Commit.Hash.t = Irmin.Hash.SHA1.t
+                      and type hash = Digestif.SHA1.t
                       and type step = string)
     (Test_rpc:Ck_sigs.RPC) = struct
   module Git = Git_storage.Make(Store)
@@ -144,8 +145,8 @@ module Test_repo
     >|= List.map (fun s -> path @ [s])
 
   let assert_git_tree_equals ~msg expected actual =
-    Git.Commit.checkout expected >>= fun expected ->
-    Git.Commit.checkout actual >>= fun actual ->
+    let expected = Git.Commit.checkout expected in
+    let actual = Git.Commit.checkout actual in
     let rec check path =
       filter_list expected path >>= fun e_paths ->
       filter_list actual path >>= fun a_paths ->
@@ -949,7 +950,7 @@ let suite =
                 ) >>= assert_git_tree_equals ~msg:"theirs+base" theirs >>= fun () ->
 
                 (* Add an extra commit on theirs to force it to try the trivial merge *)
-                Git.Commit.checkout base >>= fun s ->
+                let s = Git.Commit.checkout base in
                 Git.Commit.commit s ~msg:["empty commit"] >>= fun base2 ->
                 Merge.merge ~base ~theirs:base2 ours >>= (function
                 | `Nothing_to_do -> Lwt.return base2
@@ -980,8 +981,9 @@ let suite =
         (* Start the server *)
         Server_store.Repo.v config >>= fun server_repo ->
         Server_store.master server_repo >>= fun server_store ->
-        let get_db () = `Ok server_store in (* (no access control for testing) *)
-        let s = Net.Server.make ~callback:(Server.handle_request get_db) () in
+        let get_db () = Ok server_store in (* (no access control for testing) *)
+        let server = Server.make ~static_files:"/notused" in
+        let s = Net.Server.make ~callback:(Server.handle_request server get_db) () in
         let accept ~ic ~oc =
           Lwt.async (fun () -> Net.Server.callback s () ic oc) in
         Net.listener := accept;

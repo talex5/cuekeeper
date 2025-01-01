@@ -255,7 +255,7 @@ module Make(Git : Git_storage_s.S) = struct
           bug "Unknown repository format version '%s' (expected 0.1) - please upgrade CueKeeper" v
 
   let make_no_cache ~time commit =
-    Git.Commit.checkout commit >>= fun tree ->
+    let tree = Git.Commit.checkout commit in
     let contacts = ref Ck_id.M.empty in
     let contexts = ref Ck_id.M.empty in
     let children = Hashtbl.create 100 in

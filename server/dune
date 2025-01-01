@@ -1,0 +1,4 @@
+(executable
+  (name main)
+  (public_name cuekeeper)
+  (libraries lwt.unix cohttp-lwt-unix irmin-git irmin-mem logs.fmt re cmdliner))
