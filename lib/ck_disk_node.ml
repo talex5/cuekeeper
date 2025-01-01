@@ -323,7 +323,7 @@ let merge_contact ?base ~theirs ours =
   )
 
 let with_conflict msg node = node |> map_details (fun d -> {d with conflicts = msg :: d.conflicts})
-let with_conflict : string -> ([< generic] as 'a) -> 'a = Obj.magic with_conflict
+let with_conflict : 'a. string -> ([< generic] as 'a) -> 'a = fun msg node -> Obj.magic (with_conflict msg node)
 
 let without_conflicts node = node |> map_details (fun d -> {d with conflicts = []})
-let without_conflicts : ([< generic] as 'a) -> 'a = Obj.magic without_conflicts
+let without_conflicts : 'a. ([< generic] as 'a) -> 'a = fun node -> Obj.magic (without_conflicts node)
