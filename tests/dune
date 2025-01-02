@@ -1,7 +1,4 @@
-(executable
+(test
  (name test)
+ (modes byte)
  (libraries cuekeeper lwt.unix oUnit irmin fmt.tty logs.fmt irmin.mem cohttp-lwt-unix))
-
-(alias
- (name   runtest)
- (action (run ./test.bc)))
