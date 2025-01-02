@@ -66,7 +66,7 @@ module Make (Store:Irmin.S with type branch = string and type hash = Digestif.SH
     List.filter (fun e -> e <> "")
       (aux (Re.Str.(split_delim (regexp_string "/") path)))
 
-  let hash_equal = Irmin.Type.equal Store.Hash.t
+  let hash_equal = Irmin.Type.unstage (Irmin.Type.equal Store.Hash.t)
 
   (* Import bundle from client into store. *)
   let accept_push s body =

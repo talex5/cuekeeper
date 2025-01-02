@@ -132,25 +132,20 @@ module Make (I : Irmin.S
       | Error (`Conflict _ as c) -> Lwt.return c
 
     let export_tar t =
+      I.Commit.tree t.commit |> I.Tree.to_concrete >|= fun root ->
       let buf = Buffer.create 10240 in
       let files = ref [] in
-      let rec scan ~path tree =
-        I.Tree.list tree [] >>= fun items ->
-        items |> Lwt_list.iter_s @@ function
-        | step, `Contents ->
-          I.Tree.get tree [step] >>= fun data ->
+      let rec scan ~path = function
+        | `Contents (data, _metadata) ->
           let header = Tar.Header.make
               ~file_mode:0o644
-              (String.concat "/" (path @ [step])) (String.length data |> Int64.of_int) in
+              (String.concat "/" path) (String.length data |> Int64.of_int) in
           let write b = Buffer.add_string b data in
-          files := (header, write) :: !files;
-          Lwt.return_unit
-        | step, `Node ->
-          I.Tree.get_tree tree [step] >>= scan ~path:(path @ [step])
+          files := (header, write) :: !files
+        | `Tree items ->
+          List.iter (fun (step, item) -> scan ~path:(path @ [step]) item) items
       in
-      (* Cannot use [I.Tree.to_concrete] here due to https://github.com/mirage/irmin/pull/525 *)
-      let root = I.Commit.tree t.commit in
-      scan ~path:[] root >|= fun () ->
+      scan ~path:[] root;
       T.Archive.create_gen (Stream.of_list !files) buf;
       Buffer.contents buf
 
@@ -162,9 +157,11 @@ module Make (I : Irmin.S
       ignore @@ Jsonm.encode encoder `End;
       Some (Buffer.contents b)
 
+    let hash_equal = Irmin.Type.(unstage (equal I.Hash.t))
+
     let bundle ~tracking_branch t =
       let equal c1 c2 =
-        Irmin.Type.equal I.Hash.t
+        hash_equal
           (I.Commit.hash c1)
           (I.Commit.hash c2)
       in
@@ -219,20 +216,20 @@ module Make (I : Irmin.S
               | false ->
                 Printf.eprintf "Warning: Concurrent attempt to initialise new branch; discarding our attempt\n%!";
                 I.Head.get store >|= fun commit -> Some (Commit.v repo commit)
-      ) >>= fun initial_head ->
+        ) >>= fun initial_head ->
       let initial_head_commit = initial_head |> option_map (fun x -> x.Commit.commit) in
       let initial_head_id = initial_head |> option_map Commit.id in
       let head_id = ref initial_head_id in
       let head, set_head = React.S.create ~eq:opt_commit_equal initial_head in
       I.watch store ?init:initial_head_commit (fun _diff ->
-        (* (ignore the commit ID in the update message; we want the latest) *)
-        I.Head.find store >|= fun new_head ->
-        let new_head_id = option_map I.Commit.hash new_head in
-        if new_head_id <> !head_id then (
-          head_id := new_head_id;
-          new_head |> option_map (Commit.v repo) |> set_head
-        )
-      ) >>= fun watch ->
+          (* (ignore the commit ID in the update message; we want the latest) *)
+          I.Head.find store >|= fun new_head ->
+          let new_head_id = option_map I.Commit.hash new_head in
+          if new_head_id <> !head_id then (
+            head_id := new_head_id;
+            new_head |> option_map (Commit.v repo) |> set_head
+          )
+        ) >>= fun watch ->
       Lwt.return {
         repo;
         store;
@@ -254,9 +251,9 @@ module Make (I : Irmin.S
     let force t = function
       | Some commit -> I.Head.set t.store commit.Commit.commit
       | None ->
-          match I.status t.store with
-          | `Empty | `Commit _ -> assert false
-          | `Branch branch_name -> I.Branch.remove t.repo.r branch_name
+        match I.status t.store with
+        | `Empty | `Commit _ -> assert false
+        | `Branch branch_name -> I.Branch.remove t.repo.r branch_name
 
     let fetch_bundle tracking_branch bundle =
       let repo = tracking_branch.repo in
@@ -299,7 +296,7 @@ module Make (I : Irmin.S
       I.Commit.of_hash t.r id >|= option_map (Commit.v t)
 
     let empty t =
-      Staging.create t ~parents:[] ~tree:I.Tree.empty
+      Staging.create t ~parents:[] ~tree:(I.Tree.empty ())
   end
 
   let make r info_maker = {r; info_maker}
