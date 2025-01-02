@@ -10,6 +10,9 @@ MIRAGE_FLAGS = -t unix
 
 .PHONY: test client server
 
+all:
+	dune build ./js/client.bc.js @runtest @install
+
 client-test:
 	dune build ./js/client.bc.js @runtest
 

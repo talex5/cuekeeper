@@ -25,7 +25,7 @@ module Clock = struct
   let sleep = Lwt_js.sleep
 end
 
-module Store = Irmin_git.Generic(Irmin_indexeddb.Content_store)(Irmin_indexeddb.Branch_store)
+module Store = Irmin_git.Generic(Irmin_indexeddb.Content_store_git)(Irmin_indexeddb.Branch_store)
     (Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)
 module Git = Git_storage.Make(Store)
 module M = Ck_model.Make(Clock)(Git)(Ck_template.Gui_tree_data)(Ck_authn_RPC)

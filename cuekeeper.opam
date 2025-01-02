@@ -9,8 +9,8 @@ bug-reports: "https://github.com/talex5/cuekeeper/issues"
 depends: [
   "ocaml" {>= "4.08" & < "4.14"}
   "sexplib" {>= "v0.13.0"}
-  "uuidm"
-  "irmin" {>= "2.2.0"}
+  "uuidm" {>= "0.9.7"}
+  "irmin" {>= "2.10.0"}
   "irmin-git"
   "git" {>= "2.1.3"}
   "tyxml" {>= "4.6.0"}
@@ -20,23 +20,23 @@ depends: [
   "omd" {>= "1.2.4" & < "2.0.0~"}
   "fmt" {>= "0.8.9"}
   "logs"
-  "irmin-mem" {with-test}
   "ounit" {with-test}
   "tar" {>= "2.0.0" & < "3.0.0"}
   "cohttp" {>= "2.5.0" & < "3.0.0"}
   "cohttp-lwt-unix" {< "3.0.0"}
   "cohttp-lwt-jsoo"
-  "irmin-indexeddb" {>= "2.0"}
+  "irmin-indexeddb" {>= "2.6"}
   "crunch" {build}
   "ppx_sexp_conv"
   "lwt"
   "tls" {>= "0.15.0" & < "1.0.0"}
   "cstruct" {>= "4.0.0"}
   "ppx_deriving"
+  "cmdliner" {>= "1.3.0"}
   "dune" {>= "1.11.0"}
 ]
 pin-depends: [
-  ["irmin-git.2.2.0" "git+https://github.com/talex5/irmin.git#df383cc0fd81be346e1c8ee683615d394817001b"]
+  ["irmin-indexeddb.2.6.0" "git+https://github.com/talex5/irmin-indexeddb.git#b92cc751bc70d04c0447fab8cac259f36b2fd769"]
 ]
 build: [
   [make "client"]

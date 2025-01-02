@@ -8,37 +8,26 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let port = 8443
 
-module Sync_none = struct
+module No_sync (G : Git.S) = struct
+  (* We don't use Git's sync, but it requires us to provide this module anyway.
+     From [Irmin_git], but not exposed. *)
 
-  (* We don't use Git's sync, but it requires us to provide this module anyway. *)
-  module Endpoint = struct
-    type t = |
-    let uri _ = assert false
-  end
+  type hash = G.hash
+  type store = G.t
 
-  module Store = Irmin_git.Mem
-      
-  type error = |
-  type command = [
-    | `Create of Store.Hash.t * Store.Reference.t
-    | `Delete of Store.Hash.t * Store.Reference.t
-    | `Update of Store.Hash.t * Store.Hash.t * Store.Reference.t
-  ]
-  let pp_update_and_create _ = assert false
-  let update_and_create _ = assert false
-  let clone _ = assert false
-  let fetch _ = assert false
-  let fetch_one _ = assert false
-  let pp_fetch_one _ = assert false
-  let pp_command _ = assert false
-  let fetch_all _ = assert false
-  let fetch_some _ = assert false
-  let ls _ = assert false
-  let push _ = assert false
-  let pp_error _ = assert false
+  type error =
+    [ `Not_found | `Msg of string | `Exn of exn | `Cycle | `Invalid_flow ]
+
+  let pp_error _ _ = assert false
+
+  let fetch ?push_stdout:_ ?push_stderr:_ ?threads:_ ~ctx:_ _ _ ?version:_
+      ?capabilities:_ ?deepen:_ _ =
+    assert false
+
+  let push ~ctx:_ _ _ ?version:_ ?capabilities:_ _ = assert false
 end
 
-module Store = Irmin_git.Make(Irmin_git.Mem)(Sync_none)
+module Store = Irmin_git.Make(Irmin_git.Mem)(No_sync(Irmin_git.Mem))
     (Irmin.Contents.String)(Irmin.Path.String_list)(Irmin.Branch.String)
 
 module Http_server = Cohttp_lwt_unix.Server
@@ -104,4 +93,5 @@ let cmd = Term.const main $ devices $ static_files $ tls_config
 let () =
   Logs.set_level (Some Info);
   Logs.set_reporter (Logs_fmt.reporter ());
-  Term.exit @@ Term.eval (cmd, Term.info "cuekeeper")
+  let info = Cmd.info "cuekeeper" in
+  exit (Cmd.eval @@ Cmd.v info cmd)
