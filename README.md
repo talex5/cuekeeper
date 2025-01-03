@@ -49,9 +49,9 @@ Building (without Docker)
 
 You'll need the [opam](http://opam.ocaml.org/) package manager.
 It should be available through your distribution, but you can use a [generic opam binary](http://tools.ocaml.org/opam.xml) if it's missing or too old (I use opam 2.2.1).
-Ensure you're using OCaml 4.10.2 (check with `ocaml -version`). If not, switch to that version:
+Ensure you're using OCaml 4.14.2 (check with `ocaml -version`). If not, switch to that version:
 
-    opam switch create 4.10.2
+    opam switch create 4.14.2
 
 Install the dependencies (`-t` includes the test dependencies too):
 

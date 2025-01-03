@@ -1,9 +1,0 @@
-language: c
-script:
-  - echo 'COPY --chown=opam . .' >> Dockerfile
-  - echo 'RUN opam config exec -- make' >> Dockerfile
-  - docker build .
-sudo: required
-dist: trusty
-services:
-  - docker
