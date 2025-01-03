@@ -6,7 +6,7 @@
 open Lwt.Infix
 open Js_of_ocaml
 
-module XHR = Cohttp_lwt_xhr.Client
+module XHR = Cohttp_lwt_jsoo.Client
 
 let storage =
   lazy (
