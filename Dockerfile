@@ -1,5 +1,5 @@
-FROM ocaml/opam:debian-12-ocaml-4.10@sha256:0bfba59a888af2a366cdb92a1fa7906446f062d8d38a95050f730a3aa0c5acea
-#FROM ocurrent/opam:debian-12-ocaml-4.10
+FROM ocaml/opam:debian-12-ocaml-4.14@sha256:bc657956e4dfb5cd9b822594dfd894b293c7068aa69b6f0a5ad31638a02890bf
+#FROM ocurrent/opam:debian-12-ocaml-4.14
 # Make sure we're using opam-2.3:
 RUN sudo ln -sf /usr/bin/opam-2.3 /usr/bin/opam && opam option solver=builtin-0install
 RUN mkdir /home/opam/cuekeeper

@@ -3,7 +3,7 @@
 (library
  (wrapped false)
  (preprocess (pps ppx_sexp_conv))
- (libraries sexplib lwt react reactiveData uuidm cohttp cohttp-lwt irmin tar)
+ (libraries sexplib lwt react reactiveData uuidm cohttp cohttp-lwt irmin tar unix)
  (name cuekeeper))
 
 (data_only_dirs init)
