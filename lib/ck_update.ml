@@ -32,6 +32,7 @@ module Make(Git : Git_storage_s.S) (Clock : Ck_clock.S) (R : Ck_rev.S with type 
     Lwt.cancel (t.alarm);
     match R.expires t.head with
     | None -> ()
+    | Some _ when t.fixed_head <> None -> () (* Pointless in time-travel mode *)
     | Some date ->
         let time = Ck_time.unix_time_of date in
         let delay = min max_sleep_time (time -. Clock.now ()) in
