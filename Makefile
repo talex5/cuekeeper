@@ -42,7 +42,7 @@ docker-build:
 
 server/conf/server.key:
 	@echo Generating server key...
-	[ -d server/conf] || mkdir -p server/conf
+	mkdir -p server/conf
 	openssl genpkey -out $@ -outform PEM -algorithm RSA -pkeyopt rsa_keygen_bits:4096
 
 server/conf/server.pem: server/conf/server.key
