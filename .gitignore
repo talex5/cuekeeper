@@ -2,3 +2,4 @@ _build
 .merlin
 cuekeeper-bin-*
 cuekeeper-bin-*.zip
+/result

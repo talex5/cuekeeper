@@ -40,6 +40,7 @@ pin-depends: [
 ]
 build: [
   [make "client"]
+  [make "server"]
   [make "test"] {with-test}
   [make "slow_test"] {with-test}
 ]
