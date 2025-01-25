@@ -52,7 +52,7 @@ server/conf/server.pem: server/conf/server.key
 	@echo
 	@openssl req -new -x509 -key $< -out $@ -days 10000
 
-server: server/conf/server.pem
+server:
 	rm -rf _build/static
 	mkdir -p _build/static
 	cp -r resources _build/static/

@@ -1,0 +1,9 @@
+#!/bin/sh
+
+data=$(dirname "$(dirname "$(realpath "$0")")")
+
+exec \
+	"$data/build/default/server/main.exe" \
+	--static-files "$data/build/static" \
+	"$@" \
+;
